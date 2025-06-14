@@ -1,0 +1,117 @@
+# 前端忽略项
+# 依赖
+frontend/node_modules
+frontend/.pnpm-store
+frontend/.pnp
+frontend/.pnp.js
+
+# 构建输出
+frontend/dist
+frontend/dist-ssr
+frontend/build
+
+# 本地环境文件
+frontend/.env
+frontend/.env.local
+frontend/.env.*.local
+frontend/.env.development
+frontend/.env.test
+frontend/.env.production
+
+# 日志文件
+frontend/npm-debug.log*
+frontend/yarn-debug.log*
+frontend/yarn-error.log*
+frontend/pnpm-debug.log*
+frontend/logs
+frontend/*.log
+
+# 编辑器目录和文件
+frontend/.vscode/*
+frontend/!.vscode/extensions.json
+frontend/.idea
+frontend/*.suo
+frontend/*.ntvs*
+frontend/*.njsproj
+frontend/*.sln
+frontend/*.sw?
+
+# 后端忽略项
+# Python缓存文件
+backend/**/__pycache__/
+backend/**/*.py[cod]
+backend/**/*$py.class
+backend/**/*.so
+backend/**/.Python
+
+# 虚拟环境
+venv/
+env/
+ENV/
+.env
+.venv
+backend/env/
+backend/venv/
+
+# 数据库
+backend/*.sqlite3
+backend/db.sqlite3
+backend/db.sqlite3-journal
+
+# 媒体和静态文件 (可在生产环境中收集)
+backend/media/
+backend/static/
+backend/staticfiles/
+
+# Django相关
+backend/*.log
+backend/local_settings.py
+backend/django_cache/
+
+# 测试覆盖率
+backend/.coverage
+backend/htmlcov/
+backend/.pytest_cache/
+backend/coverage.xml
+backend/*.cover
+
+# 其他
+.DS_Store
+.AppleDouble
+.LSOverride
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+*.bak
+*.tmp
+*.swp
+*~
+
+# IDE相关
+.idea/
+.vscode/
+*.sublime-project
+*.sublime-workspace
+.project
+.pydevproject
+.spyderproject
+.spyproject
+.ropeproject
+
+# 其他临时文件
+*.log
+logs/
+temp/
+tmp/
+
+# 本地安装文件
+*.egg-info/
+.installed.cfg
+*.egg
+
+# 项目特定文件
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local 
