@@ -26,6 +26,20 @@ const router = createRouter({
       component: LoginView,
       meta: { requiresAuth: false }
     },
+    // 系统管理 - 角色管理
+    {
+      path: '/roles',
+      name: 'roles',
+      component: () => import('../views/system/RolesView.vue'),
+      meta: { requiresAuth: true, requiredRole: 'admin' }
+    },
+    // 系统管理 - 权限管理
+    {
+      path: '/permissions',
+      name: 'permissions',
+      component: () => import('../views/system/PermissionsView.vue'),
+      meta: { requiresAuth: true, requiredRole: 'admin' }
+    },
     // 将其他未匹配路由重定向到首页
     {
       path: '/:pathMatch(.*)*',
@@ -42,7 +56,17 @@ router.beforeEach((to, from, next) => {
     const token = localStorage.getItem('token')
     
     if (token) {
-      next() // 已登录，允许访问
+      // 检查是否需要特定角色
+      if (to.meta.requiredRole) {
+        const userData = JSON.parse(localStorage.getItem('user') || '{}')
+        if (userData?.role === to.meta.requiredRole || userData?.role === 'admin') {
+          next() // 有权限，放行
+        } else {
+          next('/') // 权限不足，转到首页
+        }
+      } else {
+        next() // 已登录，允许访问
+      }
     } else {
       // 未登录，重定向到登录页
       next({ 

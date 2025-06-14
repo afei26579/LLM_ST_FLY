@@ -2,7 +2,7 @@
 import { RouterView } from 'vue-router'
 import { onMounted } from 'vue'
 import { useAuthStore } from './stores/auth'
-import AppHeader from './components/AppHeader.vue'
+import SideNav from './components/SideNav.vue'
 
 const authStore = useAuthStore()
 
@@ -17,11 +17,11 @@ onMounted(async () => {
 </script>
 
 <template>
-  <!-- 使用我们的自定义头部组件 -->
-  <AppHeader v-if="authStore.isAuthenticated" />
+  <!-- 使用侧边栏导航 -->
+  <SideNav v-if="authStore.isAuthenticated" />
 
   <!-- 路由视图 -->
-  <div class="main-container" :class="{ 'with-header': authStore.isAuthenticated }">
+  <div class="main-container" :class="{ 'with-sidebar': authStore.isAuthenticated }">
     <RouterView />
   </div>
 </template>
@@ -40,16 +40,25 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   color: #333;
-  background-color: #f5f5f5;
+  background-color: #f7f9fc;
   line-height: 1.5;
+  overflow-x: hidden;
 }
 
 .main-container {
   height: 100vh;
+  width: 100%;
+  position: relative;
 }
 
-.main-container.with-header {
-  height: calc(100vh - 60px);
-  padding-top: 60px;
+.main-container.with-sidebar {
+  padding-left: 250px;
+  transition: padding-left 0.3s ease;
+}
+
+@media (max-width: 768px) {
+  .main-container.with-sidebar {
+    padding-left: 70px;
+  }
 }
 </style>
