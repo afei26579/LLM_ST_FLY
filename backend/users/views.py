@@ -5,6 +5,8 @@ from rest_framework.response import Response
 from rest_framework.decorators import action
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework.views import APIView
+from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiExample, OpenApiResponse
+from rest_framework import serializers
 
 from .serializers import (
     UserSerializer, UserProfileSerializer, LoginSerializer,
@@ -15,6 +17,41 @@ from .permissions import IsAdminUser, IsStaffOrAdmin, IsSelfOrAdmin
 User = get_user_model()
 
 
+@extend_schema(
+    tags=['认证'],
+    description='用户登录API',
+    responses={
+        200: OpenApiResponse(description='登录成功，返回用户信息和JWT令牌'),
+        400: OpenApiResponse(description='请求参数错误，缺少必要字段'),
+        401: OpenApiResponse(description='认证失败，账号或密码错误'),
+    },
+    examples=[
+        OpenApiExample(
+            'Login Example',
+            value={
+                'username': 'admin',
+                'password': 'password123'
+            },
+            request_only=True,
+        ),
+        OpenApiExample(
+            'Success Response Example',
+            value={
+                'user': {
+                    'id': 1,
+                    'username': 'admin',
+                    'email': 'admin@example.com',
+                    'role': 'admin'
+                },
+                'token': {
+                    'refresh': 'eyJ0eXAiO...', 
+                    'access': 'eyJ0eXAiO...'
+                }
+            },
+            response_only=True,
+        )
+    ]
+)
 class LoginView(APIView):
     """
     用户登录视图
@@ -23,23 +60,44 @@ class LoginView(APIView):
     serializer_class = LoginSerializer
     
     def post(self, request, *args, **kwargs):
-        serializer = self.serializer_class(data=request.data,
-                                          context={'request': request})
-        serializer.is_valid(raise_exception=True)
-        user = serializer.validated_data['user']
-        
-        # 创建JWT令牌
-        refresh = RefreshToken.for_user(user)
-        
-        return Response({
-            'user': UserSerializer(user).data,
-            'token': {
-                'refresh': str(refresh),
-                'access': str(refresh.access_token),
-            }
-        })
+        try:
+            serializer = self.serializer_class(data=request.data,
+                                            context={'request': request})
+            serializer.is_valid(raise_exception=True)
+            user = serializer.validated_data['user']
+            
+            # 创建JWT令牌
+            refresh = RefreshToken.for_user(user)
+            
+            return Response({
+                'user': UserSerializer(user).data,
+                'token': {
+                    'refresh': str(refresh),
+                    'access': str(refresh.access_token),
+                }
+            })
+        except serializers.ValidationError as e:
+            # 区分不同类型的错误
+            if 'param_error' in e.detail:
+                # 参数错误返回400
+                return Response(
+                    {'message': e.detail['param_error']}, 
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            elif 'auth_error' in e.detail:
+                # 认证错误返回401
+                return Response(
+                    {'message': e.detail['auth_error']}, 
+                    status=status.HTTP_401_UNAUTHORIZED
+                )
+            # 其他验证错误
+            return Response(
+                {'message': '登录失败', 'errors': e.detail},
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
 
+@extend_schema(tags=['用户管理'])
 class UserViewSet(viewsets.ModelViewSet):
     """
     用户管理视图集
@@ -69,6 +127,11 @@ class UserViewSet(viewsets.ModelViewSet):
             return UserProfileSerializer
         return self.serializer_class
     
+    @extend_schema(
+        summary="获取当前用户信息",
+        description="返回当前登录用户的详细信息",
+        responses={200: UserProfileSerializer}
+    )
     @action(detail=False, methods=['get'], url_path='me')
     def me(self, request):
         """
@@ -93,6 +156,14 @@ class UserViewSet(viewsets.ModelViewSet):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
+@extend_schema(
+    tags=['认证'],
+    description='用户注册API',
+    responses={
+        201: OpenApiResponse(description='注册成功，返回用户信息和JWT令牌'),
+        400: OpenApiResponse(description='注册失败，提供的信息无效'),
+    }
+)
 class RegisterView(generics.CreateAPIView):
     """
     用户注册视图

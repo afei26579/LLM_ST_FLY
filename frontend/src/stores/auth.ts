@@ -11,6 +11,13 @@ interface UserInfo {
   permissions?: string[]
 }
 
+// Token接口
+interface TokenData {
+  access?: string
+  refresh?: string
+  [key: string]: any
+}
+
 // 定义认证状态管理 store
 export const useAuthStore = defineStore('auth', () => {
   // 状态
@@ -51,9 +58,25 @@ export const useAuthStore = defineStore('auth', () => {
       }
 
       // 保存令牌到本地存储和状态中
-      const newToken = data.token
-      localStorage.setItem('token', newToken)
-      token.value = newToken
+      let accessToken: string
+      
+      // 处理不同格式的token返回
+      if (typeof data.token === 'string') {
+        // 如果token直接是字符串
+        accessToken = data.token
+      } else {
+        // 如果token是对象，包含access和refresh
+        const tokenObj = data.token as TokenData
+        accessToken = tokenObj.access || ''
+        
+        // 如果有刷新令牌，也保存它
+        if (tokenObj.refresh) {
+          localStorage.setItem('refresh_token', tokenObj.refresh)
+        }
+      }
+      
+      localStorage.setItem('token', accessToken)
+      token.value = accessToken
 
       // 保存用户信息
       userInfo.value = data.user as UserInfo

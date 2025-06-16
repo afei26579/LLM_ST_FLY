@@ -38,15 +38,16 @@
                 </svg>
                 <span>用户名</span>
               </label>
-              <div class="input-container">
+              <div class="input-container" :class="{ 'has-error': formErrors.username }">
                 <input
                   type="text"
                   id="username"
                   v-model="loginForm.username"
                   placeholder="请输入用户名"
-                  required
+                  @blur="validateForm"
                 />
                 <span class="input-focus-effect"></span>
+                <div v-if="formErrors.username" class="field-error">{{ formErrors.username }}</div>
               </div>
             </div>
             
@@ -58,13 +59,13 @@
                 </svg>
                 <span>密码</span>
               </label>
-              <div class="input-container">
+              <div class="input-container" :class="{ 'has-error': formErrors.password }">
                 <input
                   :type="showPassword ? 'text' : 'password'"
                   id="password"
                   v-model="loginForm.password"
                   placeholder="请输入密码"
-                  required
+                  @blur="validateForm"
                 />
                 <span class="input-focus-effect"></span>
                 <button 
@@ -81,6 +82,7 @@
                     <line x1="1" y1="1" x2="23" y2="23"></line>
                   </svg>
                 </button>
+                <div v-if="formErrors.password" class="field-error">{{ formErrors.password }}</div>
               </div>
             </div>
 
@@ -136,11 +138,16 @@
 import { reactive, ref, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
-import { useToast } from 'vue-toastification'
 
 // 登录表单数据
 const loginForm = reactive({
   username: localStorage.getItem('remembered_username') || '',
+  password: ''
+})
+
+// 表单验证错误信息
+const formErrors = reactive({
+  username: '',
   password: ''
 })
 
@@ -150,14 +157,41 @@ const hasRememberedUsername = !!localStorage.getItem('remembered_username')
 const router = useRouter()
 const route = useRoute()
 const authStore = useAuthStore()
-const toast = useToast()
 const loginError = ref('')
 const showPassword = ref(false)
 const rememberMe = ref(hasRememberedUsername)
 
+// 验证表单
+const validateForm = (): boolean => {
+  let isValid = true
+  
+  // 重置错误信息
+  formErrors.username = ''
+  formErrors.password = ''
+  
+  // 验证用户名
+  if (!loginForm.username.trim()) {
+    formErrors.username = '请输入用户名'
+    isValid = false
+  }
+  
+  // 验证密码
+  if (!loginForm.password) {
+    formErrors.password = '请输入密码'
+    isValid = false
+  }
+  
+  return isValid
+}
+
 // 处理登录请求
 const handleLogin = async () => {
   loginError.value = '' // 清除之前的错误信息
+  
+  // 表单验证
+  if (!validateForm()) {
+    return
+  }
   
   try {
     // 调用auth store的登录方法
@@ -188,13 +222,11 @@ const handleLogin = async () => {
       // 显示从服务器返回的错误信息
       const errorMsg = result.message || '登录失败，请检查用户名和密码'
       loginError.value = errorMsg
-      toast.error(errorMsg)
     }
   } catch (error) {
     console.error('登录过程发生错误:', error)
     const errorMsg = '登录异常，请稍后再试'
     loginError.value = errorMsg
-    toast.error(errorMsg)
   }
 }
 
@@ -492,6 +524,8 @@ const initParticles = () => {
 .form-group {
   display: flex;
   flex-direction: column;
+  margin-bottom: 1.5rem;
+  position: relative;
 }
 
 label {
@@ -526,6 +560,20 @@ input:focus {
   outline: none;
   border-color: #5e9bff;
   box-shadow: 0 0 0 2px rgba(94, 155, 255, 0.3);
+}
+
+.input-container.has-error input {
+  border-color: #f87171;
+  box-shadow: 0 0 0 2px rgba(248, 113, 113, 0.3);
+}
+
+.field-error {
+  position: absolute;
+  left: 0;
+  bottom: -20px;
+  font-size: 0.75rem;
+  color: #f87171;
+  margin-top: 0.25rem;
 }
 
 .input-focus-effect {
@@ -687,6 +735,11 @@ input:focus ~ .input-focus-effect {
 .error-message svg {
   margin-right: 0.5rem;
   min-width: 16px;
+  flex-shrink: 0;
+}
+
+.error-message span {
+  flex: 1;
 }
 
 @keyframes shake {

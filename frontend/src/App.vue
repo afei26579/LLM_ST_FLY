@@ -23,7 +23,7 @@ onMounted(async () => {
   <!-- 路由视图 -->
   <div class="main-container" :class="{ 'with-sidebar': authStore.isAuthenticated }">
     <RouterView />
-  </div>
+    </div>
 </template>
 
 <style>

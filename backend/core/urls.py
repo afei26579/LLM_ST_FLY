@@ -20,11 +20,17 @@ from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
 from rest_framework.documentation import include_docs_urls
+from drf_spectacular.views import SpectacularAPIView, SpectacularRedocView, SpectacularSwaggerView
 
 urlpatterns = [
     path("admin/", admin.site.urls),
     # API文档
     path("docs/", include_docs_urls(title="后台管理系统API")),
+    # drf-spectacular API文档
+    path('api/schema/', SpectacularAPIView.as_view(), name='schema'),
+    # 可选的UI:
+    path('api/schema/swagger-ui/', SpectacularSwaggerView.as_view(url_name='schema'), name='swagger-ui'),
+    path('api/schema/redoc/', SpectacularRedocView.as_view(url_name='schema'), name='redoc'),
     # API版本
     path("api/v1/", include([
         path("auth/", include("users.urls")),  # 用户认证与权限相关的URL

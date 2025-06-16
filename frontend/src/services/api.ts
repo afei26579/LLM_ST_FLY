@@ -7,7 +7,7 @@ import type { AxiosInstance, InternalAxiosRequestConfig, AxiosResponse } from 'a
 // API基础配置
 const API_CONFIG = {
   // 后端API的基础URL
-  BASE_URL: 'http://localhost:8000/api/',
+  BASE_URL: 'http://localhost:8000/api/v1/',
   // 请求超时时间（毫秒）
   TIMEOUT: 15000,
 }
@@ -92,18 +92,30 @@ class ApiService {
   // 登录API
   async login(credentials: LoginRequest): Promise<ApiResponse<LoginResponse>> {
     try {
-      const response = await this.instance.post<ApiResponse<LoginResponse>>(
+      const response = await this.instance.post(
         'auth/login/',
         credentials
       );
+      
+      // 后端返回的数据可能直接是我们需要的格式
+      if (response.data && response.data.token) {
+        return {
+          code: 200,
+          message: '登录成功',
+          data: response.data
+        };
+      }
+      
+      // 如果后端返回的是ApiResponse格式
       return response.data;
     } catch (error: any) {
       // 如果是API返回的错误
       if (error.response) {
+        console.error('登录失败:', error.response.data);
         // 返回API的错误信息
         return {
           code: error.response.status,
-          message: error.response.data.message || '登录失败，请检查用户名和密码',
+          message: error.response.data.non_field_errors?.[0] || error.response.data.message || '登录失败，请检查用户名和密码',
           data: error.response.data
         };
       }

@@ -65,17 +65,25 @@ class LoginSerializer(serializers.Serializer):
         username = attrs.get('username')
         password = attrs.get('password')
         
-        if username and password:
-            user = authenticate(request=self.context.get('request'),
-                                username=username, password=password)
-            
-            # 认证失败的情况
-            if not user:
-                msg = _('无法使用提供的凭证登录')
-                raise serializers.ValidationError(msg, code='authorization')
-        else:
-            msg = _('必须包含"username"和"password"字段.')
-            raise serializers.ValidationError(msg, code='authorization')
+        # 检查是否提供了用户名和密码
+        if not username or not password:
+            msg = _('必须包含"username"和"password"字段')
+            raise serializers.ValidationError(
+                {'param_error': msg}, 
+                code='invalid_parameters'
+            )
+        
+        # 尝试认证用户
+        user = authenticate(request=self.context.get('request'),
+                            username=username, password=password)
+        
+        # 认证失败的情况
+        if not user:
+            msg = _('账号或密码错误')
+            raise serializers.ValidationError(
+                {'auth_error': msg}, 
+                code='authentication_failed'
+            )
         
         attrs['user'] = user
         return attrs

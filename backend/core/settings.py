@@ -43,6 +43,7 @@ INSTALLED_APPS = [
     # 第三方应用
     "rest_framework",
     "corsheaders",
+    "drf_spectacular",
     
     # 自定义应用
     "users",
@@ -136,6 +137,8 @@ REST_FRAMEWORK = {
     ],
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
     'PAGE_SIZE': 10,
+    # drf-spectacular 配置
+    'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
 }
 
 # JWT设置
@@ -179,3 +182,18 @@ MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+
+# drf-spectacular settings
+SPECTACULAR_SETTINGS = {
+    'TITLE': 'LLM ST FLY API',
+    'DESCRIPTION': '智能管理系统API文档',
+    'VERSION': '1.0.0',
+    'SERVE_INCLUDE_SCHEMA': False,
+    # 其他设置
+    'SWAGGER_UI_SETTINGS': {
+        'persistAuthorization': True,
+    },
+    'PREPROCESSING_HOOKS': [],
+    'SERVE_PERMISSIONS': ['rest_framework.permissions.IsAuthenticated'],
+    'COMPONENT_SPLIT_REQUEST': True,
+}
