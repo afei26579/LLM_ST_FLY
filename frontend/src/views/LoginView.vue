@@ -2,7 +2,7 @@
   <div class="login-container">
     <div class="login-bg">
       <!-- 背景动画效果 -->
-      <div class="particles" id="particles"></div>
+      <canvas class="particles" id="particles"></canvas>
       <div class="light-beam"></div>
       <div class="grid-overlay"></div>
     </div>
@@ -136,19 +136,24 @@
 import { reactive, ref, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
+import { useToast } from 'vue-toastification'
 
 // 登录表单数据
 const loginForm = reactive({
-  username: '',
+  username: localStorage.getItem('remembered_username') || '',
   password: ''
 })
+
+// 如果有记住的用户名，则默认选中"记住我"
+const hasRememberedUsername = !!localStorage.getItem('remembered_username')
 
 const router = useRouter()
 const route = useRoute()
 const authStore = useAuthStore()
+const toast = useToast()
 const loginError = ref('')
 const showPassword = ref(false)
-const rememberMe = ref(false)
+const rememberMe = ref(hasRememberedUsername)
 
 // 处理登录请求
 const handleLogin = async () => {
@@ -156,21 +161,40 @@ const handleLogin = async () => {
   
   try {
     // 调用auth store的登录方法
-    const success = await authStore.login(loginForm.username, loginForm.password)
+    const result = await authStore.login(loginForm.username, loginForm.password)
     
-    if (success) {
+    if (result.success) {
       // 获取用户信息
-      await authStore.fetchUserInfo()
+      const userResult = await authStore.fetchUserInfo()
+      
+      if (!userResult.success) {
+        console.warn('获取用户信息失败:', userResult.message)
+        // 获取用户信息失败不阻止登录流程，继续执行
+      }
+      
+      // 记住用户名和密码，如果选择了"记住我"
+      if (rememberMe.value) {
+        localStorage.setItem('remembered_username', loginForm.username)
+        // 注意：为了安全起见，不应该存储密码，但这里作为演示
+        // 在生产环境中应当使用更安全的方式或者不存储密码
+      } else {
+        localStorage.removeItem('remembered_username')
+      }
       
       // 登录成功后根据query参数重定向
       const redirectPath = route.query.redirect as string || '/'
       router.push(redirectPath)
     } else {
-      loginError.value = '登录失败，请检查用户名和密码'
+      // 显示从服务器返回的错误信息
+      const errorMsg = result.message || '登录失败，请检查用户名和密码'
+      loginError.value = errorMsg
+      toast.error(errorMsg)
     }
   } catch (error) {
     console.error('登录过程发生错误:', error)
-    loginError.value = '登录异常，请稍后再试'
+    const errorMsg = '登录异常，请稍后再试'
+    loginError.value = errorMsg
+    toast.error(errorMsg)
   }
 }
 

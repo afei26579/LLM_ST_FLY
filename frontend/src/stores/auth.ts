@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
+import { apiService } from '../services/api'
 
 // 用户信息接口
 interface UserInfo {
@@ -26,33 +27,44 @@ export const useAuthStore = defineStore('auth', () => {
 
   // 动作
   // 登录
-  const login = async (username: string, password: string) => {
+  const login = async (username: string, password: string): Promise<{ success: boolean, message?: string }> => {
     loading.value = true
     try {
-      // 这里以后会替换为实际的API调用
-      // 模拟API调用返回结果
-      const mockResponse = {
-        token: 'mock_token_' + Date.now(),
-        user: {
-          id: 1,
-          username,
-          role: 'user',
-          permissions: ['read']
+      // 调用API服务进行登录
+      const response = await apiService.login({ username, password })
+      
+      // 如果返回的状态码不是成功的状态码(200-299)
+      if (response.code < 200 || response.code >= 300) {
+        return { 
+          success: false, 
+          message: response.message || '登录失败，请检查用户名和密码' 
+        }
+      }
+      
+      // 登录成功，获取返回的数据
+      const data = response.data
+      if (!data || !data.token) {
+        return { 
+          success: false, 
+          message: '服务器返回数据格式错误' 
         }
       }
 
       // 保存令牌到本地存储和状态中
-      const newToken = mockResponse.token
+      const newToken = data.token
       localStorage.setItem('token', newToken)
       token.value = newToken
 
       // 保存用户信息
-      userInfo.value = mockResponse.user as UserInfo
+      userInfo.value = data.user as UserInfo
 
-      return true
+      return { success: true }
     } catch (error) {
-      console.error('登录失败:', error)
-      return false
+      console.error('登录过程发生错误:', error)
+      return { 
+        success: false, 
+        message: '登录过程发生错误，请稍后再试' 
+      }
     } finally {
       loading.value = false
     }
@@ -69,26 +81,41 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   // 获取用户信息
-  const fetchUserInfo = async () => {
-    if (!token.value) return null
+  const fetchUserInfo = async (): Promise<{ success: boolean, message?: string }> => {
+    if (!token.value) {
+      return { success: false, message: '未登录，请先登录' }
+    }
     
     loading.value = true
     try {
-      // 这里以后会替换为实际的API调用
-      // 模拟API调用返回用户信息
-      const mockUserInfo: UserInfo = {
-        id: 1,
-        username: 'demo_user',
-        email: 'demo@example.com',
-        role: 'user',
-        permissions: ['read', 'write']
+      // 调用API服务获取用户信息
+      const response = await apiService.getUserInfo()
+      
+      // 检查响应状态
+      if (response.code < 200 || response.code >= 300) {
+        return { 
+          success: false, 
+          message: response.message || '获取用户信息失败' 
+        }
       }
       
-      userInfo.value = mockUserInfo
-      return mockUserInfo
+      // 获取成功，保存用户信息
+      const data = response.data
+      if (!data || !data.user) {
+        return { 
+          success: false, 
+          message: '服务器返回数据格式错误' 
+        }
+      }
+      
+      userInfo.value = data.user as UserInfo
+      return { success: true }
     } catch (error) {
-      console.error('获取用户信息失败:', error)
-      return null
+      console.error('获取用户信息过程发生错误:', error)
+      return { 
+        success: false, 
+        message: '获取用户信息失败，请稍后再试' 
+      }
     } finally {
       loading.value = false
     }

@@ -75,13 +75,47 @@
     </div>
 
     <div class="sidebar-footer">
-      <div class="user-info" v-if="!isCollapsed">
-        <div class="avatar">{{ authStore.userInfo?.username?.[0]?.toUpperCase() || 'U' }}</div>
-        <div class="user-details">
-          <div class="username">{{ authStore.userInfo?.username || '用户' }}</div>
-          <div class="role">{{ authStore.userRole }}</div>
+      <div v-if="!isCollapsed" class="user-menu">
+        <div class="user-info" @click="toggleUserDropdown">
+          <div class="avatar">{{ authStore.userInfo?.username?.[0]?.toUpperCase() || 'U' }}</div>
+          <div class="user-details">
+            <div class="username">{{ authStore.userInfo?.username || '用户' }}</div>
+            <div class="role">{{ authStore.userRole }}</div>
+          </div>
+          <div class="dropdown-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="6 9 12 15 18 9"></polyline>
+            </svg>
+          </div>
+        </div>
+        
+        <div class="user-dropdown" v-show="isUserDropdownOpen">
+          <div class="dropdown-item" @click="showUserProfile">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+              <circle cx="12" cy="7" r="4"></circle>
+            </svg>
+            <span>个人信息</span>
+          </div>
+          <div class="dropdown-item" @click="showSettings">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="3"></circle>
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+            </svg>
+            <span>个人设置</span>
+          </div>
+          <div class="dropdown-divider"></div>
+          <div class="dropdown-item logout" @click="handleLogout">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+              <polyline points="16 17 21 12 16 7"></polyline>
+              <line x1="21" y1="12" x2="9" y2="12"></line>
+            </svg>
+            <span>退出登录</span>
+          </div>
         </div>
       </div>
+      
       <div class="avatar mini-avatar" v-else @click="toggleSidebar" title="展开菜单">
         {{ authStore.userInfo?.username?.[0]?.toUpperCase() || 'U' }}
       </div>
@@ -92,11 +126,14 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { useAuthStore } from '../stores/auth'
+import { useRouter } from 'vue-router'
 
+const router = useRouter()
 const authStore = useAuthStore()
 
 const isCollapsed = ref(false)
 const isSystemMenuOpen = ref(true)
+const isUserDropdownOpen = ref(false)
 
 const toggleSidebar = () => {
   isCollapsed.value = !isCollapsed.value
@@ -110,6 +147,29 @@ const toggleSystemMenu = () => {
     isCollapsed.value = false
     isSystemMenuOpen.value = true
   }
+}
+
+// 用户下拉菜单控制
+const toggleUserDropdown = () => {
+  isUserDropdownOpen.value = !isUserDropdownOpen.value
+}
+
+// 个人信息页面
+const showUserProfile = () => {
+  router.push('/profile')
+  isUserDropdownOpen.value = false
+}
+
+// 个人设置页面
+const showSettings = () => {
+  router.push('/settings')
+  isUserDropdownOpen.value = false
+}
+
+// 处理退出登录
+const handleLogout = async () => {
+  await authStore.logout()
+  router.push('/login')
 }
 </script>
 
@@ -295,11 +355,88 @@ const toggleSystemMenu = () => {
   padding: 1rem;
   border-top: 1px solid rgba(255, 255, 255, 0.1);
   margin-top: auto;
+  position: relative;
+}
+
+.user-menu {
+  position: relative;
 }
 
 .user-info {
   display: flex;
   align-items: center;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  border-radius: 8px;
+  padding: 0.5rem;
+}
+
+.user-info:hover {
+  background-color: rgba(255, 255, 255, 0.08);
+}
+
+.dropdown-icon {
+  margin-left: auto;
+  opacity: 0.7;
+  transition: transform 0.2s;
+}
+
+.user-dropdown {
+  position: absolute;
+  bottom: 100%;
+  left: 0;
+  width: 100%;
+  background: #1e293b;
+  border-radius: 8px;
+  box-shadow: 0 5px 20px rgba(0, 0, 0, 0.3);
+  margin-bottom: 0.5rem;
+  overflow: hidden;
+  z-index: 100;
+  animation: dropdown-appear 0.2s ease-out;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+@keyframes dropdown-appear {
+  0% {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.dropdown-item {
+  display: flex;
+  align-items: center;
+  padding: 0.75rem 1rem;
+  color: #e1e6f5;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.dropdown-item svg {
+  margin-right: 0.75rem;
+  opacity: 0.7;
+}
+
+.dropdown-item:hover {
+  background-color: rgba(255, 255, 255, 0.08);
+}
+
+.dropdown-divider {
+  height: 1px;
+  background-color: rgba(255, 255, 255, 0.1);
+  margin: 0.25rem 0;
+}
+
+.logout {
+  color: #f87171;
+}
+
+.logout svg {
+  stroke: #f87171;
 }
 
 .avatar {
@@ -313,6 +450,7 @@ const toggleSystemMenu = () => {
   justify-content: center;
   font-weight: 600;
   margin-right: 0.75rem;
+  flex-shrink: 0;
 }
 
 .mini-avatar {
