@@ -90,13 +90,6 @@
         </div>
         
         <div class="user-dropdown" v-show="isUserDropdownOpen">
-          <div class="dropdown-item" @click="showUserProfile">
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
-              <circle cx="12" cy="7" r="4"></circle>
-            </svg>
-            <span>个人信息</span>
-          </div>
           <div class="dropdown-item" @click="showSettings">
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <circle cx="12" cy="12" r="3"></circle>
@@ -121,12 +114,20 @@
       </div>
     </div>
   </div>
+  
+  <!-- 使用单独的个人设置组件 -->
+  <UserSettingsModal 
+    :is-open="isSettingsModalOpen" 
+    @close="closeSettingsModal"
+    @save="handleSettingsSaved"
+  />
 </template>
 
 <script setup lang="ts">
 import { ref } from 'vue'
 import { useAuthStore } from '../stores/auth'
 import { useRouter } from 'vue-router'
+import UserSettingsModal from './UserSettingsModal.vue'
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -134,6 +135,7 @@ const authStore = useAuthStore()
 const isCollapsed = ref(false)
 const isSystemMenuOpen = ref(true)
 const isUserDropdownOpen = ref(false)
+const isSettingsModalOpen = ref(false)
 
 const toggleSidebar = () => {
   isCollapsed.value = !isCollapsed.value
@@ -154,16 +156,21 @@ const toggleUserDropdown = () => {
   isUserDropdownOpen.value = !isUserDropdownOpen.value
 }
 
-// 个人信息页面
-const showUserProfile = () => {
-  router.push('/profile')
+// 个人设置页面
+const showSettings = () => {
+  isSettingsModalOpen.value = true
   isUserDropdownOpen.value = false
 }
 
-// 个人设置页面
-const showSettings = () => {
-  router.push('/settings')
-  isUserDropdownOpen.value = false
+// 关闭设置弹框
+const closeSettingsModal = () => {
+  isSettingsModalOpen.value = false
+}
+
+// 处理设置保存成功
+const handleSettingsSaved = () => {
+  // 可以在这里添加一些通知或其他操作
+  console.log('用户设置已保存')
 }
 
 // 处理退出登录

@@ -13,7 +13,7 @@ class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = ['id', 'username', 'email', 'password', 'first_name', 
-                 'last_name', 'phone', 'avatar', 'role', 'bio', 
+                 'last_name', 'phone', 'nickname', 'avatar', 'role', 'bio', 
                  'date_joined', 'is_active', 'groups']
         read_only_fields = ['date_joined', 'is_active']
         extra_kwargs = {
@@ -47,7 +47,7 @@ class UserProfileSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = ['id', 'username', 'email', 'first_name', 
-                 'last_name', 'phone', 'avatar', 'role', 'bio']
+                 'last_name', 'phone', 'nickname', 'avatar', 'role', 'bio']
         read_only_fields = ['role']  # 普通用户不能修改自己的角色
 
 
@@ -103,4 +103,4 @@ class UserGroupSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = ['id', 'username', 'email', 'first_name', 
-                 'last_name', 'role', 'is_active', 'groups'] 
+                 'last_name', 'nickname', 'role', 'is_active', 'groups'] 

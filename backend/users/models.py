@@ -15,6 +15,7 @@ class User(AbstractUser):
     
     # 额外用户信息字段
     phone = models.CharField(_('电话号码'), max_length=15, blank=True)
+    nickname = models.CharField(_('昵称'), max_length=7, blank=True)
     avatar = models.ImageField(_('头像'), upload_to='avatars/', blank=True, null=True)
     role = models.CharField(
         _('用户角色'), 

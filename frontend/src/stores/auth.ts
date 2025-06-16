@@ -9,6 +9,13 @@ interface UserInfo {
   email?: string
   role: string
   permissions?: string[]
+  real_name?: string
+  nickname?: string
+  phone?: string
+  department?: string
+  bio?: string
+  avatar?: string
+  theme?: string
 }
 
 // Token接口
@@ -158,6 +165,13 @@ export const useAuthStore = defineStore('auth', () => {
     login,
     logout,
     fetchUserInfo,
-    hasPermission
+    hasPermission,
+    
+    // 更新用户信息
+    updateUserInfo: (updatedInfo: Partial<UserInfo>) => {
+      if (userInfo.value) {
+        userInfo.value = { ...userInfo.value, ...updatedInfo }
+      }
+    }
   }
 }) 

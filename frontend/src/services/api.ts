@@ -34,7 +34,26 @@ interface LoginResponse {
     email?: string;
     role: string;
     permissions?: string[];
+    real_name?: string;
+    nickname?: string;
+    phone?: string;
+    department?: string;
+    bio?: string;
+    avatar?: string;
+    theme?: string;
   }
+}
+
+// 用户信息更新接口
+interface UserProfileUpdate {
+  real_name?: string;
+  nickname?: string;
+  email?: string;
+  phone?: string;
+  department?: string;
+  bio?: string;
+  avatar?: string;
+  theme?: string;
 }
 
 // API服务类
@@ -130,13 +149,60 @@ class ApiService {
   // 获取用户信息API
   async getUserInfo(): Promise<ApiResponse> {
     try {
-      const response = await this.instance.get<ApiResponse>('users/me/');
+      const response = await this.instance.get<ApiResponse>('auth/users/me/');
       return response.data;
     } catch (error: any) {
       if (error.response) {
         return {
           code: error.response.status,
           message: error.response.data.message || '获取用户信息失败',
+          data: error.response.data
+        };
+      }
+      return {
+        code: 500,
+        message: '网络错误，请检查网络连接'
+      };
+    }
+  }
+  
+  // 更新用户信息API
+  async updateUserProfile(profileData: UserProfileUpdate): Promise<ApiResponse> {
+    try {
+      const response = await this.instance.patch<ApiResponse>('auth/users/me/', profileData);
+      return response.data;
+    } catch (error: any) {
+      if (error.response) {
+        return {
+          code: error.response.status,
+          message: error.response.data.message || '更新用户信息失败',
+          data: error.response.data
+        };
+      }
+      return {
+        code: 500,
+        message: '网络错误，请检查网络连接'
+      };
+    }
+  }
+  
+  // 上传用户头像API
+  async uploadAvatar(file: File): Promise<ApiResponse> {
+    try {
+      const formData = new FormData();
+      formData.append('avatar', file);
+      
+      const response = await this.instance.post<ApiResponse>('auth/users/me/avatar/', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+      return response.data;
+    } catch (error: any) {
+      if (error.response) {
+        return {
+          code: error.response.status,
+          message: error.response.data.message || '上传头像失败',
           data: error.response.data
         };
       }
