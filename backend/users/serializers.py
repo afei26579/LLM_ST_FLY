@@ -44,7 +44,7 @@ class UserSerializer(serializers.ModelSerializer):
 
 class UserProfileSerializer(serializers.ModelSerializer):
     """用户资料序列化器（简化版）"""
-    avatar = serializers.ImageField(required=False, allow_null=True)
+    avatar = serializers.FileField(required=False, allow_null=True, allow_empty_file=True)
     
     class Meta:
         model = User
@@ -54,15 +54,38 @@ class UserProfileSerializer(serializers.ModelSerializer):
         
     def validate_avatar(self, value):
         """
-        验证头像字段，如果是字符串（URL）且未更改，则返回None，表示不更新该字段
+        验证头像字段，支持文件对象和字符串URL
         """
-        # 如果前端没有提交新文件，但提交了字符串（可能是旧头像URL）
-        request = self.context.get('request')
-        if request and request.method in ['PUT', 'PATCH']:
-            if isinstance(value, str) or value is None:
-                # 返回None表示不更新该字段
+        # 如果值为None，直接返回None表示不更新头像
+        print(value, 'value')
+        if value is None:
+            return None
+            
+        # 如果是文件对象，直接返回
+        if hasattr(value, 'read'):
+            return value
+            
+        # 如果是字符串（可能是URL）
+        if isinstance(value, str):
+            # 如果是空字符串，返回None表示不更新
+            if value.strip() == '':
                 return None
+                
+            # 如果是URL路径，表示不需要更新，返回None
+            if value.startswith('/media/'):
+                return None
+                    
         return value
+    
+    def update(self, instance, validated_data):
+        """
+        更新用户时特殊处理头像字段
+        """
+        # 如果avatar在validated_data中是None，表示不需要更新头像
+        if 'avatar' in validated_data and validated_data['avatar'] is None:
+            validated_data.pop('avatar')
+            
+        return super().update(instance, validated_data)
 
 
 class LoginSerializer(serializers.Serializer):

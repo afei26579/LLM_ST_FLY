@@ -230,7 +230,7 @@ class UserViewSet(viewsets.ModelViewSet):
         
         # 更新用户头像
         request.user.avatar = avatar_file
-        request.user.save()
+        request.user.save(update_fields=['avatar'])  # 只更新avatar字段
         
         # 返回更新后的用户信息
         serializer = UserProfileSerializer(request.user)
