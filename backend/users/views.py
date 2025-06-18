@@ -1,6 +1,7 @@
 from django.shortcuts import render
 from django.contrib.auth import get_user_model
 from rest_framework import status, viewsets, generics, permissions
+
 from rest_framework.response import Response
 from rest_framework.decorators import action
 from rest_framework_simplejwt.tokens import RefreshToken
@@ -15,6 +16,34 @@ from .serializers import (
 from .permissions import IsAdminUser, IsStaffOrAdmin, IsSelfOrAdmin
 
 User = get_user_model()
+
+
+# 自定义API响应类
+class ApiResponse:
+    """
+    标准化API响应格式
+    """
+    @staticmethod
+    def success(data=None, message="Success", status_code=200):
+        """
+        成功响应
+        """
+        return Response({
+            "code": status_code,
+            "message": message,
+            "data": data
+        }, status=status_code)
+    
+    @staticmethod
+    def error(message="Error", status_code=400, data=None):
+        """
+        错误响应
+        """
+        return Response({
+            "code": status_code,
+            "message": message,
+            "data": data
+        }, status=status_code)
 
 
 @extend_schema(
@@ -69,31 +98,32 @@ class LoginView(APIView):
             # 创建JWT令牌
             refresh = RefreshToken.for_user(user)
             
-            return Response({
+            return ApiResponse.success({
                 'user': UserSerializer(user).data,
                 'token': {
                     'refresh': str(refresh),
                     'access': str(refresh.access_token),
                 }
-            })
+            }, "登录成功")
         except serializers.ValidationError as e:
             # 区分不同类型的错误
             if 'param_error' in e.detail:
                 # 参数错误返回400
-                return Response(
-                    {'message': e.detail['param_error']}, 
-                    status=status.HTTP_400_BAD_REQUEST
+                return ApiResponse.error(
+                    e.detail['param_error'], 
+                    status_code=status.HTTP_400_BAD_REQUEST
                 )
             elif 'auth_error' in e.detail:
                 # 认证错误返回401
-                return Response(
-                    {'message': e.detail['auth_error']}, 
-                    status=status.HTTP_401_UNAUTHORIZED
+                return ApiResponse.error(
+                    e.detail['auth_error'], 
+                    status_code=status.HTTP_401_UNAUTHORIZED
                 )
             # 其他验证错误
-            return Response(
-                {'message': '登录失败', 'errors': e.detail},
-                status=status.HTTP_400_BAD_REQUEST
+            return ApiResponse.error(
+                '登录失败', 
+                status_code=status.HTTP_400_BAD_REQUEST,
+                data={'errors': e.detail}
             )
 
 
@@ -109,6 +139,7 @@ class UserViewSet(viewsets.ModelViewSet):
         """
         根据不同的操作返回不同的权限
         """
+      
         if self.action == 'create':
             permission_classes = [IsAdminUser]  # 只有管理员可以创建用户
         elif self.action in ['update', 'partial_update', 'destroy']:
@@ -117,6 +148,7 @@ class UserViewSet(viewsets.ModelViewSet):
             permission_classes = [IsStaffOrAdmin]  # 管理员或工作人员可以查看用户列表
         else:
             permission_classes = [permissions.IsAuthenticated]
+        
         return [permission() for permission in permission_classes]
     
     def get_serializer_class(self):
@@ -128,32 +160,81 @@ class UserViewSet(viewsets.ModelViewSet):
         return self.serializer_class
     
     @extend_schema(
-        summary="获取当前用户信息",
-        description="返回当前登录用户的详细信息",
-        responses={200: UserProfileSerializer}
+        summary="获取或更新当前用户信息",
+        description="GET: 返回当前登录用户的详细信息; PUT/PATCH: 更新当前用户信息",
+        responses={
+            200: UserProfileSerializer,
+            400: OpenApiResponse(description="更新失败，提供的信息无效")
+        }
     )
-    @action(detail=False, methods=['get'], url_path='me')
+    @action(detail=False, methods=['get', 'put', 'patch'], url_path='me')
     def me(self, request):
         """
-        获取当前用户信息
+        获取或更新当前用户信息
         """
-        serializer = self.get_serializer(request.user)
-        return Response(serializer.data)
+        print("="*50)
+        print(f"请求方法: {request.method}")
+        print(f"请求用户: {request.user}")
+        print(f"请求路径: {request.path}")
+        
+        if request.method == 'GET':
+            # 获取用户信息
+            serializer = self.get_serializer(request.user)
+            return ApiResponse.success(serializer.data)
+        
+        elif request.method in ['PUT', 'PATCH']:
+            # 更新用户信息
+            print(f"请求数据: {request.data}")
+            print(f"请求文件: {request.FILES}")
+            serializer = UserProfileSerializer(
+                request.user,
+                data=request.data,
+                partial=request.method == 'PATCH',
+                context={'request': request}
+            )
+            if serializer.is_valid():
+                serializer.save()
+                return ApiResponse.success(serializer.data, "用户信息更新成功")
+            print(f"序列化器错误: {serializer.errors}")
+            return ApiResponse.error("用户信息更新失败", status_code=status.HTTP_400_BAD_REQUEST, data=serializer.errors)
+        
+        print("="*50)
     
-    @action(detail=False, methods=['put', 'patch'], url_path='me')
-    def update_me(self, request):
+    @extend_schema(
+        summary="上传用户头像",
+        description="上传用户头像图片",
+        responses={
+            200: UserProfileSerializer,
+            400: OpenApiResponse(description="上传失败，提供的文件无效")
+        }
+    )
+    @action(detail=False, methods=['post'], url_path='me/avatar')
+    def upload_avatar(self, request):
         """
-        更新当前用户资料
+        上传用户头像
         """
-        serializer = UserProfileSerializer(
-            request.user,
-            data=request.data,
-            partial=True
-        )
-        if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        print("="*50)
+        print(f"请求方法: {request.method}")
+        print(f"请求用户: {request.user}")
+        print(f"请求路径: {request.path}")
+        print(f"请求文件: {request.FILES}")
+        
+        if 'avatar' not in request.FILES:
+            return ApiResponse.error(
+                '没有提供头像文件', 
+                status_code=status.HTTP_400_BAD_REQUEST
+            )
+            
+        # 获取上传的文件
+        avatar_file = request.FILES['avatar']
+        
+        # 更新用户头像
+        request.user.avatar = avatar_file
+        request.user.save()
+        
+        # 返回更新后的用户信息
+        serializer = UserProfileSerializer(request.user)
+        return ApiResponse.success(serializer.data, "头像上传成功")
 
 
 @extend_schema(
@@ -180,10 +261,10 @@ class RegisterView(generics.CreateAPIView):
         # 创建JWT令牌
         refresh = RefreshToken.for_user(user)
         
-        return Response({
+        return ApiResponse.success({
             'user': UserSerializer(user).data,
             'token': {
                 'refresh': str(refresh),
                 'access': str(refresh.access_token),
             }
-        }, status=status.HTTP_201_CREATED)
+        }, "注册成功", status_code=status.HTTP_201_CREATED)

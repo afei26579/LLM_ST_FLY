@@ -44,6 +44,7 @@ INSTALLED_APPS = [
     "rest_framework",
     "corsheaders",
     "drf_spectacular",
+    'django_extensions',
     
     # 自定义应用
     "users",
@@ -63,7 +64,20 @@ MIDDLEWARE = [
 # CORS设置
 CORS_ALLOW_ALL_ORIGINS = DEBUG  # 开发环境允许所有来源访问
 CORS_ALLOW_CREDENTIALS = True  # 允许携带认证信息
-
+CORS_ALLOW_METHODS = [
+    'DELETE', 'GET', 'OPTIONS', 'PATCH', 'POST', 'PUT'
+]
+CORS_ALLOW_HEADERS = [
+    'accept',
+    'accept-encoding',
+    'authorization',
+    'content-type',
+    'dnt',
+    'origin',
+    'user-agent',
+    'x-csrftoken',
+    'x-requested-with',
+]
 # 如果需要指定允许的源，可以取消注释下面的设置
 # CORS_ALLOWED_ORIGINS = [
 #     "http://localhost:5173",  # Vue开发服务器

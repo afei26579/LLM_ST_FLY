@@ -44,11 +44,25 @@ class UserSerializer(serializers.ModelSerializer):
 
 class UserProfileSerializer(serializers.ModelSerializer):
     """用户资料序列化器（简化版）"""
+    avatar = serializers.ImageField(required=False, allow_null=True)
+    
     class Meta:
         model = User
         fields = ['id', 'username', 'email', 'first_name', 
                  'last_name', 'phone', 'nickname', 'avatar', 'role', 'bio']
         read_only_fields = ['role']  # 普通用户不能修改自己的角色
+        
+    def validate_avatar(self, value):
+        """
+        验证头像字段，如果是字符串（URL）且未更改，则返回None，表示不更新该字段
+        """
+        # 如果前端没有提交新文件，但提交了字符串（可能是旧头像URL）
+        request = self.context.get('request')
+        if request and request.method in ['PUT', 'PATCH']:
+            if isinstance(value, str) or value is None:
+                # 返回None表示不更新该字段
+                return None
+        return value
 
 
 class LoginSerializer(serializers.Serializer):
