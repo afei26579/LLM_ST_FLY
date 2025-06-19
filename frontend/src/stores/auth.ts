@@ -16,6 +16,15 @@ interface UserInfo {
   bio?: string
   avatar?: string
   theme?: string
+  gender?: string
+  birthday?: string
+  country?: string
+  province?: string
+  city?: string
+  district?: string
+  address?: string
+  last_login_ip?: string
+  qq?: string
 }
 
 // 从localStorage获取用户信息

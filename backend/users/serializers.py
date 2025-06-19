@@ -14,8 +14,10 @@ class UserSerializer(serializers.ModelSerializer):
         model = User
         fields = ['id', 'username', 'email', 'password', 'first_name', 
                  'last_name', 'phone', 'nickname', 'avatar', 'role', 'bio', 
+                 'birthday', 'gender', 'qq', 'country', 'province', 'city',
+                 'district', 'address', 'last_login_ip',
                  'date_joined', 'is_active', 'groups']
-        read_only_fields = ['date_joined', 'is_active']
+        read_only_fields = ['date_joined', 'is_active', 'last_login_ip']
         extra_kwargs = {
             'password': {'write_only': True}
         }
@@ -49,8 +51,10 @@ class UserProfileSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = ['id', 'username', 'email', 'first_name', 
-                 'last_name', 'phone', 'nickname', 'avatar', 'role', 'bio']
-        read_only_fields = ['role']  # 普通用户不能修改自己的角色
+                 'last_name', 'phone', 'nickname', 'avatar', 'role', 'bio',
+                 'birthday', 'gender', 'qq', 'country', 'province', 'city',
+                 'district', 'address', 'last_login_ip']
+        read_only_fields = ['role', 'last_login_ip']  # 普通用户不能修改自己的角色和登录IP
         
     def validate_avatar(self, value):
         """
@@ -157,8 +161,8 @@ class ChangePasswordSerializer(serializers.Serializer):
     
     def validate_newPassword(self, value):
         """验证新密码规则"""
-        if len(value) < 8:
-            raise serializers.ValidationError(_("密码长度至少为8位"), code="password_too_short")
+        if len(value) < 6:
+            raise serializers.ValidationError(_("密码长度至少为6位"), code="password_too_short")
         return value
     
     def validate(self, attrs):
@@ -219,8 +223,8 @@ class ResetPasswordPhoneSerializer(serializers.Serializer):
     
     def validate_newPassword(self, value):
         """验证新密码规则"""
-        if len(value) < 8:
-            raise serializers.ValidationError(_("密码长度至少为8位"), code="password_too_short")
+        if len(value) < 6:
+            raise serializers.ValidationError(_("密码长度至少为6位"), code="password_too_short")
         return value
 
 
@@ -243,6 +247,6 @@ class ResetPasswordEmailSerializer(serializers.Serializer):
     
     def validate_newPassword(self, value):
         """验证新密码规则"""
-        if len(value) < 8:
-            raise serializers.ValidationError(_("密码长度至少为8位"), code="password_too_short")
+        if len(value) < 6:
+            raise serializers.ValidationError(_("密码长度至少为6位"), code="password_too_short")
         return value 

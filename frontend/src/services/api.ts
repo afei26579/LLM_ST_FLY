@@ -40,6 +40,15 @@ interface LoginResponse {
     bio?: string;
     avatar?: string;
     theme?: string;
+    gender?: string;
+    birthday?: string;
+    country?: string;
+    province?: string;
+    city?: string;
+    district?: string;
+    address?: string;
+    last_login_ip?: string;
+    qq?: string;
   };
   token: {
     refresh: string;
@@ -58,6 +67,34 @@ export interface UserProfileUpdate {
   bio?: string;
   avatar?: string | File;
   theme?: string;
+  gender?: string;
+  birthday?: string;
+  country?: string;
+  province?: string;
+  city?: string;
+  district?: string;
+  address?: string;
+  qq?: string;
+}
+
+// 密码修改请求接口
+export interface ChangePasswordRequest {
+  oldPassword: string;
+  newPassword: string;
+}
+
+// 手机号重置密码请求接口
+export interface ResetPasswordPhoneRequest {
+  phone: string;
+  code: string;
+  newPassword: string;
+}
+
+// 邮箱重置密码请求接口
+export interface ResetPasswordEmailRequest {
+  email: string;
+  code: string;
+  newPassword: string;
 }
 
 // API服务类
@@ -148,6 +185,96 @@ class ApiService {
       return response.data;
     } catch (error: any) {
       console.error('获取用户信息失败:', error);
+      throw error;
+    }
+  }
+  
+  // 修改密码API
+  async changePassword(data: ChangePasswordRequest): Promise<ApiResponse<any>> {
+    try {
+      const response = await this.instance.post<ApiResponse<any>>('auth/users/change-password/', data);
+      return response.data;
+    } catch (error: any) {
+      console.error('修改密码失败:', error);
+      if (error.response) {
+        return {
+          code: error.response.status,
+          message: error.response.data.message || '修改密码失败',
+          data: error.response.data
+        };
+      }
+      throw error;
+    }
+  }
+
+  // 发送手机验证码API
+  async sendSmsCode(phone: string): Promise<ApiResponse<any>> {
+    try {
+      const response = await this.instance.post<ApiResponse<any>>('/auth/users/send-sms-code/', { phone });
+      return response.data;
+    } catch (error: any) {
+      console.error('发送验证码失败:', error);
+      if (error.response) {
+        return {
+          code: error.response.status,
+          message: error.response.data.data.message || '发送验证码失败',
+          data: error.response.data.data
+        };
+      }
+      throw error;
+    }
+  }
+
+  // 发送邮箱验证码API
+  async sendEmailCode(email: string): Promise<ApiResponse<any>> {
+    try {
+      const response = await this.instance.post<ApiResponse<any>>('users/send-email-code', { email });
+      return response.data;
+    } catch (error: any) {
+      console.error('发送验证码失败:', error);
+      if (error.response) {
+        return {
+          code: error.response.status,
+          message: error.response.data.message || '发送验证码失败',
+          data: error.response.data
+        };
+      }
+      throw error;
+    }
+  }
+
+  // 通过手机重置密码API
+  async resetPasswordPhone(data: ResetPasswordPhoneRequest): Promise<ApiResponse<any>> {
+    try {
+      const response = await this.instance.post<ApiResponse<any>>('users/reset-password-phone', data);
+      return response.data;
+    } catch (error: any) {
+      console.error('重置密码失败:', error);
+      if (error.response) {
+        return {
+          code: error.response.status,
+          message: error.response.data.message || '重置密码失败',
+          data: error.response.data
+        };
+      }
+      throw error;
+    }
+  }
+
+  // 通过邮箱重置密码API
+  async resetPasswordEmail(data: ResetPasswordEmailRequest): Promise<ApiResponse<any>> {
+    try {
+      const response = await this.instance.post<ApiResponse<any>>('users/reset-password-email', data);
+      return response.data;
+    } catch (error: any) {
+      console.error('重置密码失败:', error);
+      if (error.response) {
+        return {
+          code: error.response.status,
+          message: error.response.data.message || '重置密码失败',
+          data: error.response.data
+        };
+      }
       throw error;
     }
   }

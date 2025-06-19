@@ -7,6 +7,13 @@ class User(AbstractUser):
     """
     自定义用户模型
     """
+    # 性别选项
+    class Gender(models.TextChoices):
+        MALE = 'male', _('男')
+        FEMALE = 'female', _('女')
+        OTHER = 'other', _('其他')
+        UNKNOWN = 'unknown', _('未知')
+
     # 用户角色选项
     class Role(models.TextChoices):
         ADMIN = 'admin', _('管理员')
@@ -24,6 +31,26 @@ class User(AbstractUser):
         default=Role.USER
     )
     bio = models.TextField(_('个人简介'), blank=True)
+    
+    # 新增用户信息字段
+    birthday = models.DateField(_('生日'), blank=True, null=True)
+    gender = models.CharField(
+        _('性别'),
+        max_length=10,
+        choices=Gender.choices,
+        default=Gender.UNKNOWN
+    )
+    qq = models.CharField(_('QQ'), max_length=20, blank=True)
+    
+    # 地址相关字段
+    country = models.CharField(_('国家'), max_length=50, blank=True, default='中国')
+    province = models.CharField(_('省份'), max_length=50, blank=True)
+    city = models.CharField(_('城市'), max_length=50, blank=True)
+    district = models.CharField(_('区县'), max_length=50, blank=True)
+    address = models.CharField(_('详细地址'), max_length=200, blank=True)
+    
+    # 登录相关信息
+    last_login_ip = models.GenericIPAddressField(_('上次登录IP'), blank=True, null=True)
     date_modified = models.DateTimeField(_('修改日期'), auto_now=True)
     
     # 用于权限管理的groups和user_permissions字段

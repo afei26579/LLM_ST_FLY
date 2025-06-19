@@ -36,41 +36,100 @@
               </div>
             </div>
             <input type="file" ref="fileInput" @change="handleFileChange" accept="image/*" style="display: none" />
-            <button class="upload-btn" @click="triggerFileInput">更换头像</button>
+            <!--button class="upload-btn" @click="triggerFileInput">更换头像</button-->
           </div>
           
           <!-- 用户信息表单 -->
           <div class="settings-form">
             <div class="form-group">
-              <div class="label-container">
+              <div class="inline-form-row">
                 <label>昵称 <span class="required">*</span></label>
-                <span v-if="errors.nickname" class="error-message">{{ errors.nickname }}</span>
+                <div class="input-container">
+                  <input type="text" v-model="userInfo.nickname" class="form-control" :class="{ 'error': errors.nickname }" />
+                  <span v-if="errors.nickname" class="error-message">{{ errors.nickname }}</span>
+                </div>
               </div>
-              <input type="text" v-model="userInfo.nickname" class="form-control" :class="{ 'error': errors.nickname }" />
-              
             </div>
             
+            <!-- 性别选择 -->
             <div class="form-group">
-              <div class="label-container">
-                <label>电子邮箱</label>
-                <span v-if="errors.email" class="error-message">{{ errors.email }}</span>
+              <div class="inline-form-row">
+                <label>性别</label>
+                <div class="radio-group">
+                  <label class="radio-label">
+                    <input type="radio" v-model="userInfo.gender" value="male" /> 男
+                  </label>
+                  <label class="radio-label">
+                    <input type="radio" v-model="userInfo.gender" value="female" /> 女
+                  </label>
+                </div>
               </div>
-              <input type="email" v-model="userInfo.email" class="form-control" :class="{ 'error': errors.email }" />
-              
+            </div>
+                     <!-- QQ号码 -->
+            <div class="form-group">
+              <div class="inline-form-row">
+                <label>QQ号码</label>
+                <div class="input-container">
+                  <input 
+                    type="text" 
+                    v-model="userInfo.qq" 
+                    class="form-control" 
+                    placeholder="请输入QQ号码" 
+                    :class="{ 'error': errors.qq }"
+                    @input="onQQInput"
+                  />
+                  <span v-if="errors.qq" class="error-message">{{ errors.qq }}</span>
+                </div>
+              </div>
             </div>
             
+            <!-- 生日选择 -->
             <div class="form-group">
-              <div class="label-container">
-                <label>手机号码</label>
-                <span v-if="errors.phone" class="error-message">{{ errors.phone }}</span>
+              <div class="inline-form-row">
+                <label>生日</label>
+                <input type="date" v-model="userInfo.birthday" class="form-control" />
               </div>
-              <input type="tel" v-model="userInfo.phone" class="form-control" :class="{ 'error': errors.phone }" />
-             
             </div>
             
+            <!-- 省份 -->
             <div class="form-group">
+              <div class="inline-form-row">
+                <label>省份</label>
+                <select v-model="userInfo.province" class="form-control">
+                  <option value="">请选择省份</option>
+                  <option v-for="province in provinces" :key="province.code" :value="province.name">{{ province.name }}</option>
+                </select>
+              </div>
+            </div>
+            
+            <!-- 城市 -->
+            <div class="form-group">
+              <div class="inline-form-row">
+                <label>城市</label>
+                <select v-model="userInfo.city" class="form-control">
+                  <option value="">请选择城市</option>
+                  <option v-for="city in cities" :key="city.code" :value="city.name">{{ city.name }}</option>
+                </select>
+              </div>
+            </div>
+            
+            <!-- 区县 -->
+            <div class="form-group">
+              <div class="inline-form-row">
+                <label>区县</label>
+                <select v-model="userInfo.district" class="form-control">
+                  <option value="">请选择区县</option>
+                  <option v-for="district in districts" :key="district.code" :value="district.name">{{ district.name }}</option>
+                </select>
+              </div>
+            </div>
+            
+   
+            <div class="form-group">
+              <div class="inline-form-row">
               <label>个人简介</label>
               <textarea v-model="userInfo.bio" rows="3" class="form-control"></textarea>
+            </div>
             </div>
           </div>
         </div>
@@ -90,6 +149,7 @@
 import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { useAuthStore } from '../stores/auth'
 import { apiService, type UserProfileUpdate } from '../services/api'
+import pcaData from '../assets/data/pca-code.json'
 
 const props = defineProps<{
   isOpen: boolean
@@ -111,14 +171,51 @@ const userInfo = reactive({
   phone: '',
   bio: '',
   avatar: '',
-  theme: 'light'
+  theme: 'light',
+  gender: 'male',
+  birthday: '',
+  province: '',
+  city: '',
+  district: '',
+  qq: ''
 })
 
 // 表单错误信息
 const errors = reactive({
   email: '',
   phone: '',
-  nickname: ''
+  nickname: '',
+  qq: ''
+})
+
+// 省市区数据
+const provinces = ref(pcaData)
+const cities = ref<any[]>([])
+const districts = ref<any[]>([])
+
+// 监听省份变化，更新城市列表
+watch(() => userInfo.province, (newProvince) => {
+  if (newProvince) {
+    const province = provinces.value.find(p => p.name === newProvince)
+    cities.value = province?.children || []
+    userInfo.city = ''
+    userInfo.district = ''
+    districts.value = []
+  } else {
+    cities.value = []
+    districts.value = []
+  }
+})
+
+// 监听城市变化，更新区县列表
+watch(() => userInfo.city, (newCity) => {
+  if (newCity) {
+    const city = cities.value.find(c => c.name === newCity)
+    districts.value = city?.children || []
+    userInfo.district = ''
+  } else {
+    districts.value = []
+  }
 })
 
 // 初始化用户数据
@@ -138,12 +235,8 @@ watch(() => userInfo.nickname, (newVal) => {
   validateNickname(newVal);
 });
 
-watch(() => userInfo.email, (newVal) => {
-  validateEmail(newVal);
-});
-
-watch(() => userInfo.phone, (newVal) => {
-  validatePhone(newVal);
+watch(() => userInfo.qq, (newVal) => {
+  validateQQ(newVal);
 });
 
 // 加载用户信息
@@ -165,6 +258,20 @@ const loadUserInfo = async () => {
       userInfo.phone = response.data.phone || '';
       userInfo.bio = response.data.bio || '';
       userInfo.avatar = response.data.avatar || '';
+      
+      // 新增字段
+      userInfo.gender = response.data.gender || 'male';
+      userInfo.birthday = response.data.birthday || '';
+      userInfo.province = response.data.province || '';
+      userInfo.city = response.data.city || '';
+      userInfo.district = response.data.district || '';
+      userInfo.qq = response.data.qq || '';
+      
+      // 验证字段
+      validateNickname(userInfo.nickname);
+      if (userInfo.qq) {
+        validateQQ(userInfo.qq);
+      }
       
       // 如果有头像，设置预览图
       if (response.data.avatar) {
@@ -193,6 +300,20 @@ const fallbackToStoredUserInfo = () => {
     userInfo.email = authStore.userInfo.email || '';
     userInfo.phone = authStore.userInfo.phone || '';
     userInfo.bio = authStore.userInfo.bio || '';
+    
+    // 新增字段
+    userInfo.gender = authStore.userInfo.gender || 'male';
+    userInfo.birthday = authStore.userInfo.birthday || '';
+    userInfo.province = authStore.userInfo.province || '';
+    userInfo.city = authStore.userInfo.city || '';
+    userInfo.district = authStore.userInfo.district || '';
+    userInfo.qq = authStore.userInfo.qq || '';
+    
+    // 验证字段
+    validateNickname(userInfo.nickname);
+    if (userInfo.qq) {
+      validateQQ(userInfo.qq);
+    }
     
     // 如果有头像，设置预览图
     if (authStore.userInfo.avatar) {
@@ -251,22 +372,23 @@ const validateNickname = (value: string) => {
   return true;
 }
 
-// 验证邮箱
-const validateEmail = (value: string) => {
-  errors.email = '';
-  if (value && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
-    errors.email = '请输入有效的电子邮箱地址';
-    return false;
-  }
-  return true;
+// QQ号码输入处理
+const onQQInput = (event: Event) => {
+  const input = event.target as HTMLInputElement;
+  // 只保留数字
+  const value = input.value.replace(/\D/g, '');
+  userInfo.qq = value;
+  validateQQ(value);
 }
 
-// 验证手机号
-const validatePhone = (value: string) => {
-  errors.phone = '';
-  if (value && !/^1[3-9]\d{9}$/.test(value)) {
-    errors.phone = '请输入有效的手机号码';
-    return false;
+// 验证QQ号码
+const validateQQ = (value: string) => {
+  errors.qq = '';
+  if (value) {
+    if (value.length < 6 || value.length > 12) {
+      errors.qq = 'QQ号码长度应为6-12位';
+      return false;
+    }
   }
   return true;
 }
@@ -275,10 +397,9 @@ const validatePhone = (value: string) => {
 const validateForm = () => {
   // 验证所有字段
   const isNicknameValid = validateNickname(userInfo.nickname);
-  const isEmailValid = validateEmail(userInfo.email);
-  const isPhoneValid = validatePhone(userInfo.phone);
+  const isQQValid = validateQQ(userInfo.qq);
   
-  return isNicknameValid && isEmailValid && isPhoneValid;
+  return isNicknameValid && isQQValid;
 }
 
 // 保存设置
@@ -319,10 +440,14 @@ const saveSettings = async () => {
     const profileData = {
       username: userInfo.username,
       nickname: userInfo.nickname,
-      email: userInfo.email,
-      phone: userInfo.phone,
       bio: userInfo.bio,
       theme: userInfo.theme,
+      gender: userInfo.gender,
+      birthday: userInfo.birthday,
+      province: userInfo.province,
+      city: userInfo.city,
+      district: userInfo.district,
+      qq: userInfo.qq
     } as UserProfileUpdate
     
     // 只有在成功上传了新头像时，才添加avatar字段
@@ -380,7 +505,7 @@ const closeModal = () => {
   background-color: #fff;
   border-radius: 8px;
   width: 95%;
-  max-width: 500px;
+  max-width: 550px;
   box-shadow: 0 5px 20px rgba(0, 0, 0, 0.2);
   display: flex;
   flex-direction: column;
@@ -403,7 +528,7 @@ const closeModal = () => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0.5rem;
+  padding: 0.2rem;
   border-bottom: 1px solid #e5e7eb;
 }
 
@@ -433,6 +558,7 @@ const closeModal = () => {
   padding: 1.5rem;
   overflow-y: auto;
   flex: 1;
+  max-height: 70vh;
 }
 
 .modal-footer {
@@ -448,7 +574,7 @@ const closeModal = () => {
   display: flex;
   flex-direction: column;
   align-items: center;
-  margin-bottom: 1.5rem;
+  margin-bottom: 0.25rem;
 }
 
 .avatar-container {
@@ -530,19 +656,43 @@ const closeModal = () => {
 }
 
 .form-group {
-  margin-bottom: 0.5rem;
+  margin-bottom: 0.25rem;
 }
 
-.label-container {
+.inline-form-row {
   display: flex;
   align-items: center;
-  margin-bottom: 0.5rem;
+  width: 100%;
 }
 
-.label-container label {
+.inline-form-row label {
+  min-width: 70px;
+  margin-bottom: 0;
+  margin-right: 10px;
   font-weight: 500;
   color: #374151;
-  margin-right: 0.5rem;
+}
+
+.inline-form-row .form-control,
+.inline-form-row .radio-group,
+.inline-form-row .input-container {
+  flex: 1;
+}
+
+.input-container {
+  position: relative;
+  width: 100%;
+}
+
+.input-container .error-message {
+  position: absolute;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 0.8rem;
+  color: #ef4444;
+  margin-right: 8px;
+  white-space: nowrap;
 }
 
 .form-control {
@@ -647,5 +797,33 @@ textarea.form-control {
   color: #6b7280;
   font-size: 0.9rem;
   margin: 0;
+}
+
+.radio-group {
+  display: flex;
+  gap: 20px;
+  align-items: center;
+}
+
+.radio-label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  cursor: pointer;
+  margin: 0;
+}
+
+input[type="date"] {
+  color: #374151;
+  font-family: inherit;
+}
+
+input[type="date"]::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  opacity: 0.6;
+}
+
+input[type="date"]::-webkit-calendar-picker-indicator:hover {
+  opacity: 1;
 }
 </style> 

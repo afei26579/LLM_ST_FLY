@@ -13,6 +13,8 @@ import string
 from django.core.mail import send_mail
 from django.conf import settings
 from django.core.cache import cache
+from twilio.rest import Client
+from core.config import TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_PHONE_NUMBER
 
 from .serializers import (
     UserSerializer, UserProfileSerializer, LoginSerializer,
@@ -306,6 +308,13 @@ class UserViewSet(viewsets.ModelViewSet):
             cache.set(cache_key, code, 60 * 10)
             
             # TODO: 实际发送短信的代码
+            client = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
+
+            message = client.messages.create(
+                body=f"你好，验证码是：{code}",  # 短信内容
+                from_=TWILIO_PHONE_NUMBER,     # 你的 Twilio 号码
+                to=phone                       # 接收方手机号
+            )
             # 这里模拟发送短信，实际项目中应该调用短信发送API
             print(f"向 {phone} 发送验证码: {code}")
             

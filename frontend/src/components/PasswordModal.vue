@@ -16,14 +16,16 @@
         <form v-if="mode === 'change'" @submit.prevent="submitPasswordChange">
           <div class="form-group">
             <label for="old-password">当前密码</label>
+            <span class="error-message" v-if="errors.oldPassword">{{ errors.oldPassword }}</span>
             <div class="password-input">
-              <input
-                :type="showOldPassword ? 'text' : 'password'"
-                id="old-password"
-                v-model="oldPassword"
-                placeholder="请输入当前密码"
-                required
-              />
+                              <input
+                  :type="showOldPassword ? 'text' : 'password'"
+                  id="old-password"
+                  v-model="oldPassword"
+                  @input="validateOldPassword"
+                  placeholder="请输入当前密码"
+                  required
+                />
               <button type="button" class="toggle-password" @click="showOldPassword = !showOldPassword">
                 <svg v-if="!showOldPassword" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                   <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
@@ -35,19 +37,20 @@
                 </svg>
               </button>
             </div>
-            <div class="error-message" v-if="errors.oldPassword">{{ errors.oldPassword }}</div>
           </div>
 
           <div class="form-group">
             <label for="new-password">新密码</label>
+            <span class="error-message" v-if="errors.newPassword">{{ errors.newPassword }}</span>
             <div class="password-input">
-              <input
-                :type="showNewPassword ? 'text' : 'password'"
-                id="new-password"
-                v-model="newPassword"
-                placeholder="请输入新密码"
-                required
-              />
+                              <input
+                  :type="showNewPassword ? 'text' : 'password'"
+                  id="new-password"
+                  v-model="newPassword"
+                  @input="validateNewPassword"
+                  placeholder="请输入新密码"
+                  required
+                />
               <button type="button" class="toggle-password" @click="showNewPassword = !showNewPassword">
                 <svg v-if="!showNewPassword" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                   <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
@@ -59,19 +62,20 @@
                 </svg>
               </button>
             </div>
-            <div class="error-message" v-if="errors.newPassword">{{ errors.newPassword }}</div>
           </div>
 
           <div class="form-group">
             <label for="confirm-password">确认新密码</label>
+            <span class="error-message" v-if="errors.confirmPassword">{{ errors.confirmPassword }}</span>
             <div class="password-input">
-              <input
-                :type="showConfirmPassword ? 'text' : 'password'"
-                id="confirm-password"
-                v-model="confirmPassword"
-                placeholder="请再次输入新密码"
-                required
-              />
+                              <input
+                  :type="showConfirmPassword ? 'text' : 'password'"
+                  id="confirm-password"
+                  v-model="confirmPassword"
+                  @input="validateConfirmPassword"
+                  placeholder="请再次输入新密码"
+                  required
+                />
               <button type="button" class="toggle-password" @click="showConfirmPassword = !showConfirmPassword">
                 <svg v-if="!showConfirmPassword" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                   <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
@@ -83,7 +87,6 @@
                 </svg>
               </button>
             </div>
-            <div class="error-message" v-if="errors.confirmPassword">{{ errors.confirmPassword }}</div>
           </div>
 
           <div class="forgot-password">
@@ -122,18 +125,20 @@
           <div v-if="resetMethod === 'phone'">
             <div class="form-group">
               <label for="phone">手机号</label>
-              <input
-                type="tel"
-                id="phone"
-                v-model="phone"
-                placeholder="请输入手机号"
-                required
-              />
-              <div class="error-message" v-if="errors.phone">{{ errors.phone }}</div>
+              <span class="error-message" v-if="errors.phone">{{ errors.phone }}</span>
+                              <input
+                  type="tel"
+                  id="phone"
+                  v-model="phone"
+                  @input="validatePhone"
+                  placeholder="请输入手机号"
+                  required
+                />
             </div>
             
             <div class="form-group verification-code">
               <label for="phone-code">验证码</label>
+              <span class="error-message" v-if="errors.phoneCode">{{ errors.phoneCode }}</span>
               <div class="code-input-group">
                 <input
                   type="text"
@@ -151,7 +156,6 @@
                   {{ countdown > 0 ? `${countdown}秒后重发` : '获取验证码' }}
                 </button>
               </div>
-              <div class="error-message" v-if="errors.phoneCode">{{ errors.phoneCode }}</div>
             </div>
           </div>
 
@@ -159,18 +163,20 @@
           <div v-else>
             <div class="form-group">
               <label for="email">邮箱地址</label>
-              <input
-                type="email"
-                id="email"
-                v-model="email"
-                placeholder="请输入邮箱地址"
-                required
-              />
-              <div class="error-message" v-if="errors.email">{{ errors.email }}</div>
+              <span class="error-message" v-if="errors.email">{{ errors.email }}</span>
+                              <input
+                  type="email"
+                  id="email"
+                  v-model="email"
+                  @input="validateEmail"
+                  placeholder="请输入邮箱地址"
+                  required
+                />
             </div>
             
             <div class="form-group verification-code">
               <label for="email-code">验证码</label>
+              <span class="error-message" v-if="errors.emailCode">{{ errors.emailCode }}</span>
               <div class="code-input-group">
                 <input
                   type="text"
@@ -188,18 +194,19 @@
                   {{ countdown > 0 ? `${countdown}秒后重发` : '获取验证码' }}
                 </button>
               </div>
-              <div class="error-message" v-if="errors.emailCode">{{ errors.emailCode }}</div>
             </div>
           </div>
 
           <!-- 新密码设置（重置模式） -->
           <div class="form-group">
             <label for="reset-new-password">新密码</label>
+            <span class="error-message" v-if="errors.newPassword">{{ errors.newPassword }}</span>
             <div class="password-input">
-              <input
+                              <input
                 :type="showNewPassword ? 'text' : 'password'"
                 id="reset-new-password"
                 v-model="newPassword"
+                @input="validateNewPassword"
                 placeholder="请输入新密码"
                 required
               />
@@ -214,16 +221,17 @@
                 </svg>
               </button>
             </div>
-            <div class="error-message" v-if="errors.newPassword">{{ errors.newPassword }}</div>
           </div>
 
           <div class="form-group">
             <label for="reset-confirm-password">确认新密码</label>
+            <span class="error-message" v-if="errors.confirmPassword">{{ errors.confirmPassword }}</span>
             <div class="password-input">
-              <input
+                              <input
                 :type="showConfirmPassword ? 'text' : 'password'"
                 id="reset-confirm-password"
                 v-model="confirmPassword"
+                @input="validateConfirmPassword"
                 placeholder="请再次输入新密码"
                 required
               />
@@ -238,7 +246,6 @@
                 </svg>
               </button>
             </div>
-            <div class="error-message" v-if="errors.confirmPassword">{{ errors.confirmPassword }}</div>
           </div>
 
           <div class="back-to-login">
@@ -255,13 +262,31 @@
         </form>
       </div>
     </div>
+    
+    <!-- 操作结果提示框 -->
+    <div v-if="showToast" class="toast" :class="{ 'toast-success': toastType === 'success', 'toast-error': toastType === 'error' }">
+      <div class="toast-content">
+        <svg v-if="toastType === 'success'" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+          <polyline points="22 4 12 14.01 9 11.01"></polyline>
+        </svg>
+        <svg v-else xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="10"></circle>
+          <line x1="12" y1="8" x2="12" y2="12"></line>
+          <line x1="12" y1="16" x2="12.01" y2="16"></line>
+        </svg>
+        <span>{{ toastMessage }}</span>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, reactive, defineProps, defineEmits } from 'vue'
 import { useAuthStore } from '../stores/auth'
-import axios from 'axios'
+import { apiService } from '../services/api'
+import { useRouter } from 'vue-router'
+import type { ChangePasswordRequest, ResetPasswordPhoneRequest, ResetPasswordEmailRequest } from '../services/api'
 
 const props = defineProps({
   isOpen: {
@@ -272,6 +297,7 @@ const props = defineProps({
 
 const emit = defineEmits(['close', 'password-changed'])
 const authStore = useAuthStore()
+const router = useRouter()
 
 // 模式状态（密码修改/密码重置）
 const mode = ref('change') // 'change' 或 'reset'
@@ -306,6 +332,97 @@ const errors = reactive({
   phoneCode: '',
   emailCode: ''
 })
+
+// 提示框状态
+const showToast = ref(false)
+const toastMessage = ref('')
+const toastType = ref<'success' | 'error'>('success')
+const toastTimer = ref<number | null>(null)
+
+// 显示提示框
+const showToastMessage = (message: string, type: 'success' | 'error' = 'success') => {
+  // 清除之前的定时器
+  if (toastTimer.value) {
+    clearTimeout(toastTimer.value)
+    toastTimer.value = null
+  }
+  
+  // 设置提示信息
+  toastMessage.value = message
+  toastType.value = type
+  showToast.value = true
+  
+  // 根据类型设置显示时间
+  const duration = type === 'success' ? 1000 : 3000
+  
+  // 设置自动关闭
+  toastTimer.value = window.setTimeout(() => {
+    showToast.value = false
+    toastTimer.value = null
+  }, duration)
+}
+
+// 实时验证密码
+const validateNewPassword = () => {
+  if (!newPassword.value.trim()) {
+    errors.newPassword = '请输入新密码'
+    return false
+  } else if (newPassword.value.length < 6) {
+    errors.newPassword = '密码长度至少为6位'
+    return false
+  }
+  errors.newPassword = ''
+  return true
+}
+
+// 实时验证确认密码
+const validateConfirmPassword = () => {
+  if (!confirmPassword.value.trim()) {
+    errors.confirmPassword = '请确认新密码'
+    return false
+  } else if (confirmPassword.value !== newPassword.value) {
+    errors.confirmPassword = '两次输入的密码不一致'
+    return false
+  }
+  errors.confirmPassword = ''
+  return true
+}
+
+// 实时验证旧密码
+const validateOldPassword = () => {
+  if (!oldPassword.value.trim()) {
+    errors.oldPassword = '请输入当前密码'
+    return false
+  }
+  errors.oldPassword = ''
+  return true
+}
+
+// 实时验证手机号
+const validatePhone = () => {
+  if (!phone.value.trim()) {
+    errors.phone = '请输入手机号'
+    return false
+  } else if (!/^1[3-9]\d{9}$/.test(phone.value)) {
+    errors.phone = '请输入有效的手机号'
+    return false
+  }
+  errors.phone = ''
+  return true
+}
+
+// 实时验证邮箱
+const validateEmail = () => {
+  if (!email.value.trim()) {
+    errors.email = '请输入邮箱'
+    return false
+  } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.value)) {
+    errors.email = '请输入有效的邮箱地址'
+    return false
+  }
+  errors.email = ''
+  return true
+}
 
 // 切换到忘记密码模式
 const switchToForgotPassword = () => {
@@ -346,41 +463,23 @@ const resetForm = () => {
 // 验证表单
 const validateForm = () => {
   let isValid = true
-  errors.oldPassword = ''
-  errors.newPassword = ''
-  errors.confirmPassword = ''
-
+  
   // 验证密码修改模式下的字段
   if (mode.value === 'change') {
-    if (!oldPassword.value.trim()) {
-      errors.oldPassword = '请输入当前密码'
-      isValid = false
-    }
+    if (!validateOldPassword()) isValid = false
   }
 
   // 验证重置密码模式下的字段
   if (mode.value === 'reset') {
     if (resetMethod.value === 'phone') {
-      if (!phone.value.trim()) {
-        errors.phone = '请输入手机号'
-        isValid = false
-      } else if (!/^1[3-9]\d{9}$/.test(phone.value)) {
-        errors.phone = '请输入有效的手机号'
-        isValid = false
-      }
+      if (!validatePhone()) isValid = false
 
       if (!phoneCode.value.trim()) {
         errors.phoneCode = '请输入验证码'
         isValid = false
       }
     } else {
-      if (!email.value.trim()) {
-        errors.email = '请输入邮箱'
-        isValid = false
-      } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.value)) {
-        errors.email = '请输入有效的邮箱地址'
-        isValid = false
-      }
+      if (!validateEmail()) isValid = false
 
       if (!emailCode.value.trim()) {
         errors.emailCode = '请输入验证码'
@@ -389,23 +488,9 @@ const validateForm = () => {
     }
   }
 
-  // 验证新密码
-  if (!newPassword.value.trim()) {
-    errors.newPassword = '请输入新密码'
-    isValid = false
-  } else if (newPassword.value.length < 8) {
-    errors.newPassword = '密码长度至少为8位'
-    isValid = false
-  }
-
-  // 验证确认密码
-  if (!confirmPassword.value.trim()) {
-    errors.confirmPassword = '请确认新密码'
-    isValid = false
-  } else if (confirmPassword.value !== newPassword.value) {
-    errors.confirmPassword = '两次输入的密码不一致'
-    isValid = false
-  }
+  // 验证新密码和确认密码
+  if (!validateNewPassword()) isValid = false
+  if (!validateConfirmPassword()) isValid = false
 
   return isValid
 }
@@ -413,56 +498,48 @@ const validateForm = () => {
 // 发送手机验证码
 const sendPhoneCode = async () => {
   // 验证手机号
-  if (!phone.value.trim()) {
-    errors.phone = '请输入手机号'
-    return
-  } else if (!/^1[3-9]\d{9}$/.test(phone.value)) {
-    errors.phone = '请输入有效的手机号'
+  if (!validatePhone()) {
     return
   }
 
   try {
     // 发送验证码请求
-    await axios.post('/api/users/send-sms-code', {
-      phone: phone.value
-    })
+    const response = await apiService.sendSmsCode(phone.value)
     
-    // 开始倒计时
-    startCountdown()
-  } catch (error: any) {
-    if (error.response?.data?.message) {
-      errors.phone = error.response.data.message
+    // 检查响应状态
+    if (response.code === 200) {
+      // 开始倒计时
+      startCountdown()
     } else {
-      errors.phone = '发送验证码失败，请稍后重试'
+      errors.phone = response.message || '发送验证码失败，请稍后重试'
     }
+  } catch (error: any) {
+    console.error('发送手机验证码失败:', error)
+    errors.phone = '发送验证码失败，请稍后重试'
   }
 }
 
 // 发送邮箱验证码
 const sendEmailCode = async () => {
   // 验证邮箱
-  if (!email.value.trim()) {
-    errors.email = '请输入邮箱'
-    return
-  } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.value)) {
-    errors.email = '请输入有效的邮箱地址'
+  if (!validateEmail()) {
     return
   }
 
   try {
     // 发送验证码请求
-    await axios.post('/api/users/send-email-code', {
-      email: email.value
-    })
+    const response = await apiService.sendEmailCode(email.value)
     
-    // 开始倒计时
-    startCountdown()
-  } catch (error: any) {
-    if (error.response?.data?.message) {
-      errors.email = error.response.data.message
+    // 检查响应状态
+    if (response.code === 200) {
+      // 开始倒计时
+      startCountdown()
     } else {
-      errors.email = '发送验证码失败，请稍后重试'
+      errors.email = response.message || '发送验证码失败，请稍后重试'
     }
+  } catch (error: any) {
+    console.error('发送邮箱验证码失败:', error)
+    errors.email = '发送验证码失败，请稍后重试'
   }
 }
 
@@ -499,25 +576,38 @@ const submitPasswordChange = async () => {
 
   isSubmitting.value = true
   try {
-    const response = await axios.post('/api/users/change-password', {
+    const requestData: ChangePasswordRequest = {
       oldPassword: oldPassword.value,
       newPassword: newPassword.value
-    })
-
-    // 密码修改成功
-    emit('password-changed')
-    close()
-  } catch (error: any) {
-    // 处理错误
-    if (error.response?.data?.message) {
-      if (error.response.data.field === 'oldPassword') {
-        errors.oldPassword = error.response.data.message
-      } else {
-        errors.newPassword = error.response.data.message
-      }
-    } else {
-      errors.oldPassword = '密码修改失败，请稍后重试'
     }
+    
+    const response = await apiService.changePassword(requestData)
+
+    // 检查响应状态
+    if (response.code === 200) {
+      // 密码修改成功
+      showToastMessage('密码修改成功，即将跳转到登录页面', 'success')
+      // 注销用户
+      setTimeout(() => {
+        authStore.logout()
+        router.push('/login')
+      }, 1000)
+    } else {
+      // 处理错误
+      console.log(response)
+      console.log(response.data?.data?.field)
+      if (response.data?.data?.field === 'oldPassword') {
+        errors.oldPassword = response.data.data.message || '当前密码不正确'
+        showToastMessage(response.data.data.message || '当前密码不正确', 'error')
+      } else {
+        errors.newPassword = response.data.data.message || '密码修改失败'
+        showToastMessage(response.data.data.message || '密码修改失败', 'error')
+      }
+    }
+  } catch (error: any) {
+    console.error('修改密码失败:', error)
+    errors.oldPassword = '密码修改失败，请稍后重试'
+    showToastMessage('密码修改失败，请稍后重试', 'error')
   } finally {
     isSubmitting.value = false
   }
@@ -531,45 +621,63 @@ const submitPasswordReset = async () => {
 
   isSubmitting.value = true
   try {
-    let requestData = {}
+    let response;
     
     if (resetMethod.value === 'phone') {
-      requestData = {
+      const requestData: ResetPasswordPhoneRequest = {
         phone: phone.value,
         code: phoneCode.value,
         newPassword: newPassword.value
       }
+      response = await apiService.resetPasswordPhone(requestData)
     } else {
-      requestData = {
+      const requestData: ResetPasswordEmailRequest = {
         email: email.value,
         code: emailCode.value,
         newPassword: newPassword.value
       }
+      response = await apiService.resetPasswordEmail(requestData)
     }
 
-    const response = await axios.post(
-      `/api/users/reset-password-${resetMethod.value}`, 
-      requestData
-    )
-
-    // 密码重置成功
-    emit('password-changed')
-    close()
-  } catch (error: any) {
-    // 处理错误
-    if (error.response?.data?.message) {
-      const field = error.response.data.field
-      if (field === 'phone') errors.phone = error.response.data.message
-      else if (field === 'phoneCode') errors.phoneCode = error.response.data.message
-      else if (field === 'email') errors.email = error.response.data.message
-      else if (field === 'emailCode') errors.emailCode = error.response.data.message
-      else errors.newPassword = error.response.data.message
+    // 检查响应状态
+    if (response.code === 200) {
+      // 密码重置成功
+      showToastMessage('密码重置成功，即将跳转到登录页面', 'success')
+      setTimeout(() => {
+        router.push('/login')
+      }, 1000)
     } else {
-      errors.newPassword = '密码重置失败，请稍后重试'
+      // 处理错误
+      const errorMsg = handleResetErrorResponse(response)
+      showToastMessage(errorMsg, 'error')
     }
+  } catch (error: any) {
+    console.error('重置密码失败:', error)
+    errors.newPassword = '密码重置失败，请稍后重试'
+    showToastMessage('密码重置失败，请稍后重试', 'error')
   } finally {
     isSubmitting.value = false
   }
+}
+
+// 处理重置密码错误响应
+const handleResetErrorResponse = (response: any) => {
+  const field = response.data?.data?.field
+  const message = response.data?.data?.message || '重置密码失败'
+  
+  if (field === 'phone') {
+    errors.phone = message
+  } else if (field === 'code' && resetMethod.value === 'phone') {
+    errors.phoneCode = message
+  } else if (field === 'email') {
+    errors.email = message
+  } else if (field === 'code' && resetMethod.value === 'email') {
+    errors.emailCode = message
+  } else {
+    errors.newPassword = message
+  }
+  
+  return message
 }
 </script>
 
@@ -640,7 +748,7 @@ const submitPasswordReset = async () => {
 }
 
 label {
-  display: block;
+  display: inline-block;
   margin-bottom: 6px;
   font-weight: 500;
   color: #334155;
@@ -726,7 +834,8 @@ input:focus {
 .error-message {
   color: #ef4444;
   font-size: 12px;
-  margin-top: 4px;
+  margin-left: 8px;
+  display: inline-block;
 }
 
 .forgot-password,
@@ -799,5 +908,44 @@ input:focus {
 .send-code-btn:disabled {
   background-color: #93c5fd;
   cursor: not-allowed;
+}
+
+.toast {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  padding: 12px 24px;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  z-index: 1100;
+  animation: fadeIn 0.3s ease-out;
+}
+
+.toast-success {
+  background-color: #10b981;
+  color: white;
+}
+
+.toast-error {
+  background-color: #ef4444;
+  color: white;
+}
+
+.toast-content {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -40%);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%);
+  }
 }
 </style>
