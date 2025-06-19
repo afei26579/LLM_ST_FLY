@@ -18,18 +18,30 @@ interface UserInfo {
   theme?: string
 }
 
-// Token接口
-interface TokenData {
-  access?: string
-  refresh?: string
-  [key: string]: any
+// 从localStorage获取用户信息
+const getUserInfoFromStorage = (): UserInfo | null => {
+  const userInfoStr = localStorage.getItem('userInfo')
+  if (userInfoStr) {
+    try {
+      return JSON.parse(userInfoStr)
+    } catch (e) {
+      console.error('解析用户信息失败:', e)
+      return null
+    }
+  }
+  return null
+}
+
+// 保存用户信息到localStorage
+const saveUserInfoToStorage = (info: UserInfo) => {
+  localStorage.setItem('userInfo', JSON.stringify(info))
 }
 
 // 定义认证状态管理 store
 export const useAuthStore = defineStore('auth', () => {
   // 状态
   const token = ref<string | null>(localStorage.getItem('token'))
-  const userInfo = ref<UserInfo | null>(null)
+  const userInfo = ref<UserInfo | null>(getUserInfoFromStorage())
   const loading = ref(false)
 
   // 计算属性
@@ -65,28 +77,20 @@ export const useAuthStore = defineStore('auth', () => {
       }
 
       // 保存令牌到本地存储和状态中
-      let accessToken: string
+      const accessToken = data.token.access
       
-      // 处理不同格式的token返回
-      if (typeof data.token === 'string') {
-        // 如果token直接是字符串
-        accessToken = data.token
-      } else {
-        // 如果token是对象，包含access和refresh
-        const tokenObj = data.token as TokenData
-        accessToken = tokenObj.access || ''
-        
-        // 如果有刷新令牌，也保存它
-        if (tokenObj.refresh) {
-          localStorage.setItem('refresh_token', tokenObj.refresh)
-        }
+      // 如果有刷新令牌，也保存它
+      if (data.token.refresh) {
+        localStorage.setItem('refresh_token', data.token.refresh)
       }
       
       localStorage.setItem('token', accessToken)
       token.value = accessToken
 
       // 保存用户信息
-      userInfo.value = data.user as UserInfo
+      userInfo.value = data.user
+      // 保存用户信息到localStorage
+      saveUserInfoToStorage(data.user)
 
       return { success: true }
     } catch (error) {
@@ -107,6 +111,7 @@ export const useAuthStore = defineStore('auth', () => {
     token.value = null
     
     // 清除用户信息
+    localStorage.removeItem('userInfo')
     userInfo.value = null
   }
 
@@ -130,15 +135,17 @@ export const useAuthStore = defineStore('auth', () => {
       }
       
       // 获取成功，保存用户信息
-      const data = response.data
-      if (!data || !data.user) {
+      const userData = response.data
+      if (!userData) {
         return { 
           success: false, 
           message: '服务器返回数据格式错误' 
         }
       }
       
-      userInfo.value = data.user as UserInfo
+      userInfo.value = userData
+      // 保存用户信息到localStorage
+      saveUserInfoToStorage(userData)
       return { success: true }
     } catch (error) {
       console.error('获取用户信息过程发生错误:', error)
@@ -171,6 +178,8 @@ export const useAuthStore = defineStore('auth', () => {
     updateUserInfo: (updatedInfo: Partial<UserInfo>) => {
       if (userInfo.value) {
         userInfo.value = { ...userInfo.value, ...updatedInfo }
+        // 更新localStorage中的用户信息
+        saveUserInfoToStorage(userInfo.value)
       }
     }
   }

@@ -12,11 +12,11 @@ const API_CONFIG = {
   TIMEOUT: 15000,
 }
 
-// 响应数据接口
+// 标准API响应接口
 interface ApiResponse<T = any> {
   code: number;
   message: string;
-  data?: T;
+  data: T;
 }
 
 // 登录请求参数接口
@@ -27,7 +27,6 @@ interface LoginRequest {
 
 // 登录响应数据接口
 interface LoginResponse {
-  token: string;
   user: {
     id: number;
     username: string;
@@ -41,18 +40,23 @@ interface LoginResponse {
     bio?: string;
     avatar?: string;
     theme?: string;
-  }
+  };
+  token: {
+    refresh: string;
+    access: string;
+  };
 }
 
 // 用户信息更新接口
-interface UserProfileUpdate {
+export interface UserProfileUpdate {
+  username: string;
   real_name?: string;
   nickname?: string;
   email?: string;
   phone?: string;
   department?: string;
   bio?: string;
-  avatar?: string;
+  avatar?: string | File;
   theme?: string;
 }
 
@@ -111,21 +115,11 @@ class ApiService {
   // 登录API
   async login(credentials: LoginRequest): Promise<ApiResponse<LoginResponse>> {
     try {
-      const response = await this.instance.post(
+      const response = await this.instance.post<ApiResponse<LoginResponse>>(
         'auth/login/',
         credentials
       );
       
-      // 后端返回的数据可能直接是我们需要的格式
-      if (response.data && response.data.token) {
-        return {
-          code: 200,
-          message: '登录成功',
-          data: response.data
-        };
-      }
-      
-      // 如果后端返回的是ApiResponse格式
       return response.data;
     } catch (error: any) {
       // 如果是API返回的错误
@@ -134,82 +128,124 @@ class ApiService {
         // 返回API的错误信息
         return {
           code: error.response.status,
-          message: error.response.data.non_field_errors?.[0] || error.response.data.message || '登录失败，请检查用户名和密码',
+          message: error.response.data.message || '登录失败，请检查用户名和密码',
           data: error.response.data
         };
       }
       // 如果是网络错误或其他错误
       return {
         code: 500,
-        message: '网络错误，请检查网络连接'
+        message: '网络错误，请检查网络连接',
+        data: {} as LoginResponse
       };
     }
   }
   
   // 获取用户信息API
-  async getUserInfo(): Promise<ApiResponse> {
+  async getUserInfo(): Promise<ApiResponse<LoginResponse['user']>> {
     try {
-      const response = await this.instance.get<ApiResponse>('auth/users/me/');
+      const response = await this.instance.get<ApiResponse<LoginResponse['user']>>('auth/users/me/');
       return response.data;
     } catch (error: any) {
-      if (error.response) {
-        return {
-          code: error.response.status,
-          message: error.response.data.message || '获取用户信息失败',
-          data: error.response.data
-        };
-      }
-      return {
-        code: 500,
-        message: '网络错误，请检查网络连接'
-      };
+      console.error('获取用户信息失败:', error);
+      throw error;
+    }
+  }
+  
+  // 调试API支持的方法
+  async testApiMethods(): Promise<void> {
+    const testEndpoint = 'auth/users/me/';
+    
+    try {
+      console.log(`Testing GET method on ${testEndpoint}`);
+      const getResponse = await this.instance.get(testEndpoint);
+      console.log(`GET method succeeded:`, getResponse.data);
+    } catch (error: any) {
+      console.error(`GET method failed:`, error.response?.data || error.message);
+    }
+    
+    try {
+      console.log(`Testing POST method on ${testEndpoint}`);
+      const postResponse = await this.instance.post(testEndpoint, { test: true });
+      console.log(`POST method succeeded:`, postResponse.data);
+    } catch (error: any) {
+      console.error(`POST method failed:`, error.response?.data || error.message);
+    }
+    
+    try {
+      console.log(`Testing PUT method on ${testEndpoint}`);
+      const putResponse = await this.instance.put(testEndpoint, { test: true });
+      console.log(`PUT method succeeded:`, putResponse.data);
+    } catch (error: any) {
+      console.error(`PUT method failed:`, error.response?.data || error.message);
+    }
+    
+    try {
+      console.log(`Testing PATCH method on ${testEndpoint}`);
+      const patchResponse = await this.instance.patch(testEndpoint, { test: true });
+      console.log(`PATCH method succeeded:`, patchResponse.data);
+    } catch (error: any) {
+      console.error(`PATCH method failed:`, error.response?.data || error.message);
     }
   }
   
   // 更新用户信息API
-  async updateUserProfile(profileData: UserProfileUpdate): Promise<ApiResponse> {
+  async updateUserProfile(profileData: UserProfileUpdate): Promise<ApiResponse<LoginResponse['user']>> {
     try {
-      const response = await this.instance.patch<ApiResponse>('auth/users/me/', profileData);
-      return response.data;
-    } catch (error: any) {
-      if (error.response) {
-        return {
-          code: error.response.status,
-          message: error.response.data.message || '更新用户信息失败',
-          data: error.response.data
-        };
-      }
-      return {
-        code: 500,
-        message: '网络错误，请检查网络连接'
-      };
-    }
-  }
-  
-  // 上传用户头像API
-  async uploadAvatar(file: File): Promise<ApiResponse> {
-    try {
+      // 创建FormData对象用于提交数据
       const formData = new FormData();
-      formData.append('avatar', file);
       
-      const response = await this.instance.post<ApiResponse>('auth/users/me/avatar/', formData, {
+      // 添加所有字段到FormData
+      Object.keys(profileData).forEach(key => {
+        const value = profileData[key as keyof UserProfileUpdate];
+        if (value !== undefined && value !== null) {
+          if (key === 'avatar') {
+            // 处理头像字段 - 可能是File对象或字符串URL
+            console.log(`处理头像字段: ${typeof value}`, value instanceof File ? '文件对象' : value);
+            if (value instanceof File) {
+              // 如果是File对象，直接添加
+              formData.append(key, value);
+            } else if (typeof value === 'string' && value.trim() !== '') {
+              // 如果是非空字符串URL，则作为字符串添加
+              formData.append(key, value);
+            }
+            // 如果是空字符串，则不添加此字段
+          } else {
+            // 其他字段正常添加
+            formData.append(key, String(value));
+          }
+        }
+      });
+      
+      // 使用FormData发送请求，统一使用multipart/form-data格式
+      const response = await this.instance.put<ApiResponse<LoginResponse['user']>>('auth/users/me/', formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
       });
       return response.data;
     } catch (error: any) {
-      if (error.response) {
-        return {
-          code: error.response.status,
-          message: error.response.data.message || '上传头像失败',
-          data: error.response.data
-        };
-      }
-      return {
-        code: 500,
-        message: '网络错误，请检查网络连接'
-      };
+      console.error('更新用户信息失败:', error);
+      throw error;
+    }
+  }
+  
+  // 上传用户头像API
+  async uploadAvatar(file: File): Promise<ApiResponse<LoginResponse['user']>> {
+    try {
+      console.log(file, 'file~~~~~~~~~~~~')
+      const formData = new FormData();
+      formData.append('avatar', file);
+      
+      const response = await this.instance.post<ApiResponse<LoginResponse['user']>>('auth/users/me/avatar/', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+      return response.data;
+    } catch (error: any) {
+      console.error('上传头像失败:', error);
+      throw error;
     }
   }
 }

@@ -77,10 +77,15 @@
     <div class="sidebar-footer">
       <div v-if="!isCollapsed" class="user-menu">
         <div class="user-info" @click="toggleUserDropdown">
-          <div class="avatar">{{ authStore.userInfo?.username?.[0]?.toUpperCase() || 'U' }}</div>
+          <div class="avatar" v-if="authStore.userInfo?.avatar">
+            <img :src="authStore.userInfo.avatar" alt="用户头像" />
+          </div>
+          <div class="avatar" v-else>
+            {{ getInitial }}
+          </div>
           <div class="user-details">
-            <div class="username">{{ authStore.userInfo?.username || '用户' }}</div>
-            <div class="role">{{ authStore.userRole }}</div>
+            <div class="username">{{ displayName }}</div>
+            
           </div>
           <div class="dropdown-icon">
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -97,6 +102,13 @@
             </svg>
             <span>个人设置</span>
           </div>
+          <div class="dropdown-item" @click="showPasswordModal">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+              <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+            </svg>
+            <span>修改密码</span>
+          </div>
           <div class="dropdown-divider"></div>
           <div class="dropdown-item logout" @click="handleLogout">
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -110,7 +122,8 @@
       </div>
       
       <div class="avatar mini-avatar" v-else @click="toggleSidebar" title="展开菜单">
-        {{ authStore.userInfo?.username?.[0]?.toUpperCase() || 'U' }}
+        <img v-if="authStore.userInfo?.avatar" :src="authStore.userInfo.avatar" alt="用户头像" />
+        <template v-else>{{ getInitial }}</template>
       </div>
     </div>
   </div>
@@ -121,13 +134,21 @@
     @close="closeSettingsModal"
     @save="handleSettingsSaved"
   />
+  
+  <!-- 使用密码修改组件 -->
+  <PasswordModal
+    :is-open="isPasswordModalOpen"
+    @close="closePasswordModal"
+    @password-changed="handlePasswordChanged"
+  />
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { useAuthStore } from '../stores/auth'
 import { useRouter } from 'vue-router'
 import UserSettingsModal from './UserSettingsModal.vue'
+import PasswordModal from './PasswordModal.vue'
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -136,6 +157,7 @@ const isCollapsed = ref(false)
 const isSystemMenuOpen = ref(true)
 const isUserDropdownOpen = ref(false)
 const isSettingsModalOpen = ref(false)
+const isPasswordModalOpen = ref(false)
 
 const toggleSidebar = () => {
   isCollapsed.value = !isCollapsed.value
@@ -173,11 +195,39 @@ const handleSettingsSaved = () => {
   console.log('用户设置已保存')
 }
 
+// 显示密码修改弹框
+const showPasswordModal = () => {
+  isPasswordModalOpen.value = true
+  isUserDropdownOpen.value = false
+}
+
+// 关闭密码修改弹框
+const closePasswordModal = () => {
+  isPasswordModalOpen.value = false
+}
+
+// 处理密码修改成功
+const handlePasswordChanged = () => {
+  // 可以在这里添加一些通知或其他操作
+  console.log('密码修改成功')
+}
+
 // 处理退出登录
 const handleLogout = async () => {
   await authStore.logout()
   router.push('/login')
 }
+
+// 计算属性：显示名称（优先显示昵称，如果没有则显示用户名）
+const displayName = computed(() => {
+  return authStore.userInfo?.nickname || authStore.userInfo?.username || '用户'
+})
+
+// 计算属性：获取名称首字母
+const getInitial = computed(() => {
+  const name = authStore.userInfo?.nickname || authStore.userInfo?.username
+  return name ? name[0].toUpperCase() : 'U'
+})
 </script>
 
 <style scoped>
@@ -458,6 +508,13 @@ const handleLogout = async () => {
   font-weight: 600;
   margin-right: 0.75rem;
   flex-shrink: 0;
+  overflow: hidden;
+}
+
+.avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .mini-avatar {

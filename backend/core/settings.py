@@ -211,3 +211,20 @@ SPECTACULAR_SETTINGS = {
     'SERVE_PERMISSIONS': ['rest_framework.permissions.IsAuthenticated'],
     'COMPONENT_SPLIT_REQUEST': True,
 }
+
+# 邮件配置
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_HOST = 'smtp.example.com'  # SMTP服务器地址，根据实际情况修改
+EMAIL_PORT = 587  # SMTP服务器端口
+EMAIL_USE_TLS = True  # 是否使用TLS加密
+EMAIL_HOST_USER = 'noreply@example.com'  # 发送邮件的邮箱地址，根据实际情况修改
+EMAIL_HOST_PASSWORD = 'your-email-password'  # 发送邮件的邮箱密码，根据实际情况修改
+DEFAULT_FROM_EMAIL = 'AI管理系统 <noreply@example.com>'
+
+# 缓存配置，用于存储验证码
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+        'LOCATION': 'unique-snowflake',
+    }
+}

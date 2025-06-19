@@ -200,7 +200,7 @@ const handleLogin = async () => {
     if (result.success) {
       // 获取用户信息
       const userResult = await authStore.fetchUserInfo()
-      
+     
       if (!userResult.success) {
         console.warn('获取用户信息失败:', userResult.message)
         // 获取用户信息失败不阻止登录流程，继续执行

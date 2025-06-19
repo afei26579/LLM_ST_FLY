@@ -2,7 +2,7 @@
   <div class="modal-overlay" v-if="isOpen" @click.self="closeModal">
     <div class="modal-container">
       <div class="modal-header">
-        <h2>{{ userInfo.username }}</h2>
+        <h2>{{ userInfo.nickname }}</h2>
         <button class="close-btn" @click="closeModal">
           <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <line x1="18" y1="6" x2="6" y2="18"></line>
@@ -42,27 +42,30 @@
           <!-- 用户信息表单 -->
           <div class="settings-form">
             <div class="form-group">
-              <label>昵称</label>
+              <div class="label-container">
+                <label>昵称 <span class="required">*</span></label>
+                <span v-if="errors.nickname" class="error-message">{{ errors.nickname }}</span>
+              </div>
               <input type="text" v-model="userInfo.nickname" class="form-control" :class="{ 'error': errors.nickname }" />
-              <small v-if="errors.nickname" class="error-message">{{ errors.nickname }}</small>
-              <small v-else class="form-hint">2-7个中文字符（选填）</small>
+              
             </div>
             
             <div class="form-group">
-              <label>真实姓名</label>
-              <input type="text" v-model="userInfo.real_name" class="form-control" />
-            </div>
-            
-            <div class="form-group">
-              <label>电子邮箱</label>
+              <div class="label-container">
+                <label>电子邮箱</label>
+                <span v-if="errors.email" class="error-message">{{ errors.email }}</span>
+              </div>
               <input type="email" v-model="userInfo.email" class="form-control" :class="{ 'error': errors.email }" />
-              <small v-if="errors.email" class="error-message">{{ errors.email }}</small>
+              
             </div>
             
             <div class="form-group">
-              <label>手机号码</label>
+              <div class="label-container">
+                <label>手机号码</label>
+                <span v-if="errors.phone" class="error-message">{{ errors.phone }}</span>
+              </div>
               <input type="tel" v-model="userInfo.phone" class="form-control" :class="{ 'error': errors.phone }" />
-              <small v-if="errors.phone" class="error-message">{{ errors.phone }}</small>
+             
             </div>
             
             <div class="form-group">
@@ -86,7 +89,7 @@
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { useAuthStore } from '../stores/auth'
-import { apiService } from '../services/api'
+import { apiService, type UserProfileUpdate } from '../services/api'
 
 const props = defineProps<{
   isOpen: boolean
@@ -103,7 +106,6 @@ const isLoading = ref(false)
 // 用户信息表单数据
 const userInfo = reactive({
   username: '',
-  real_name: '',
   nickname: '',
   email: '',
   phone: '',
@@ -131,6 +133,19 @@ watch(() => props.isOpen, (newVal) => {
   }
 });
 
+// 监听表单输入变化，实时验证
+watch(() => userInfo.nickname, (newVal) => {
+  validateNickname(newVal);
+});
+
+watch(() => userInfo.email, (newVal) => {
+  validateEmail(newVal);
+});
+
+watch(() => userInfo.phone, (newVal) => {
+  validatePhone(newVal);
+});
+
 // 加载用户信息
 const loadUserInfo = async () => {
   isLoading.value = true;
@@ -138,21 +153,22 @@ const loadUserInfo = async () => {
     // 从后端获取最新的用户信息
     const response = await apiService.getUserInfo();
     
-    if (response.code >= 200 && response.code < 300 && response.data?.user) {
+    // 使用API返回的数据
+    if (response.code >= 200 && response.code < 300 && response.data) {
       // 更新authStore中的用户信息
-      authStore.updateUserInfo(response.data.user);
+      authStore.updateUserInfo(response.data);
       
       // 更新表单数据
-      userInfo.username = response.data.user.username || '';
-      userInfo.real_name = response.data.user.real_name || '';
-      userInfo.nickname = response.data.user.nickname || '';
-      userInfo.email = response.data.user.email || '';
-      userInfo.phone = response.data.user.phone || '';
-      userInfo.bio = response.data.user.bio || '';
+      userInfo.username = response.data.username || '';
+      userInfo.nickname = response.data.nickname || '';
+      userInfo.email = response.data.email || '';
+      userInfo.phone = response.data.phone || '';
+      userInfo.bio = response.data.bio || '';
+      userInfo.avatar = response.data.avatar || '';
       
       // 如果有头像，设置预览图
-      if (response.data.user.avatar) {
-        previewImage.value = response.data.user.avatar;
+      if (response.data.avatar) {
+        previewImage.value = response.data.avatar;
       } else {
         previewImage.value = null;
       }
@@ -173,7 +189,6 @@ const loadUserInfo = async () => {
 const fallbackToStoredUserInfo = () => {
   if (authStore.userInfo) {
     userInfo.username = authStore.userInfo.username || '';
-    userInfo.real_name = authStore.userInfo.real_name || '';
     userInfo.nickname = authStore.userInfo.nickname || '';
     userInfo.email = authStore.userInfo.email || '';
     userInfo.phone = authStore.userInfo.phone || '';
@@ -223,34 +238,47 @@ const handleFileChange = (event: Event) => {
   }
 }
 
+// 验证昵称
+const validateNickname = (value: string) => {
+  errors.nickname = '';
+  if (!value || value.trim() === '') {
+    errors.nickname = '昵称不能为空';
+    return false;
+  } else if (value && (value.length < 2 || value.length > 16)) {
+    errors.nickname = '昵称必须是2-16个字符';
+    return false;
+  }
+  return true;
+}
+
+// 验证邮箱
+const validateEmail = (value: string) => {
+  errors.email = '';
+  if (value && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
+    errors.email = '请输入有效的电子邮箱地址';
+    return false;
+  }
+  return true;
+}
+
+// 验证手机号
+const validatePhone = (value: string) => {
+  errors.phone = '';
+  if (value && !/^1[3-9]\d{9}$/.test(value)) {
+    errors.phone = '请输入有效的手机号码';
+    return false;
+  }
+  return true;
+}
+
 // 表单验证
 const validateForm = () => {
-  let isValid = true
+  // 验证所有字段
+  const isNicknameValid = validateNickname(userInfo.nickname);
+  const isEmailValid = validateEmail(userInfo.email);
+  const isPhoneValid = validatePhone(userInfo.phone);
   
-  // 清除之前的错误信息
-  errors.email = ''
-  errors.phone = ''
-  errors.nickname = ''
-  
-  // 验证邮箱
-  if (userInfo.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(userInfo.email)) {
-    errors.email = '请输入有效的电子邮箱地址'
-    isValid = false
-  }
-  
-  // 验证手机号（中国大陆手机号格式）
-  if (userInfo.phone && !/^1[3-9]\d{9}$/.test(userInfo.phone)) {
-    errors.phone = '请输入有效的手机号码'
-    isValid = false
-  }
-  
-  // 验证昵称（如果填写了，则必须是2-7个中文字符）
-  if (userInfo.nickname && !/^[\u4e00-\u9fa5]{2,7}$/.test(userInfo.nickname)) {
-    errors.nickname = '昵称必须是2-7个中文字符'
-    isValid = false
-  }
-  
-  return isValid
+  return isNicknameValid && isEmailValid && isPhoneValid;
 }
 
 // 保存设置
@@ -264,55 +292,61 @@ const saveSettings = async () => {
   try {
     // 处理头像上传
     let avatarUrl = previewImage.value || undefined
+    let hasNewAvatar = false
     
     // 如果有新的头像文件，先上传头像
-    if (userInfo.avatar && userInfo.avatar !== authStore.userInfo?.avatar) {
+    if (userInfo.avatar && userInfo.avatar !== authStore.userInfo?.avatar && userInfo.avatar.startsWith('data:')) {
+      hasNewAvatar = true
       // 将base64转换为文件对象
       const base64Response = await fetch(userInfo.avatar);
       const blob = await base64Response.blob();
       const file = new File([blob], "avatar.jpg", { type: "image/jpeg" });
       
-      // 上传头像
-      const avatarResponse = await apiService.uploadAvatar(file);
-      if (avatarResponse.code >= 200 && avatarResponse.code < 300 && avatarResponse.data?.url) {
-        avatarUrl = avatarResponse.data.url;
-      } else {
-        console.error('头像上传失败:', avatarResponse.message);
+      try {
+        // 上传头像
+        const avatarResponse = await apiService.uploadAvatar(file);
+        if (avatarResponse.code >= 200 && avatarResponse.code < 300 && avatarResponse.data) {
+          avatarUrl = avatarResponse.data.avatar;
+        } else {
+          console.error('头像上传失败:', avatarResponse.message);
+        }
+      } catch (error) {
+        console.error('头像上传失败:', error);
       }
     }
     
     // 准备要更新的用户数据
     const profileData = {
-      real_name: userInfo.real_name,
+      username: userInfo.username,
       nickname: userInfo.nickname,
       email: userInfo.email,
       phone: userInfo.phone,
       bio: userInfo.bio,
       theme: userInfo.theme,
-      avatar: avatarUrl
+    } as UserProfileUpdate
+    
+    // 只有在成功上传了新头像时，才添加avatar字段
+    if (hasNewAvatar && avatarUrl) {
+      console.log('头像已上传成功，无需在profileData中包含avatar字段');
     }
     
-    // 调用API更新用户信息
-    const response = await apiService.updateUserProfile(profileData);
-    
-    if (response.code >= 200 && response.code < 300) {
-      // 更新本地存储的用户信息
-      authStore.updateUserInfo({
-        ...authStore.userInfo,
-        real_name: userInfo.real_name,
-        nickname: userInfo.nickname,
-        email: userInfo.email,
-        phone: userInfo.phone,
-        bio: userInfo.bio,
-        avatar: avatarUrl || authStore.userInfo?.avatar,
-        theme: userInfo.theme
-      })
+    try {
+      // 调用API更新用户信息
+      const response = await apiService.updateUserProfile(profileData);
       
-      emit('save')
-      closeModal()
-    } else {
-      console.error('保存设置失败:', response.message);
-      alert('保存设置失败: ' + response.message);
+      if (response.code >= 200 && response.code < 300 && response.data) {
+        // 更新本地存储的用户信息
+        authStore.updateUserInfo(response.data);
+        
+        emit('save')
+        closeModal()
+      } else {
+        console.error('保存设置失败:', response.message);
+        alert('保存设置失败: ' + response.message);
+      }
+    } catch (error) {
+      console.error('保存设置失败:', error);
+      alert('保存设置失败: ' + (error instanceof Error ? error.message : '未知错误'));
     }
   } catch (error) {
     console.error('保存设置失败', error)
@@ -345,8 +379,8 @@ const closeModal = () => {
 .modal-container {
   background-color: #fff;
   border-radius: 8px;
-  width: 90%;
-  max-width: 600px;
+  width: 95%;
+  max-width: 500px;
   box-shadow: 0 5px 20px rgba(0, 0, 0, 0.2);
   display: flex;
   flex-direction: column;
@@ -369,7 +403,7 @@ const closeModal = () => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 1rem;
+  padding: 0.5rem;
   border-bottom: 1px solid #e5e7eb;
 }
 
@@ -377,11 +411,6 @@ const closeModal = () => {
   margin: 0;
   font-size: 1.25rem;
   color: #111827;
-}
-
-.modal-header h2 span {
-  font-weight: 600;
-  color: #3b82f6;
 }
 
 .close-btn {
@@ -419,7 +448,7 @@ const closeModal = () => {
   display: flex;
   flex-direction: column;
   align-items: center;
-  margin-bottom: 2rem;
+  margin-bottom: 1.5rem;
 }
 
 .avatar-container {
@@ -495,38 +524,33 @@ const closeModal = () => {
 
 /* 表单样式 */
 .settings-form {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
 }
 
 .form-group {
   margin-bottom: 0.5rem;
 }
 
-.form-group:nth-child(7) {
-  /* 个人简介跨两列 */
-  grid-column: span 2;
-}
-
-.form-group:nth-child(8) {
-  /* 界面主题跨两列 */
-  grid-column: span 2;
-}
-
-.form-group label {
-  display: block;
+.label-container {
+  display: flex;
+  align-items: center;
   margin-bottom: 0.5rem;
+}
+
+.label-container label {
   font-weight: 500;
   color: #374151;
+  margin-right: 0.5rem;
 }
 
 .form-control {
   width: 100%;
-  padding: 0.625rem 0.75rem;
+  padding: 0.75rem;
   border: 1px solid #d1d5db;
   border-radius: 6px;
-  font-size: 0.875rem;
+  font-size: 0.95rem;
   transition: border-color 0.2s;
 }
 
@@ -536,32 +560,30 @@ const closeModal = () => {
   box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
 }
 
-.form-control.disabled {
-  background-color: #f9fafb;
-  cursor: not-allowed;
-}
-
 .form-control.error {
   border-color: #ef4444;
 }
 
 textarea.form-control {
   resize: vertical;
-  min-height: 80px;
+  min-height: 100px;
 }
 
 .form-hint {
   display: block;
   margin-top: 0.25rem;
-  font-size: 0.75rem;
+  font-size: 0.8rem;
   color: #6b7280;
 }
 
 .error-message {
-  display: block;
-  margin-top: 0.25rem;
-  font-size: 0.75rem;
+  font-size: 0.8rem;
   color: #ef4444;
+}
+
+.required {
+  color: #ef4444;
+  margin-left: 2px;
 }
 
 .btn {
@@ -594,16 +616,6 @@ textarea.form-control {
 
 .btn-secondary:hover {
   background-color: #e5e7eb;
-}
-
-@media (max-width: 640px) {
-  .settings-form {
-    grid-template-columns: 1fr;
-  }
-  
-  .form-group:nth-last-child(1) {
-    grid-column: span 1;
-  }
 }
 
 /* 加载状态样式 */

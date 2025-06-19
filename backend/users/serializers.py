@@ -140,4 +140,109 @@ class UserGroupSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = ['id', 'username', 'email', 'first_name', 
-                 'last_name', 'nickname', 'role', 'is_active', 'groups'] 
+                 'last_name', 'nickname', 'role', 'is_active', 'groups']
+
+
+class ChangePasswordSerializer(serializers.Serializer):
+    """密码修改序列化器"""
+    oldPassword = serializers.CharField(required=True, write_only=True)
+    newPassword = serializers.CharField(required=True, write_only=True)
+    
+    def validate_oldPassword(self, value):
+        """验证旧密码是否正确"""
+        user = self.context['request'].user
+        if not user.check_password(value):
+            raise serializers.ValidationError(_("当前密码不正确"), code="password_incorrect")
+        return value
+    
+    def validate_newPassword(self, value):
+        """验证新密码规则"""
+        if len(value) < 8:
+            raise serializers.ValidationError(_("密码长度至少为8位"), code="password_too_short")
+        return value
+    
+    def validate(self, attrs):
+        """验证新密码与旧密码不能相同"""
+        if attrs.get('oldPassword') == attrs.get('newPassword'):
+            raise serializers.ValidationError(
+                {"newPassword": _("新密码不能与当前密码相同")}, 
+                code="password_same"
+            )
+        return attrs
+    
+    def save(self):
+        """保存新密码"""
+        user = self.context['request'].user
+        user.set_password(self.validated_data['newPassword'])
+        user.save(update_fields=['password'])
+        return user
+
+
+class SendSmsCodeSerializer(serializers.Serializer):
+    """发送手机验证码序列化器"""
+    phone = serializers.CharField(max_length=15, required=True)
+    
+    def validate_phone(self, value):
+        """验证手机号是否已注册"""
+        if not User.objects.filter(phone=value).exists():
+            raise serializers.ValidationError(_("该手机号未注册"), code="phone_not_found")
+        return value
+
+
+class SendEmailCodeSerializer(serializers.Serializer):
+    """发送邮箱验证码序列化器"""
+    email = serializers.EmailField(required=True)
+    
+    def validate_email(self, value):
+        """验证邮箱是否已注册"""
+        if not User.objects.filter(email=value).exists():
+            raise serializers.ValidationError(_("该邮箱未注册"), code="email_not_found")
+        return value
+
+
+class ResetPasswordPhoneSerializer(serializers.Serializer):
+    """通过手机号重置密码序列化器"""
+    phone = serializers.CharField(max_length=15, required=True)
+    code = serializers.CharField(required=True)
+    newPassword = serializers.CharField(required=True, write_only=True)
+    
+    def validate_phone(self, value):
+        """验证手机号是否已注册"""
+        if not User.objects.filter(phone=value).exists():
+            raise serializers.ValidationError(_("该手机号未注册"), code="phone_not_found")
+        return value
+    
+    def validate_code(self, value):
+        """验证手机验证码是否正确"""
+        # TODO: 实际验证码验证逻辑
+        return value
+    
+    def validate_newPassword(self, value):
+        """验证新密码规则"""
+        if len(value) < 8:
+            raise serializers.ValidationError(_("密码长度至少为8位"), code="password_too_short")
+        return value
+
+
+class ResetPasswordEmailSerializer(serializers.Serializer):
+    """通过邮箱重置密码序列化器"""
+    email = serializers.EmailField(required=True)
+    code = serializers.CharField(required=True)
+    newPassword = serializers.CharField(required=True, write_only=True)
+    
+    def validate_email(self, value):
+        """验证邮箱是否已注册"""
+        if not User.objects.filter(email=value).exists():
+            raise serializers.ValidationError(_("该邮箱未注册"), code="email_not_found")
+        return value
+    
+    def validate_code(self, value):
+        """验证邮箱验证码是否正确"""
+        # TODO: 实际验证码验证逻辑
+        return value
+    
+    def validate_newPassword(self, value):
+        """验证新密码规则"""
+        if len(value) < 8:
+            raise serializers.ValidationError(_("密码长度至少为8位"), code="password_too_short")
+        return value 
