@@ -134,7 +134,7 @@ export const useAuthStore = defineStore('auth', () => {
     try {
       // 调用API服务获取用户信息
       const response = await apiService.getUserInfo()
-      
+      console.log(response, 'response~~~~~~~~~~~~')
       // 检查响应状态
       if (response.code < 200 || response.code >= 300) {
         return { 

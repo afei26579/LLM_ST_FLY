@@ -1,7 +1,7 @@
 <template>
-  <div v-if="isOpen" class="modal-overlay">
-    <div class="modal-container">
-      <div class="modal-header">
+  <div v-if="isOpen" :class="{ 'modal-overlay': !embedded, 'embedded-modal': embedded }">
+    <div :class="{ 'modal-container': !embedded }">
+      <div class="modal-header" v-if="!embedded">
         <h2>{{ mode === 'change' ? '修改密码' : '重置密码' }}</h2>
         <button class="close-btn" @click="close">
           <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -11,9 +11,10 @@
         </button>
       </div>
 
-      <div class="modal-content">
+      <div :class="{ 'modal-content': !embedded }">
         <!-- 密码修改模式 -->
         <form v-if="mode === 'change'" @submit.prevent="submitPasswordChange">
+          
           <div class="form-group">
             <label for="old-password">当前密码</label>
             <span class="error-message" v-if="errors.oldPassword">{{ errors.oldPassword }}</span>
@@ -94,7 +95,7 @@
           </div>
 
           <div class="form-actions">
-            <button type="button" class="cancel-btn" @click="close">取消</button>
+           
             <button type="submit" class="submit-btn" :disabled="isSubmitting">
               <span v-if="!isSubmitting">确认修改</span>
               <span v-else>修改中...</span>
@@ -104,6 +105,7 @@
 
         <!-- 忘记密码模式 -->
         <form v-else @submit.prevent="submitPasswordReset">
+         
           <div class="reset-method-tabs">
             <div 
               class="tab" 
@@ -264,7 +266,10 @@
     </div>
     
     <!-- 操作结果提示框 -->
-    <div v-if="showToast" class="toast" :class="{ 'toast-success': toastType === 'success', 'toast-error': toastType === 'error' }">
+    <div v-if="showToast" class="toast" :class="[
+      { 'toast-success': toastType === 'success', 'toast-error': toastType === 'error' },
+      { 'embedded-toast': embedded }
+    ]">
       <div class="toast-content">
         <svg v-if="toastType === 'success'" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
@@ -290,6 +295,10 @@ import type { ChangePasswordRequest, ResetPasswordPhoneRequest, ResetPasswordEma
 
 const props = defineProps({
   isOpen: {
+    type: Boolean,
+    default: false
+  },
+  embedded: {
     type: Boolean,
     default: false
   }
@@ -698,7 +707,7 @@ const handleResetErrorResponse = (response: any) => {
 .modal-container {
   width: 450px;
   max-width: 90%;
-  background-color: #fff;
+  background-color: #1f2937;
   border-radius: 8px;
   box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
   overflow: hidden;
@@ -712,13 +721,13 @@ const handleResetErrorResponse = (response: any) => {
   align-items: center;
   justify-content: space-between;
   padding: 16px 20px;
-  border-bottom: 1px solid #e2e8f0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .modal-header h2 {
   font-size: 18px;
   font-weight: 600;
-  color: #1a202c;
+  color: #e1e6f5;
   margin: 0;
 }
 
@@ -729,13 +738,13 @@ const handleResetErrorResponse = (response: any) => {
   display: flex;
   padding: 4px;
   border-radius: 4px;
-  color: #64748b;
+  color: #94a3b8;
   transition: background-color 0.2s, color 0.2s;
 }
 
 .close-btn:hover {
-  background-color: #f1f5f9;
-  color: #334155;
+  background-color: rgba(255, 255, 255, 0.05);
+  color: #e1e6f5;
 }
 
 .modal-content {
@@ -751,25 +760,29 @@ label {
   display: inline-block;
   margin-bottom: 6px;
   font-weight: 500;
-  color: #334155;
+  color: #e1e6f5;
   font-size: 14px;
 }
 
 input {
   width: 100%;
   padding: 10px 12px;
-  border: 1px solid #cbd5e1;
-  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
   font-size: 14px;
-  color: #1e293b;
-  background-color: #fff;
+  color: #e1e6f5;
   transition: border-color 0.2s, box-shadow 0.2s;
 }
 
 input:focus {
   outline: none;
-  border-color: #3b82f6;
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+  border-color: rgba(94, 155, 255, 0.5);
+  box-shadow: 0 0 0 2px rgba(94, 155, 255, 0.1);
+}
+
+input::placeholder {
+  color: rgba(255, 255, 255, 0.3);
 }
 
 .password-input {
@@ -784,7 +797,7 @@ input:focus {
   background: transparent;
   border: none;
   cursor: pointer;
-  color: #64748b;
+  color: #94a3b8;
   display: flex;
   padding: 0;
 }
@@ -799,7 +812,7 @@ input:focus {
 .cancel-btn,
 .submit-btn {
   padding: 10px 16px;
-  border-radius: 6px;
+  border-radius: 8px;
   font-weight: 500;
   cursor: pointer;
   transition: all 0.2s;
@@ -807,32 +820,38 @@ input:focus {
 }
 
 .cancel-btn {
-  background-color: #f1f5f9;
-  color: #334155;
-  border: 1px solid #e2e8f0;
+  background: transparent;
+  color: #94a3b8;
+  border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
-.cancel-btn:hover {
-  background-color: #e2e8f0;
+.cancel-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.05);
+  color: #e1e6f5;
+}
+
+.cancel-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .submit-btn {
-  background-color: #3b82f6;
-  color: #fff;
+  background-color: #5e9bff;
+  color: white;
   border: none;
 }
 
-.submit-btn:hover {
-  background-color: #2563eb;
+.submit-btn:hover:not(:disabled) {
+  background-color: #4b8bff;
 }
 
 .submit-btn:disabled {
-  background-color: #93c5fd;
+  opacity: 0.6;
   cursor: not-allowed;
 }
 
 .error-message {
-  color: #ef4444;
+  color: #ff6b6b;
   font-size: 12px;
   margin-left: 8px;
   display: inline-block;
@@ -847,21 +866,21 @@ input:focus {
 
 .forgot-password a,
 .back-to-login a {
-  color: #3b82f6;
+  color: #5e9bff;
   text-decoration: none;
   transition: color 0.2s;
 }
 
 .forgot-password a:hover,
 .back-to-login a:hover {
-  color: #2563eb;
+  color: #4b8bff;
   text-decoration: underline;
 }
 
 .reset-method-tabs {
   display: flex;
   margin-bottom: 20px;
-  border-bottom: 1px solid #e2e8f0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .tab {
@@ -869,19 +888,19 @@ input:focus {
   text-align: center;
   padding: 12px;
   cursor: pointer;
-  color: #64748b;
+  color: #94a3b8;
   font-weight: 500;
   transition: all 0.2s;
   border-bottom: 2px solid transparent;
 }
 
 .tab:hover {
-  color: #334155;
+  color: #e1e6f5;
 }
 
 .tab.active {
-  color: #3b82f6;
-  border-bottom: 2px solid #3b82f6;
+  color: #5e9bff;
+  border-bottom: 2px solid #5e9bff;
 }
 
 .verification-code .code-input-group {
@@ -891,10 +910,10 @@ input:focus {
 
 .send-code-btn {
   white-space: nowrap;
-  background-color: #3b82f6;
-  color: white;
-  border: none;
-  border-radius: 6px;
+  background: rgba(94, 155, 255, 0.2);
+  color: #5e9bff;
+  border: 1px solid rgba(94, 155, 255, 0.3);
+  border-radius: 8px;
   padding: 0 16px;
   font-size: 14px;
   cursor: pointer;
@@ -902,11 +921,11 @@ input:focus {
 }
 
 .send-code-btn:hover:not(:disabled) {
-  background-color: #2563eb;
+  background: rgba(94, 155, 255, 0.3);
 }
 
 .send-code-btn:disabled {
-  background-color: #93c5fd;
+  opacity: 0.6;
   cursor: not-allowed;
 }
 
@@ -923,12 +942,12 @@ input:focus {
 }
 
 .toast-success {
-  background-color: #10b981;
+  background-color: #4ade80;
   color: white;
 }
 
 .toast-error {
-  background-color: #ef4444;
+  background-color: #ff6b6b;
   color: white;
 }
 
@@ -947,5 +966,32 @@ input:focus {
     opacity: 1;
     transform: translate(-50%, -50%);
   }
+}
+
+/* Add embedded mode styles */
+.embedded-modal {
+  width: 100%;
+  display: block;
+}
+
+.embedded-modal form {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 10px;
+  padding: 1.5rem;
+}
+
+.embedded-modal h4 {
+  margin: 0 0 1.5rem 0;
+  color: #e1e6f5;
+  font-size: 1.25rem;
+  font-weight: 500;
+}
+
+.embedded-toast {
+  position: relative;
+  top: 10px;
+  left: 0;
+  width: 100%;
+  transform: none;
 }
 </style>

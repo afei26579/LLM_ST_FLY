@@ -102,6 +102,14 @@
             </svg>
             <span>个人设置</span>
           </div>
+          <div class="dropdown-item" @click="showSecuritySettings">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+              <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+              <circle cx="12" cy="16" r="1"></circle>
+            </svg>
+            <span>安全设置</span>
+          </div>
           <div class="dropdown-item" @click="showPasswordModal">
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
@@ -135,6 +143,13 @@
     @save="handleSettingsSaved"
   />
   
+  <!-- 安全设置弹窗 -->
+  <SecuritySettingsModal
+    :is-open="isSecurityModalOpen"
+    @close="closeSecurityModal"
+    @binding-updated="handleBindingUpdated"
+  />
+  
   <!-- 使用密码修改组件 -->
   <PasswordModal
     :is-open="isPasswordModalOpen"
@@ -149,6 +164,7 @@ import { useAuthStore } from '../stores/auth'
 import { useRouter } from 'vue-router'
 import UserSettingsModal from './UserSettingsModal.vue'
 import PasswordModal from './PasswordModal.vue'
+import SecuritySettingsModal from './SecuritySettingsModal.vue'
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -158,6 +174,7 @@ const isSystemMenuOpen = ref(true)
 const isUserDropdownOpen = ref(false)
 const isSettingsModalOpen = ref(false)
 const isPasswordModalOpen = ref(false)
+const isSecurityModalOpen = ref(false)
 
 const toggleSidebar = () => {
   isCollapsed.value = !isCollapsed.value
@@ -193,6 +210,23 @@ const closeSettingsModal = () => {
 const handleSettingsSaved = () => {
   // 可以在这里添加一些通知或其他操作
   console.log('用户设置已保存')
+}
+
+// 显示安全设置弹框
+const showSecuritySettings = () => {
+  isSecurityModalOpen.value = true
+  isUserDropdownOpen.value = false
+}
+
+// 关闭安全设置弹框
+const closeSecurityModal = () => {
+  isSecurityModalOpen.value = false
+}
+
+// 处理绑定信息更新
+const handleBindingUpdated = (type: string) => {
+  // 可以在这里添加通知或其他处理
+  console.log(`${type}绑定更新成功`)
 }
 
 // 显示密码修改弹框

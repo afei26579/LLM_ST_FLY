@@ -1,147 +1,143 @@
 <template>
-  <div class="modal-overlay" v-if="isOpen" @click.self="closeModal">
-    <div class="modal-container">
-      <div class="modal-header">
-        <h2>{{ userInfo.nickname }}</h2>
-        <button class="close-btn" @click="closeModal">
-          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <line x1="18" y1="6" x2="6" y2="18"></line>
-            <line x1="6" y1="6" x2="18" y2="18"></line>
-          </svg>
-        </button>
-      </div>
-      <div class="modal-body">
-        <!-- 加载状态 -->
+  <div>
+    <!-- 全局提示信息，不在ModalStyle内部 -->
+    <div v-if="notification.show" class="notification" :class="notification.type">
+      {{ notification.message }}
+    </div>
+    
+    <ModalStyle :is-open="isOpen" title="个人设置" @close="closeModal" :wide="true">
+      <!-- 个人资料 -->
+      <div class="tab-content">
         <div v-if="isLoading" class="loading-container">
           <div class="loading-spinner"></div>
-          <p>加载用户信息中...</p>
+          <p>正在加载用户信息...</p>
         </div>
         
-        <!-- 用户信息内容 -->
-        <div v-else>
-          <!-- 头像上传区域 -->
-          <div class="avatar-section">
-            <div class="avatar-container">
-              <div v-if="previewImage" class="avatar-preview">
-                <img :src="previewImage" alt="头像预览" />
+        <form v-else @submit.prevent="saveSettings">
+          <!-- 头像（放在第一行并居中） -->
+          <div class="form-group avatar-container">
+            <div class="avatar-uploader">
+              <div class="avatar-preview" @click="triggerFileInput">
+                <span v-if="!previewImage">{{ userInfo.username?.[0]?.toUpperCase() || 'U' }}</span>
+                <img v-else :src="previewImage" alt="头像预览" />
+                <div class="avatar-hover-overlay">
+                  <span>点击更换头像</span>
+                </div>
               </div>
-              <div v-else class="avatar-placeholder">
-                {{ userInfo.username?.[0]?.toUpperCase() || 'U' }}
-              </div>
-              <div class="avatar-overlay" @click="triggerFileInput">
-                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
-                  <circle cx="12" cy="13" r="4"></circle>
-                </svg>
-              </div>
+              <input 
+                type="file" 
+                ref="fileInput"
+                @change="handleFileChange" 
+                accept="image/*" 
+                style="display:none"
+              />
             </div>
-            <input type="file" ref="fileInput" @change="handleFileChange" accept="image/*" style="display: none" />
-            <!--button class="upload-btn" @click="triggerFileInput">更换头像</button-->
+          </div>
+
+          <!-- 昵称 -->
+          <div class="form-group-row">
+            <label for="nickname">昵称</label>
+            <div class="form-field">
+              <input
+                type="text"
+                id="nickname"
+                v-model="userInfo.nickname"
+                placeholder="请输入昵称"
+                :class="{ 'error': errors.nickname }"
+              />
+              <div v-if="errors.nickname" class="error-message">{{ errors.nickname }}</div>
+            </div>
           </div>
           
-          <!-- 用户信息表单 -->
-          <div class="settings-form">
-            <div class="form-group">
-              <div class="inline-form-row">
-                <label>昵称 <span class="required">*</span></label>
-                <div class="input-container">
-                  <input type="text" v-model="userInfo.nickname" class="form-control" :class="{ 'error': errors.nickname }" />
-                  <span v-if="errors.nickname" class="error-message">{{ errors.nickname }}</span>
-                </div>
+          <!-- 性别 (删除了"其他"选项) -->
+          <div class="form-group-row align-center">
+            <label for="gender">性别</label>
+            <div class="form-field">
+              <div class="radio-group no-padding">
+                <label class="radio-label">
+                  <input type="radio" v-model="userInfo.gender" value="male" />
+                  <span>男</span>
+                </label>
+                <label class="radio-label">
+                  <input type="radio" v-model="userInfo.gender" value="female" />
+                  <span>女</span>
+                </label>
               </div>
-            </div>
-            
-            <!-- 性别选择 -->
-            <div class="form-group">
-              <div class="inline-form-row">
-                <label>性别</label>
-                <div class="radio-group">
-                  <label class="radio-label">
-                    <input type="radio" v-model="userInfo.gender" value="male" /> 男
-                  </label>
-                  <label class="radio-label">
-                    <input type="radio" v-model="userInfo.gender" value="female" /> 女
-                  </label>
-                </div>
-              </div>
-            </div>
-                     <!-- QQ号码 -->
-            <div class="form-group">
-              <div class="inline-form-row">
-                <label>QQ号码</label>
-                <div class="input-container">
-                  <input 
-                    type="text" 
-                    v-model="userInfo.qq" 
-                    class="form-control" 
-                    placeholder="请输入QQ号码" 
-                    :class="{ 'error': errors.qq }"
-                    @input="onQQInput"
-                  />
-                  <span v-if="errors.qq" class="error-message">{{ errors.qq }}</span>
-                </div>
-              </div>
-            </div>
-            
-            <!-- 生日选择 -->
-            <div class="form-group">
-              <div class="inline-form-row">
-                <label>生日</label>
-                <input type="date" v-model="userInfo.birthday" class="form-control" />
-              </div>
-            </div>
-            
-            <!-- 省份 -->
-            <div class="form-group">
-              <div class="inline-form-row">
-                <label>省份</label>
-                <select v-model="userInfo.province" class="form-control">
-                  <option value="">请选择省份</option>
-                  <option v-for="province in provinces" :key="province.code" :value="province.name">{{ province.name }}</option>
-                </select>
-              </div>
-            </div>
-            
-            <!-- 城市 -->
-            <div class="form-group">
-              <div class="inline-form-row">
-                <label>城市</label>
-                <select v-model="userInfo.city" class="form-control">
-                  <option value="">请选择城市</option>
-                  <option v-for="city in cities" :key="city.code" :value="city.name">{{ city.name }}</option>
-                </select>
-              </div>
-            </div>
-            
-            <!-- 区县 -->
-            <div class="form-group">
-              <div class="inline-form-row">
-                <label>区县</label>
-                <select v-model="userInfo.district" class="form-control">
-                  <option value="">请选择区县</option>
-                  <option v-for="district in districts" :key="district.code" :value="district.name">{{ district.name }}</option>
-                </select>
-              </div>
-            </div>
-            
-   
-            <div class="form-group">
-              <div class="inline-form-row">
-              <label>个人简介</label>
-              <textarea v-model="userInfo.bio" rows="3" class="form-control"></textarea>
-            </div>
             </div>
           </div>
-        </div>
+
+          <!-- 生日 -->
+          <div class="form-group-row">
+            <label for="birthday">生日</label>
+            <div class="form-field">
+              <input
+                type="date"
+                id="birthday"
+                v-model="userInfo.birthday"
+                placeholder="请选择生日"
+              />
+            </div>
+          </div>
+
+          <!-- 地区 -->
+          <div class="form-group-row">
+            <label for="location">地区</label>
+            <div class="form-field location-selector">
+              <select v-model="userInfo.province">
+                <option value="">请选择省份</option>
+                <option v-for="province in provinces" :key="province.code" :value="province.name">{{ province.name }}</option>
+              </select>
+              
+              <select v-model="userInfo.city" :disabled="!userInfo.province">
+                <option value="">请选择城市</option>
+                <option v-for="city in cities" :key="city.code" :value="city.name">{{ city.name }}</option>
+              </select>
+              
+              <select v-model="userInfo.district" :disabled="!userInfo.city">
+                <option value="">请选择区县</option>
+                <option v-for="district in districts" :key="district.code" :value="district.name">{{ district.name }}</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- QQ号码 -->
+          <div class="form-group-row">
+            <label for="qq">QQ号码</label>
+            <div class="form-field">
+              <input
+                type="text"
+                id="qq"
+                v-model="userInfo.qq"
+                placeholder="请输入QQ号码"
+                :class="{ 'error': errors.qq }"
+                @input="onQQInput"
+              />
+              <div v-if="errors.qq" class="error-message">{{ errors.qq }}</div>
+            </div>
+          </div>
+
+          <!-- 个人简介 -->
+          <div class="form-group-row">
+            <label for="bio">简介</label>
+            <div class="form-field">
+              <textarea
+                id="bio"
+                v-model="userInfo.bio"
+                placeholder="请输入个人简介"
+                rows="4"
+              ></textarea>
+            </div>
+          </div>
+
+          <div class="form-actions">
+            <button type="button" class="cancel-btn" @click="closeModal">取消</button>
+            <button type="submit" class="primary-btn" :disabled="isSaving">
+              {{ isSaving ? '保存中...' : '保存' }}
+            </button>
+          </div>
+        </form>
       </div>
-      <div class="modal-footer">
-        <button class="btn btn-secondary" @click="closeModal">取消</button>
-        <button class="btn btn-primary" @click="saveSettings" :disabled="isSaving || isLoading">
-          <span v-if="isSaving">保存中...</span>
-          <span v-else>保存设置</span>
-        </button>
-      </div>
-    </div>
+    </ModalStyle>
   </div>
 </template>
 
@@ -149,6 +145,7 @@
 import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { useAuthStore } from '../stores/auth'
 import { apiService, type UserProfileUpdate } from '../services/api'
+import ModalStyle from './ModalStyle.vue'
 import pcaData from '../assets/data/pca-code.json'
 
 const props = defineProps<{
@@ -239,13 +236,32 @@ watch(() => userInfo.qq, (newVal) => {
   validateQQ(newVal);
 });
 
+// 提示信息
+const notification = reactive({
+  show: false,
+  message: '',
+  type: 'success' as 'success' | 'error'
+})
+
+// 显示提示信息
+const showNotification = (message: string, type: 'success' | 'error') => {
+  notification.message = message
+  notification.type = type
+  notification.show = true
+  
+  // 设置自动隐藏
+  setTimeout(() => {
+    notification.show = false
+  }, type === 'success' ? 1000 : 3000)
+}
+
 // 加载用户信息
 const loadUserInfo = async () => {
   isLoading.value = true;
   try {
     // 从后端获取最新的用户信息
     const response = await apiService.getUserInfo();
-    
+    console.log(response, 'response~~~~~~~~~~~~')
     // 使用API返回的数据
     if (response.code >= 200 && response.code < 300 && response.data) {
       // 更新authStore中的用户信息
@@ -463,19 +479,32 @@ const saveSettings = async () => {
         // 更新本地存储的用户信息
         authStore.updateUserInfo(response.data);
         
+        // 立即关闭模态框
         emit('save')
         closeModal()
+        
+        // 显示成功提示，不等待直接显示
+        showNotification('保存成功', 'success')
       } else {
         console.error('保存设置失败:', response.message);
-        alert('保存设置失败: ' + response.message);
+        // 立即关闭模态框
+        closeModal()
+        // 显示错误提示
+        showNotification(`保存失败: ${response.message}`, 'error')
       }
     } catch (error) {
       console.error('保存设置失败:', error);
-      alert('保存设置失败: ' + (error instanceof Error ? error.message : '未知错误'));
+      // 立即关闭模态框
+      closeModal()
+      // 显示错误提示
+      showNotification(`保存失败: ${error instanceof Error ? error.message : '未知错误'}`, 'error')
     }
   } catch (error) {
     console.error('保存设置失败', error)
-    alert('保存设置失败，请稍后再试');
+    // 立即关闭模态框
+    closeModal()
+    // 显示错误提示
+    showNotification('保存失败，请稍后再试', 'error')
   } finally {
     isSaving.value = false
   }
@@ -488,129 +517,185 @@ const closeModal = () => {
 </script>
 
 <style scoped>
-.modal-overlay {
+/* 修改全局提示消息样式 */
+.notification {
   position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background-color: rgba(0, 0, 0, 0.5);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-}
-
-.modal-container {
-  background-color: #fff;
+  top: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 0.75rem 1.5rem;
   border-radius: 8px;
-  width: 95%;
-  max-width: 550px;
-  box-shadow: 0 5px 20px rgba(0, 0, 0, 0.2);
+  font-weight: 500;
+  z-index: 2000;
+  text-align: center;
+  width: auto;
+  min-width: 200px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  animation: fade-in 0.3s ease-out;
+}
+
+.notification.success {
+  background: linear-gradient(90deg, #4ade80 0%, #34d399 100%);
+  color: #fff;
+}
+
+.notification.error {
+  background: linear-gradient(90deg, #f87171 0%, #ef4444 100%);
+  color: #fff;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%);
+  }
+}
+
+/* 添加加载和错误状态的样式 */
+.loading-container {
   display: flex;
   flex-direction: column;
-  max-height: 90vh;
-  animation: modal-appear 0.3s ease-out;
-}
-
-@keyframes modal-appear {
-  0% {
-    opacity: 0;
-    transform: translateY(-20px);
-  }
-  100% {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.modal-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0.2rem;
-  border-bottom: 1px solid #e5e7eb;
-}
-
-.modal-header h2 {
-  margin: 0;
-  font-size: 1.25rem;
-  color: #111827;
-}
-
-.close-btn {
-  background: transparent;
-  border: none;
-  cursor: pointer;
-  display: flex;
   align-items: center;
   justify-content: center;
-  padding: 0.5rem;
+  padding: 2rem;
+  color: #e1e6f5;
+  min-height: 200px;
+}
+
+.loading-spinner {
+  width: 40px;
+  height: 40px;
+  margin-bottom: 1rem;
+  border: 3px solid rgba(255, 255, 255, 0.1);
   border-radius: 50%;
-  color: #6b7280;
+  border-top-color: #5e9bff;
+  animation: spin 1s linear infinite;
 }
 
-.close-btn:hover {
-  background-color: #f3f4f6;
+@keyframes spin {
+  to { transform: rotate(360deg); }
 }
 
-.modal-body {
-  padding: 1.5rem;
-  overflow-y: auto;
-  flex: 1;
-  max-height: 70vh;
-}
-
-.modal-footer {
-  display: flex;
-  justify-content: flex-end;
-  gap: 0.75rem;
+.error-message {
+  text-align: center;
+  color: #f87171;
   padding: 1rem;
-  border-top: 1px solid #e5e7eb;
+  margin-bottom: 1rem;
+  background-color: rgba(239, 68, 68, 0.1);
+  border-radius: 8px;
 }
 
-/* 头像上传区域 */
-.avatar-section {
+.retry-btn {
+  margin-left: 0.5rem;
+  background-color: rgba(255, 255, 255, 0.1);
+  color: #e1e6f5;
+  border: none;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.retry-btn:hover {
+  background-color: rgba(255, 255, 255, 0.2);
+}
+
+.tab-content {
+  min-height: 300px;
+}
+
+/* 新的行布局 */
+.form-group-row {
+  display: flex;
+  align-items: flex-start;
+  margin-bottom: 1.25rem;
+}
+
+.form-group-row label {
+  width: 100px;
+  flex-shrink: 0;
+  padding-top: 0.75rem;
+  color: #e1e6f5;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.form-field {
+  flex: 1;
+}
+
+/* 头像居中显示 */
+.avatar-container {
   display: flex;
   flex-direction: column;
   align-items: center;
-  margin-bottom: 0.25rem;
+  margin-bottom: 2rem;
+  text-align: center;
 }
 
-.avatar-container {
-  position: relative;
+/* 表单控件样式 */
+.form-field input, 
+.form-field textarea,
+.form-field select {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  color: #e1e6f5;
+  transition: all 0.2s;
+}
+
+.form-field input:focus,
+.form-field textarea:focus,
+.form-field select:focus {
+  outline: none;
+  border-color: #5e9bff;
+  box-shadow: 0 0 0 3px rgba(94, 155, 255, 0.2);
+}
+
+.form-field input::placeholder,
+.form-field textarea::placeholder {
+  color: rgba(255, 255, 255, 0.3);
+}
+
+/* 头像上传 */
+.avatar-uploader {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 8px;
+}
+
+.avatar-preview {
   width: 100px;
   height: 100px;
   border-radius: 50%;
-  overflow: hidden;
-  margin-bottom: 1rem;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-}
-
-.avatar-placeholder {
-  width: 100%;
-  height: 100%;
+  background-color: rgba(94, 155, 255, 0.2);
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 2.5rem;
   font-weight: 600;
-  background: linear-gradient(135deg, #5e9bff 0%, #a569ff 100%);
-  color: white;
+  color: #5e9bff;
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  border: 2px solid rgba(255, 255, 255, 0.1);
+  position: relative;
+  cursor: pointer;
+  overflow: hidden;
+  transition: all 0.2s;
 }
 
-.avatar-preview {
-  width: 100%;
-  height: 100%;
+.avatar-preview:hover .avatar-hover-overlay {
+  opacity: 1;
 }
 
-.avatar-preview img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.avatar-overlay {
+.avatar-hover-overlay {
   position: absolute;
   top: 0;
   left: 0;
@@ -622,208 +707,208 @@ const closeModal = () => {
   justify-content: center;
   opacity: 0;
   transition: opacity 0.2s;
-  cursor: pointer;
-}
-
-.avatar-overlay:hover {
-  opacity: 1;
-}
-
-.avatar-overlay svg {
   color: white;
-}
-
-.upload-btn {
-  background-color: #f3f4f6;
-  border: none;
-  padding: 0.5rem 1rem;
-  border-radius: 6px;
-  font-size: 0.875rem;
-  cursor: pointer;
-  color: #4b5563;
-  transition: background-color 0.2s;
-}
-
-.upload-btn:hover {
-  background-color: #e5e7eb;
-}
-
-/* 表单样式 */
-.settings-form {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-}
-
-.form-group {
-  margin-bottom: 0.25rem;
-}
-
-.inline-form-row {
-  display: flex;
-  align-items: center;
-  width: 100%;
-}
-
-.inline-form-row label {
-  min-width: 70px;
-  margin-bottom: 0;
-  margin-right: 10px;
-  font-weight: 500;
-  color: #374151;
-}
-
-.inline-form-row .form-control,
-.inline-form-row .radio-group,
-.inline-form-row .input-container {
-  flex: 1;
-}
-
-.input-container {
-  position: relative;
-  width: 100%;
-}
-
-.input-container .error-message {
-  position: absolute;
-  right: 0;
-  top: 50%;
-  transform: translateY(-50%);
   font-size: 0.8rem;
-  color: #ef4444;
-  margin-right: 8px;
-  white-space: nowrap;
+  font-weight: normal;
 }
 
-.form-control {
+.avatar-preview:hover {
+  border-color: #5e9bff;
+}
+
+.avatar-preview img {
   width: 100%;
-  padding: 0.75rem;
-  border: 1px solid #d1d5db;
-  border-radius: 6px;
-  font-size: 0.95rem;
-  transition: border-color 0.2s;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 50%;
 }
 
-.form-control:focus {
-  outline: none;
-  border-color: #3b82f6;
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+.help-text {
+  font-size: 0.75rem;
+  color: #94a3b8;
+  margin-top: 8px;
 }
 
-.form-control.error {
-  border-color: #ef4444;
-}
-
-textarea.form-control {
+textarea {
+  font-family: inherit;
   resize: vertical;
   min-height: 100px;
 }
 
-.form-hint {
-  display: block;
-  margin-top: 0.25rem;
-  font-size: 0.8rem;
-  color: #6b7280;
-}
-
-.error-message {
-  font-size: 0.8rem;
-  color: #ef4444;
-}
-
-.required {
-  color: #ef4444;
-  margin-left: 2px;
-}
-
-.btn {
-  padding: 0.625rem 1rem;
-  border-radius: 6px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: background-color 0.2s;
-  border: none;
-}
-
-.btn-primary {
-  background-color: #3b82f6;
-  color: white;
-}
-
-.btn-primary:hover:not(:disabled) {
-  background-color: #2563eb;
-}
-
-.btn-primary:disabled {
-  background-color: #93c5fd;
-  cursor: not-allowed;
-}
-
-.btn-secondary {
-  background-color: #f3f4f6;
-  color: #4b5563;
-}
-
-.btn-secondary:hover {
-  background-color: #e5e7eb;
-}
-
-/* 加载状态样式 */
-.loading-container {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 2rem;
-  min-height: 200px;
-}
-
-.loading-spinner {
-  width: 40px;
-  height: 40px;
-  border: 4px solid rgba(59, 130, 246, 0.2);
-  border-radius: 50%;
-  border-top-color: #3b82f6;
-  animation: spin 1s linear infinite;
-  margin-bottom: 1rem;
-}
-
-@keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
-}
-
-.loading-container p {
-  color: #6b7280;
-  font-size: 0.9rem;
-  margin: 0;
-}
-
+/* 单选框样式 */
 .radio-group {
   display: flex;
-  gap: 20px;
-  align-items: center;
+  gap: 1.5rem;
+  padding-top: 0.75rem;
 }
 
 .radio-label {
   display: flex;
   align-items: center;
-  gap: 5px;
+  gap: 0.5rem;
   cursor: pointer;
-  margin: 0;
 }
 
+.radio-label input[type="radio"] {
+  appearance: none;
+  width: 1.25rem;
+  height: 1.25rem;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  background: rgba(255, 255, 255, 0.05);
+  position: relative;
+  margin: 0;
+  cursor: pointer;
+}
+
+.radio-label input[type="radio"]:checked {
+  border-color: #5e9bff;
+}
+
+.radio-label input[type="radio"]:checked::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 0.625rem;
+  height: 0.625rem;
+  border-radius: 50%;
+  background: #5e9bff;
+}
+
+.radio-label span {
+  color: #e1e6f5;
+  font-size: 0.875rem;
+}
+
+/* 日期选择器 */
 input[type="date"] {
-  color: #374151;
-  font-family: inherit;
+  color-scheme: dark;
 }
 
 input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: invert(0.7);
   cursor: pointer;
-  opacity: 0.6;
 }
 
-input[type="date"]::-webkit-calendar-picker-indicator:hover {
-  opacity: 1;
+/* 省市区选择器 */
+.location-selector {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1rem;
+}
+
+.location-selector select {
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23e1e6f5' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 1rem center;
+  padding-right: 2.5rem;
+  background-color: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(94, 155, 255, 0.3);
+}
+
+.location-selector select:focus {
+  border-color: #5e9bff;
+  box-shadow: 0 0 0 2px rgba(94, 155, 255, 0.2);
+}
+
+.location-selector select option {
+  background-color: #1e293b;
+  color: #e1e6f5;
+}
+
+/* 自定义滚动条样式 */
+.location-selector select::-webkit-scrollbar {
+  width: 8px;
+}
+
+.location-selector select::-webkit-scrollbar-track {
+  background-color: #0f172a;
+}
+
+.location-selector select::-webkit-scrollbar-thumb {
+  background-color: #334155;
+  border-radius: 4px;
+}
+
+.location-selector select::-webkit-scrollbar-thumb:hover {
+  background-color: #475569;
+}
+
+.location-selector select:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 1rem;
+  margin-top: 2rem;
+}
+
+.primary-btn {
+  background: linear-gradient(90deg, #5e9bff 0%, #a569ff 100%);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  padding: 0.75rem 1.5rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.primary-btn:hover:not(:disabled) {
+  opacity: 0.9;
+  transform: translateY(-1px);
+}
+
+.primary-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.cancel-btn {
+  background: transparent;
+  color: #94a3b8;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  padding: 0.75rem 1.5rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.cancel-btn:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: #e1e6f5;
+}
+
+/* 新增垂直居中的样式 */
+.form-group-row.align-center {
+  align-items: center;
+}
+
+/* 修改单选框组在垂直居中时不需要额外的顶部内边距 */
+.radio-group.no-padding {
+  padding-top: 0;
+}
+
+@media (max-width: 768px) {
+  .form-group-row {
+    flex-direction: column;
+  }
+  
+  .form-group-row label {
+    width: 100%;
+    margin-bottom: 0.5rem;
+    padding-top: 0;
+  }
+  
+  .location-selector {
+    grid-template-columns: 1fr;
+  }
 }
 </style> 
