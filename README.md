@@ -13,27 +13,36 @@ llm_st_fly/
 │   │   ├── router/   # 路由配置
 │   │   ├── stores/   # Pinia状态管理
 │   │   └── views/    # 页面视图
-│   └── ...
+│   ├── public/       # 公共资源
+│   ├── package.json  # 前端依赖配置
+│   └── vite.config.ts # Vite配置
 ├── backend/          # Django后端项目
 │   ├── core/         # 核心配置
 │   ├── users/        # 用户认证与权限管理
-│   └── ...
+│   ├── tools/        # 工具和实用函数
+│   ├── media/        # 媒体文件
+│   └── requirements.txt # 后端依赖配置
 └── venv/             # Python虚拟环境
 ```
 
 ## 技术栈
 
 ### 前端
-- Vue 3
-- Vue Router
-- Pinia 状态管理
-- TypeScript
+- Vue 3 (v3.5.13)
+- Vue Router (v4.5.0)
+- Pinia 状态管理 (v3.0.1)
+- TypeScript (v5.8.0)
+- Vite (v6.2.4)
+- Vue-Toastification (v2.0.0-rc.5)
+- Axios (v1.9.0)
 
 ### 后端
-- Django
-- Django REST framework
-- JWT认证
-- MySQL数据库
+- Django (v5.2.3)
+- Django REST framework (v3.16.0)
+- JWT认证 (djangorestframework_simplejwt v5.5.0)
+- MySQL数据库 (mysqlclient v2.2.7)
+- Django CORS Headers (v4.7.0)
+- DRF Spectacular (API文档, v0.28.0)
 
 ## 功能特性
 
@@ -41,6 +50,7 @@ llm_st_fly/
 - 用户权限管理
 - JWT令牌认证
 - 响应式界面
+- API文档自动生成
 
 ## 快速开始
 
@@ -98,7 +108,7 @@ pnpm build
 ```
 
 ## API文档
-访问 `http://localhost:8000/docs/` 查看API文档。
+访问 `http://localhost:8000/docs/` 查看API文档（由DRF Spectacular自动生成）。
 
 ## 主要路由
 - 前端: `http://localhost:5173`
@@ -111,3 +121,9 @@ pnpm build
   - `/api/v1/auth/login/` - 登录API
   - `/api/v1/auth/register/` - 注册API
   - `/api/v1/auth/users/` - 用户管理API 
+
+## 开发工具
+- PNPM (v10.8.1) - 包管理器
+- ESLint (v9.22.0) - 代码检查
+- Prettier (v3.5.3) - 代码格式化
+- Vue DevTools - Vue开发工具 

@@ -108,6 +108,7 @@
          
           <div class="reset-method-tabs">
             <div 
+              v-if="hasPhone"
               class="tab" 
               :class="{ active: resetMethod === 'phone' }" 
               @click="resetMethod = 'phone'"
@@ -115,9 +116,24 @@
               手机号重置
             </div>
             <div 
+              v-if="!hasPhone"
+              class="tab disabled"
+              title="您尚未绑定手机号"
+            >
+              手机号重置
+            </div>
+            <div 
+              v-if="hasEmail"
               class="tab" 
               :class="{ active: resetMethod === 'email' }" 
               @click="resetMethod = 'email'"
+            >
+              邮箱重置
+            </div>
+            <div 
+              v-if="!hasEmail"
+              class="tab disabled"
+              title="您尚未绑定邮箱"
             >
               邮箱重置
             </div>
@@ -125,7 +141,21 @@
 
           <!-- 手机号重置 -->
           <div v-if="resetMethod === 'phone'">
-            <div class="form-group">
+            <div v-if="!hasPhone" class="bind-notice">
+              <div class="notice-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <circle cx="12" cy="12" r="10"></circle>
+                  <line x1="12" y1="8" x2="12" y2="12"></line>
+                  <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                </svg>
+              </div>
+              <div class="notice-content">
+                <h4>您尚未绑定手机号</h4>
+                <p>请前往个人设置中绑定手机号，或使用其他方式重置密码</p>
+              </div>
+            </div>
+            
+            <div v-else class="form-group">
               <label for="phone">手机号</label>
               <span class="error-message" v-if="errors.phone">{{ errors.phone }}</span>
                               <input
@@ -138,7 +168,7 @@
                 />
             </div>
             
-            <div class="form-group verification-code">
+            <div v-if="hasPhone" class="form-group verification-code">
               <label for="phone-code">验证码</label>
               <span class="error-message" v-if="errors.phoneCode">{{ errors.phoneCode }}</span>
               <div class="code-input-group">
@@ -163,7 +193,21 @@
 
           <!-- 邮箱重置 -->
           <div v-else>
-            <div class="form-group">
+            <div v-if="!hasEmail" class="bind-notice">
+              <div class="notice-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <circle cx="12" cy="12" r="10"></circle>
+                  <line x1="12" y1="8" x2="12" y2="12"></line>
+                  <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                </svg>
+              </div>
+              <div class="notice-content">
+                <h4>您尚未绑定邮箱</h4>
+                <p>请前往个人设置中绑定邮箱，或使用其他方式重置密码</p>
+              </div>
+            </div>
+            
+            <div v-else class="form-group">
               <label for="email">邮箱地址</label>
               <span class="error-message" v-if="errors.email">{{ errors.email }}</span>
                               <input
@@ -176,7 +220,7 @@
                 />
             </div>
             
-            <div class="form-group verification-code">
+            <div v-if="hasEmail" class="form-group verification-code">
               <label for="email-code">验证码</label>
               <span class="error-message" v-if="errors.emailCode">{{ errors.emailCode }}</span>
               <div class="code-input-group">
@@ -287,7 +331,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, defineProps, defineEmits } from 'vue'
+import { ref, reactive, defineProps, defineEmits, onMounted, computed } from 'vue'
 import { useAuthStore } from '../stores/auth'
 import { apiService } from '../services/api'
 import { useRouter } from 'vue-router'
@@ -310,6 +354,39 @@ const router = useRouter()
 
 // 模式状态（密码修改/密码重置）
 const mode = ref('change') // 'change' 或 'reset'
+
+// 用户信息
+const userInfo = ref<any>({})
+const isLoading = ref(false)
+
+// 计算属性：判断是否绑定了手机号和邮箱
+const hasPhone = computed(() => userInfo.value?.phone && userInfo.value.phone.trim() !== '')
+const hasEmail = computed(() => userInfo.value?.email && userInfo.value.email.trim() !== '')
+
+// 加载用户信息
+const loadUserInfo = async () => {
+  isLoading.value = true
+  try {
+    // 从后端获取最新的用户信息
+    const response = await apiService.getUserInfo()
+    if (response.code >= 200 && response.code < 300 && response.data) {
+      userInfo.value = response.data
+    } else {
+      // 如果获取失败，使用authStore中的数据
+      userInfo.value = authStore.userInfo || {}
+    }
+  } catch (error) {
+    console.error('获取用户信息失败', error)
+    userInfo.value = authStore.userInfo || {}
+  } finally {
+    isLoading.value = false
+  }
+}
+
+// 在组件挂载时加载用户信息
+onMounted(() => {
+  loadUserInfo()
+})
 
 // 表单数据
 const oldPassword = ref('')
@@ -435,8 +512,27 @@ const validateEmail = () => {
 
 // 切换到忘记密码模式
 const switchToForgotPassword = () => {
+  // 检查是否绑定了手机号或邮箱
+  if (!hasPhone.value && !hasEmail.value) {
+    showToastMessage('您尚未绑定手机号或邮箱，无法使用找回密码功能', 'error')
+    return
+  }
+  
   mode.value = 'reset'
   resetForm()
+  
+  // 默认选择已绑定的验证方式
+  if (hasPhone.value) {
+    resetMethod.value = 'phone'
+    if (userInfo.value?.phone) {
+      phone.value = userInfo.value.phone
+    }
+  } else if (hasEmail.value) {
+    resetMethod.value = 'email'
+    if (userInfo.value?.email) {
+      email.value = userInfo.value.email
+    }
+  }
 }
 
 // 切换回密码修改模式
@@ -901,6 +997,41 @@ input::placeholder {
 .tab.active {
   color: #5e9bff;
   border-bottom: 2px solid #5e9bff;
+}
+
+.tab.disabled {
+  color: #64748b;
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+/* 未绑定提示样式 */
+.bind-notice {
+  display: flex;
+  align-items: flex-start;
+  background-color: rgba(255, 107, 107, 0.1);
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 20px;
+}
+
+.notice-icon {
+  color: #ff6b6b;
+  margin-right: 12px;
+  flex-shrink: 0;
+}
+
+.notice-content h4 {
+  margin: 0 0 8px 0;
+  color: #ff6b6b;
+  font-size: 16px;
+  font-weight: 500;
+}
+
+.notice-content p {
+  margin: 0;
+  font-size: 14px;
+  color: #e1e6f5;
 }
 
 .verification-code .code-input-group {

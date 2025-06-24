@@ -209,9 +209,10 @@ watch(() => userInfo.city, (newCity) => {
   if (newCity) {
     const city = cities.value.find(c => c.name === newCity)
     districts.value = city?.children || []
-    userInfo.district = ''
+    // 不重置district，保留已有值
   } else {
     districts.value = []
+    userInfo.district = ''
   }
 })
 
@@ -278,8 +279,22 @@ const loadUserInfo = async () => {
       // 新增字段
       userInfo.gender = response.data.gender || 'male';
       userInfo.birthday = response.data.birthday || '';
+      
+      // 地区信息需要按顺序设置，以确保下拉选项正确加载
       userInfo.province = response.data.province || '';
+      // 如果有省份，确保加载对应城市列表
+      if (userInfo.province) {
+        const province = provinces.value.find(p => p.name === userInfo.province);
+        cities.value = province?.children || [];
+      }
+      
       userInfo.city = response.data.city || '';
+      // 如果有城市，确保加载对应区县列表
+      if (userInfo.city) {
+        const city = cities.value.find(c => c.name === userInfo.city);
+        districts.value = city?.children || [];
+      }
+      
       userInfo.district = response.data.district || '';
       userInfo.qq = response.data.qq || '';
       
@@ -320,8 +335,22 @@ const fallbackToStoredUserInfo = () => {
     // 新增字段
     userInfo.gender = authStore.userInfo.gender || 'male';
     userInfo.birthday = authStore.userInfo.birthday || '';
+    
+    // 地区信息需要按顺序设置，以确保下拉选项正确加载
     userInfo.province = authStore.userInfo.province || '';
+    // 如果有省份，确保加载对应城市列表
+    if (userInfo.province) {
+      const province = provinces.value.find(p => p.name === userInfo.province);
+      cities.value = province?.children || [];
+    }
+    
     userInfo.city = authStore.userInfo.city || '';
+    // 如果有城市，确保加载对应区县列表
+    if (userInfo.city) {
+      const city = cities.value.find(c => c.name === userInfo.city);
+      districts.value = city?.children || [];
+    }
+    
     userInfo.district = authStore.userInfo.district || '';
     userInfo.qq = authStore.userInfo.qq || '';
     
