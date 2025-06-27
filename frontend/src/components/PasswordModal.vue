@@ -157,7 +157,7 @@
             
             <div v-else class="form-group">
               <label for="phone">手机号</label>
-              <span class="error-message" v-if="errors.phone">{{ errors.phone }}</span>
+              <span class="error-message" v-if="errors.phone">{{ userInfo.phone }}</span>
                               <input
                   type="tel"
                   id="phone"
@@ -165,6 +165,8 @@
                   @input="validatePhone"
                   placeholder="请输入手机号"
                   required
+                  readonly
+                  class="readonly-input"
                 />
             </div>
             
@@ -217,6 +219,8 @@
                   @input="validateEmail"
                   placeholder="请输入邮箱地址"
                   required
+                  readonly
+                  class="readonly-input"
                 />
             </div>
             
@@ -331,7 +335,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, defineProps, defineEmits, onMounted, computed } from 'vue'
+import { ref, reactive, defineProps, defineEmits, onMounted, computed, watch } from 'vue'
 import { useAuthStore } from '../stores/auth'
 import { apiService } from '../services/api'
 import { useRouter } from 'vue-router'
@@ -355,6 +359,15 @@ const router = useRouter()
 // 模式状态（密码修改/密码重置）
 const mode = ref('change') // 'change' 或 'reset'
 
+// 监听打开状态，每次打开时重置为密码修改模式
+watch(() => props.isOpen, (newVal) => {
+  
+  if (newVal === true) {
+    mode.value = 'change'
+    resetForm()
+  }
+})
+
 // 用户信息
 const userInfo = ref<any>({})
 const isLoading = ref(false)
@@ -369,8 +382,10 @@ const loadUserInfo = async () => {
   try {
     // 从后端获取最新的用户信息
     const response = await apiService.getUserInfo()
+    console.log(response,"response+++++++++++++")
     if (response.code >= 200 && response.code < 300 && response.data) {
       userInfo.value = response.data
+     
     } else {
       // 如果获取失败，使用authStore中的数据
       userInfo.value = authStore.userInfo || {}
@@ -512,6 +527,7 @@ const validateEmail = () => {
 
 // 切换到忘记密码模式
 const switchToForgotPassword = () => {
+  loadUserInfo()
   // 检查是否绑定了手机号或邮箱
   if (!hasPhone.value && !hasEmail.value) {
     showToastMessage('您尚未绑定手机号或邮箱，无法使用找回密码功能', 'error')
@@ -521,17 +537,13 @@ const switchToForgotPassword = () => {
   mode.value = 'reset'
   resetForm()
   
-  // 默认选择已绑定的验证方式
+  // 默认选择已绑定的验证方式并直接填充用户信息
   if (hasPhone.value) {
     resetMethod.value = 'phone'
-    if (userInfo.value?.phone) {
-      phone.value = userInfo.value.phone
-    }
+    phone.value = userInfo.value?.phone || ''
   } else if (hasEmail.value) {
     resetMethod.value = 'email'
-    if (userInfo.value?.email) {
-      email.value = userInfo.value.email
-    }
+    email.value = userInfo.value?.email || ''
   }
 }
 
@@ -615,6 +627,7 @@ const sendPhoneCode = async () => {
     if (response.code === 200) {
       // 开始倒计时
       startCountdown()
+      phoneCode.value = response.data.sms_code;
     } else {
       errors.phone = response.message || '发送验证码失败，请稍后重试'
     }
@@ -696,7 +709,7 @@ const submitPasswordChange = async () => {
       setTimeout(() => {
         authStore.logout()
         router.push('/login')
-      }, 1000)
+      }, 3000)
     } else {
       // 处理错误
       console.log(response)
@@ -747,10 +760,14 @@ const submitPasswordReset = async () => {
     // 检查响应状态
     if (response.code === 200) {
       // 密码重置成功
-      showToastMessage('密码重置成功，即将跳转到登录页面', 'success')
+      // 密码修改成功
+      showToastMessage('密码修改成功，即将跳转到登录页面', 'success')
+      // 注销用户
       setTimeout(() => {
+        authStore.logout()
         router.push('/login')
-      }, 1000)
+      }, 3000)
+   
     } else {
       // 处理错误
       const errorMsg = handleResetErrorResponse(response)
@@ -1124,5 +1141,18 @@ input::placeholder {
   left: 0;
   width: 100%;
   transform: none;
+}
+
+/* Add readonly input styles */
+.readonly-input {
+  background-color: rgba(255, 255, 255, 0.03) !important;
+  color: #94a3b8 !important;
+  cursor: not-allowed;
+  border-color: rgba(255, 255, 255, 0.05) !important;
+}
+
+.readonly-input:focus {
+  box-shadow: none !important;
+  border-color: rgba(255, 255, 255, 0.05) !important;
 }
 </style>

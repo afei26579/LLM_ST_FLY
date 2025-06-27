@@ -185,11 +185,17 @@ class ChangePasswordSerializer(serializers.Serializer):
 class SendSmsCodeSerializer(serializers.Serializer):
     """发送手机验证码序列化器"""
     phone = serializers.CharField(max_length=15, required=True)
+    purpose = serializers.ChoiceField(
+        choices=['binding', 'reset'], 
+        default='binding',
+        required=False,
+        help_text="验证码用途：binding-绑定手机号，reset-重置密码"
+    )
     
     def validate_phone(self, value):
-        """验证手机号是否已注册"""
-        if not User.objects.filter(phone=value).exists():
-            raise serializers.ValidationError(_("该手机号未注册"), code="phone_not_found")
+        """验证手机号格式"""
+        # 只验证手机号格式，不验证是否已注册
+        # TODO: 可以在这里添加手机号格式验证逻辑
         return value
 
 
@@ -249,4 +255,28 @@ class ResetPasswordEmailSerializer(serializers.Serializer):
         """验证新密码规则"""
         if len(value) < 6:
             raise serializers.ValidationError(_("密码长度至少为6位"), code="password_too_short")
+        return value
+
+
+class BindPhoneSerializer(serializers.Serializer):
+    """绑定手机号序列化器"""
+    phone = serializers.CharField(max_length=15, required=True)
+    code = serializers.CharField(required=True)
+    
+    def validate_phone(self, value):
+        """验证手机号格式"""
+        # 验证手机号格式，例如中国大陆手机号
+        import re
+        if not re.match(r'^1[3-9]\d{9}$', value):
+            raise serializers.ValidationError(_("请输入有效的手机号码"), code="invalid_phone")
+        return value
+
+
+class BindEmailSerializer(serializers.Serializer):
+    """绑定邮箱序列化器"""
+    email = serializers.EmailField(required=True)
+    
+    def validate_email(self, value):
+        """验证邮箱格式"""
+        # EmailField已经验证了基本格式，这里可以添加额外的验证逻辑
         return value 

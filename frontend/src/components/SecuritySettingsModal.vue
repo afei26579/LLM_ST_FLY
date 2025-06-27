@@ -30,6 +30,7 @@
       <PasswordModal 
         :is-open="true" 
         :embedded="true"
+        :key="passwordModalKey"
         @close="handlePasswordModalClose" 
         @password-changed="handlePasswordChanged"
       />
@@ -38,7 +39,7 @@
     <!-- 手机绑定表单 -->
     <div v-show="activeTab === 'phone'" class="tab-content">
       <div class="binding-info" v-if="userPhone">
-        <p>当前绑定手机：{{ maskPhone(userPhone) }}</p>
+        <p>当前绑定手机号：{{ maskPhone(userPhone) }}</p>
         <button class="secondary-btn" @click="showChangePhoneForm">更换绑定</button>
       </div>
       
@@ -53,6 +54,8 @@
               placeholder="请输入手机号码" 
               required 
               pattern="^1[3-9]\d{9}$"
+              @input="validatePhone"
+              @blur="validatePhone"
             >
           </div>
           <div class="error-message" v-if="phoneForm.errors.phone">{{ phoneForm.errors.phone }}</div>
@@ -109,6 +112,8 @@
             v-model="emailForm.email" 
             placeholder="请输入邮箱地址" 
             required
+            @input="validateEmail"
+            @blur="validateEmail"
           >
           <div class="error-message" v-if="emailForm.errors.email">{{ emailForm.errors.email }}</div>
         </div>
@@ -151,6 +156,14 @@ import { ref, computed, onMounted, watch } from 'vue';
 import { useAuthStore } from '../stores/auth';
 import ModalStyle from './ModalStyle.vue';
 import PasswordModal from './PasswordModal.vue';
+import { apiService } from '../services/api';
+
+// 扩展更新用户信息接口，增加验证码字段
+interface UpdateUserWithPhone {
+  username: string;
+  phone: string;
+  code: string;
+}
 
 // Props
 const props = defineProps<{
@@ -165,6 +178,7 @@ const authStore = useAuthStore();
 
 // State
 const activeTab = ref('password');  // 将默认标签改为密码管理
+const passwordModalKey = ref(0);    // 用于强制刷新PasswordModal组件
 const showPhoneForm = ref(false);
 const showEmailForm = ref(false);
 const emailSent = ref(false);
@@ -202,6 +216,14 @@ const emailForm = ref({
 watch(() => props.isOpen, (val) => {
   if (val) {
     resetForms();
+  }
+});
+
+// 监听activeTab的变化，当切换到密码管理标签时，刷新PasswordModal组件
+watch(activeTab, (newVal) => {
+  if (newVal === 'password') {
+    // 递增key值，强制Vue重新创建PasswordModal组件
+    passwordModalKey.value++;
   }
 });
 
@@ -272,31 +294,52 @@ const cancelEmailForm = () => {
   emailSent.value = false;
 };
 
-// 发送手机验证码
-const sendPhoneCode = async () => {
-  // 验证手机号格式
+// 验证手机号格式
+const validatePhone = () => {
   const phoneRegex = /^1[3-9]\d{9}$/;
-  if (!phoneRegex.test(phoneForm.value.phone)) {
-    phoneForm.value.errors.phone = '请输入有效的手机号码';
+  
+  if (!phoneForm.value.phone) {
+    phoneForm.value.errors.phone = '';
     return;
   }
   
-  phoneForm.value.errors.phone = '';
+  if (!phoneRegex.test(phoneForm.value.phone)) {
+    phoneForm.value.errors.phone = '请输入有效的手机号码';
+  } else {
+    phoneForm.value.errors.phone = '';
+  }
+};
+
+// 发送手机验证码
+const sendPhoneCode = async () => {
+  // 验证手机号格式
+  validatePhone();
+  if (phoneForm.value.errors.phone) {
+    return;
+  }
   
   try {
-    // 模拟API调用
-    // const response = await api.sendPhoneVerificationCode(phoneForm.value.phone);
-    // console.log('验证码发送成功', response);
+    // 发送手机验证码
+    const response = await apiService.sendSmsCode(phoneForm.value.phone);
+    console.log('验证码发送成功', response);
     
-    // 开始倒计时
-    phoneCountdown.value = 60;
-    const timer = setInterval(() => {
-      phoneCountdown.value--;
-      if (phoneCountdown.value <= 0) {
-        clearInterval(timer);
+    // 检查API响应
+    if (response.code === 200) {
+      // 开始倒计时
+      if (response.data && response.data.sms_code) {
+        phoneForm.value.code = response.data.sms_code;
       }
-    }, 1000);
-    
+      phoneCountdown.value = 60;
+      const timer = setInterval(() => {
+        phoneCountdown.value--;
+        if (phoneCountdown.value <= 0) {
+          clearInterval(timer);
+        }
+      }, 1000);
+    } else {
+      // 处理API错误
+      phoneForm.value.errors.phone = response.message || '验证码发送失败';
+    }
   } catch (error) {
     console.error('发送验证码失败', error);
     phoneForm.value.errors.phone = '验证码发送失败，请稍后重试';
@@ -306,9 +349,8 @@ const sendPhoneCode = async () => {
 // 提交手机绑定
 const handlePhoneSubmit = async () => {
   // 验证手机号格式
-  const phoneRegex = /^1[3-9]\d{9}$/;
-  if (!phoneRegex.test(phoneForm.value.phone)) {
-    phoneForm.value.errors.phone = '请输入有效的手机号码';
+  validatePhone();
+  if (phoneForm.value.errors.phone) {
     return;
   }
   
@@ -319,25 +361,34 @@ const handlePhoneSubmit = async () => {
     return;
   }
   
-  phoneForm.value.errors.phone = '';
   phoneForm.value.errors.code = '';
   phoneForm.value.submitting = true;
   
   try {
-    // 模拟API调用
-    // const response = await api.bindPhone(phoneForm.value.phone, phoneForm.value.code);
-    // console.log('手机绑定成功', response);
+    // 使用绑定手机API
+    const response = await apiService.bindPhone({
+      phone: phoneForm.value.phone,
+      code: phoneForm.value.code
+    });
     
-    // 模拟成功
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    console.log('手机绑定成功', response);
     
-    // 更新用户信息
-    userPhone.value = phoneForm.value.phone;
-    showPhoneForm.value = false;
-    
-    // 通知父组件绑定成功
-    emit('binding-updated', 'phone');
-    
+    if (response.code === 200) {
+      // 更新用户信息
+      userPhone.value = phoneForm.value.phone;
+      showPhoneForm.value = false;
+      
+      // 更新全局用户信息
+      if (authStore.userInfo) {
+        authStore.userInfo.phone = phoneForm.value.phone;
+      }
+      
+      // 通知父组件绑定成功
+      emit('binding-updated', 'phone');
+    } else {
+      // 处理API错误
+      phoneForm.value.errors.code = response.message || '验证失败，请检查验证码是否正确';
+    }
   } catch (error) {
     console.error('手机绑定失败', error);
     phoneForm.value.errors.code = '验证失败，请检查验证码是否正确';
@@ -346,39 +397,55 @@ const handlePhoneSubmit = async () => {
   }
 };
 
-// 提交邮箱绑定
-const handleEmailSubmit = async () => {
-  // 验证邮箱格式
+// 验证邮箱格式
+const validateEmail = () => {
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  if (!emailRegex.test(emailForm.value.email)) {
-    emailForm.value.errors.email = '请输入有效的邮箱地址';
+  
+  if (!emailForm.value.email) {
+    emailForm.value.errors.email = '';
     return;
   }
   
-  emailForm.value.errors.email = '';
+  if (!emailRegex.test(emailForm.value.email)) {
+    emailForm.value.errors.email = '请输入有效的邮箱地址';
+  } else {
+    emailForm.value.errors.email = '';
+  }
+};
+
+// 提交邮箱绑定
+const handleEmailSubmit = async () => {
+  // 验证邮箱格式
+  validateEmail();
+  
+  if (emailForm.value.errors.email) {
+    return;
+  }
+  
   emailForm.value.submitting = true;
   
   try {
-    // 模拟API调用
-    // const response = await api.sendEmailVerification(emailForm.value.email);
-    // console.log('验证邮件发送成功', response);
+    // 调用发送邮箱绑定链接API
+    const response = await apiService.sendEmailBind(emailForm.value.email);
+    console.log('验证邮件发送成功', response);
     
-    // 模拟成功
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    // 显示邮件已发送界面
-    showEmailForm.value = false;
-    emailSent.value = true;
-    
-    // 开始邮件重发倒计时
-    emailCountdown.value = 60;
-    const timer = setInterval(() => {
-      emailCountdown.value--;
-      if (emailCountdown.value <= 0) {
-        clearInterval(timer);
-      }
-    }, 1000);
-    
+    if (response.code === 200) {
+      // 显示邮件已发送界面
+      showEmailForm.value = false;
+      emailSent.value = true;
+      
+      // 开始邮件重发倒计时
+      emailCountdown.value = 60;
+      const timer = setInterval(() => {
+        emailCountdown.value--;
+        if (emailCountdown.value <= 0) {
+          clearInterval(timer);
+        }
+      }, 1000);
+    } else {
+      // 处理API错误
+      emailForm.value.errors.email = response.message || '邮件发送失败';
+    }
   } catch (error) {
     console.error('邮件发送失败', error);
     emailForm.value.errors.email = '邮件发送失败，请稍后重试';
@@ -392,19 +459,20 @@ const resendEmail = async () => {
   if (emailCountdown.value > 0) return;
   
   try {
-    // 模拟API调用
-    // const response = await api.sendEmailVerification(emailForm.value.email);
-    // console.log('验证邮件重新发送成功', response);
+    // 调用发送邮箱绑定链接API
+    const response = await apiService.sendEmailBind(emailForm.value.email);
+    console.log('验证邮件重新发送成功', response);
     
-    // 开始邮件重发倒计时
-    emailCountdown.value = 60;
-    const timer = setInterval(() => {
-      emailCountdown.value--;
-      if (emailCountdown.value <= 0) {
-        clearInterval(timer);
-      }
-    }, 1000);
-    
+    if (response.code === 200) {
+      // 开始邮件重发倒计时
+      emailCountdown.value = 60;
+      const timer = setInterval(() => {
+        emailCountdown.value--;
+        if (emailCountdown.value <= 0) {
+          clearInterval(timer);
+        }
+      }, 1000);
+    }
   } catch (error) {
     console.error('邮件重发失败', error);
   }

@@ -47,7 +47,17 @@
 
             <!-- 二级菜单 -->
             <div class="submenu" v-show="!isCollapsed && isSystemMenuOpen">
-              <router-link to="/roles" class="submenu-item">
+              <router-link to="/users" class="submenu-item" @click="handleSubMenuClick">
+                <div class="submenu-icon">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                    <circle cx="12" cy="7" r="4"></circle>
+                  </svg>
+                </div>
+                <span>用户管理</span>
+              </router-link>
+              
+              <router-link to="/roles" class="submenu-item" @click="handleSubMenuClick">
                 <div class="submenu-icon">
                   <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
@@ -59,7 +69,7 @@
                 <span>角色管理</span>
               </router-link>
 
-              <router-link to="/permissions" class="submenu-item">
+              <router-link to="/permissions" class="submenu-item" @click="handleSubMenuClick">
                 <div class="submenu-icon">
                   <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
@@ -262,6 +272,12 @@ const getInitial = computed(() => {
   const name = authStore.userInfo?.nickname || authStore.userInfo?.username
   return name ? name[0].toUpperCase() : 'U'
 })
+
+// 处理子菜单点击
+const handleSubMenuClick = () => {
+  // 可以在这里添加子菜单点击的处理逻辑
+  console.log('子菜单点击')
+}
 </script>
 
 <style scoped>

@@ -97,6 +97,17 @@ export interface ResetPasswordEmailRequest {
   newPassword: string;
 }
 
+// 绑定手机号请求接口
+export interface BindPhoneRequest {
+  phone: string;
+  code: string;
+}
+
+// 绑定邮箱请求接口
+export interface BindEmailRequest {
+  email: string;
+}
+
 // API服务类
 class ApiService {
   private instance: AxiosInstance;
@@ -208,17 +219,20 @@ class ApiService {
   }
 
   // 发送手机验证码API
-  async sendSmsCode(phone: string): Promise<ApiResponse<any>> {
+  async sendSmsCode(phone: string, purpose: string = 'binding'): Promise<ApiResponse<any>> {
     try {
-      const response = await this.instance.post<ApiResponse<any>>('/auth/users/send-sms-code/', { phone });
+      const response = await this.instance.post<ApiResponse<any>>('/auth/users/send-sms-code/', { 
+        phone,
+        purpose 
+      });
       return response.data;
     } catch (error: any) {
       console.error('发送验证码失败:', error);
       if (error.response) {
         return {
           code: error.response.status,
-          message: error.response.data.data.message || '发送验证码失败',
-          data: error.response.data.data
+          message: error.response.data.message || '发送验证码失败',
+          data: error.response.data
         };
       }
       throw error;
@@ -246,7 +260,7 @@ class ApiService {
   // 通过手机重置密码API
   async resetPasswordPhone(data: ResetPasswordPhoneRequest): Promise<ApiResponse<any>> {
     try {
-      const response = await this.instance.post<ApiResponse<any>>('users/reset-password-phone', data);
+      const response = await this.instance.post<ApiResponse<any>>('auth/users/reset-password-phone/', data);
       return response.data;
     } catch (error: any) {
       console.error('重置密码失败:', error);
@@ -264,7 +278,7 @@ class ApiService {
   // 通过邮箱重置密码API
   async resetPasswordEmail(data: ResetPasswordEmailRequest): Promise<ApiResponse<any>> {
     try {
-      const response = await this.instance.post<ApiResponse<any>>('users/reset-password-email', data);
+      const response = await this.instance.post<ApiResponse<any>>('auth/users/reset-password-email/', data);
       return response.data;
     } catch (error: any) {
       console.error('重置密码失败:', error);
@@ -372,6 +386,68 @@ class ApiService {
       return response.data;
     } catch (error: any) {
       console.error('上传头像失败:', error);
+      throw error;
+    }
+  }
+
+  // 绑定手机号API
+  async bindPhone(data: BindPhoneRequest): Promise<ApiResponse<LoginResponse['user']>> {
+    try {
+      const response = await this.instance.post<ApiResponse<LoginResponse['user']>>(
+        'auth/users/bind-phone/', 
+        data
+      );
+      return response.data;
+    } catch (error: any) {
+      console.error('绑定手机号失败:', error);
+      if (error.response) {
+        return {
+          code: error.response.status,
+          message: error.response.data.message || '绑定手机号失败',
+          data: error.response.data
+        };
+      }
+      throw error;
+    }
+  }
+  
+  // 发送邮箱绑定链接API
+  async sendEmailBind(email: string): Promise<ApiResponse<any>> {
+    try {
+      const response = await this.instance.post<ApiResponse<any>>(
+        'auth/users/send-email-bind/', 
+        { email }
+      );
+      return response.data;
+    } catch (error: any) {
+      console.error('发送邮箱绑定链接失败:', error);
+      if (error.response) {
+        return {
+          code: error.response.status,
+          message: error.response.data.message || '发送邮箱绑定链接失败',
+          data: error.response.data
+        };
+      }
+      throw error;
+    }
+  }
+  
+  // 验证邮箱绑定API
+  async verifyEmailBind(token: string, email: string): Promise<ApiResponse<any>> {
+    try {
+      const response = await this.instance.get<ApiResponse<any>>(
+        `auth/users/verify-email/?token=${encodeURIComponent(token)}&email=${encodeURIComponent(email)}`
+      );
+      return response.data;
+    } catch (error: any) {
+      console.error('验证邮箱绑定失败:', error);
+      if (error.response) {
+        return {
+          code: error.response.status,
+          message: error.response.data.message || '验证邮箱绑定失败',
+          data: error.response.data
+        };
+      }
       throw error;
     }
   }

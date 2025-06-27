@@ -20,7 +20,8 @@ from .serializers import (
     UserSerializer, UserProfileSerializer, LoginSerializer,
     GroupSerializer, UserGroupSerializer, ChangePasswordSerializer,
     SendSmsCodeSerializer, SendEmailCodeSerializer,
-    ResetPasswordPhoneSerializer, ResetPasswordEmailSerializer
+    ResetPasswordPhoneSerializer, ResetPasswordEmailSerializer,
+    BindPhoneSerializer, BindEmailSerializer
 )
 from .permissions import IsAdminUser, IsStaffOrAdmin, IsSelfOrAdmin
 
@@ -283,7 +284,7 @@ class UserViewSet(viewsets.ModelViewSet):
     
     @extend_schema(
         summary="发送手机验证码",
-        description="发送手机验证码用于重置密码",
+        description="发送手机验证码用于绑定手机号或重置密码",
         responses={
             200: OpenApiResponse(description="验证码发送成功"),
             400: OpenApiResponse(description="验证码发送失败，提供的信息无效")
@@ -298,6 +299,34 @@ class UserViewSet(viewsets.ModelViewSet):
         
         if serializer.is_valid():
             phone = serializer.validated_data['phone']
+            # 获取验证码用途，默认为绑定手机号
+            purpose = serializer.validated_data.get('purpose', 'binding')
+            print(purpose, "="*50)
+            # 如果是重置密码，需要检查手机号是否已注册
+            if purpose == 'reset':
+                user_exists = User.objects.filter(phone=phone).exists()
+                if not user_exists:
+                    return ApiResponse.error(
+                        "该手机号未注册", 
+                        status_code=status.HTTP_404_NOT_FOUND,
+                        data={
+                            'field': 'phone',
+                            'message': "该手机号未注册，无法重置密码"
+                        }
+                    )
+            # 如果是绑定手机号，则不需要检查手机号是否已注册
+            # 管理员账号可以自由绑定任何手机号，普通账号需要验证该手机号没被其他账号使用
+            elif purpose == 'binding' and not request.user.is_staff:
+                # 检查该手机号是否已被其他账户绑定
+                if User.objects.filter(phone=phone).exclude(id=request.user.id if request.user.is_authenticated else -1).exists():
+                    return ApiResponse.error(
+                        "该手机号已被其他账户绑定", 
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        data={
+                            'field': 'phone',
+                            'message': "该手机号已被其他账户绑定，请使用其他手机号"
+                        }
+                    )
             
             # 生成验证码
             code = self._generate_code()
@@ -308,17 +337,17 @@ class UserViewSet(viewsets.ModelViewSet):
             cache.set(cache_key, code, 60 * 10)
             
             # TODO: 实际发送短信的代码
-            t_client = Twilio_client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
-            SMS_LABEL = "【白杨】"
-            message = t_client.messages.create(
-                body=f"你好，验证码是：{code}",  # 短信内容
-                from_=TWILIO_PHONE_NUMBER,     # 你的 Twilio 号码
-                to=phone                       # 接收方手机号
-            )
+            # t_client = Twilio_client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
+            # SMS_LABEL = "【白杨】"
+            # message = t_client.messages.create(
+            #     body=f"{SMS_LABEL}你好，验证码是：{code}。用于{purpose}，请勿泄露给他人。",  # 短信内容
+            #     from_=TWILIO_PHONE_NUMBER,     # 你的 Twilio 号码
+            #     to=phone                       # 接收方手机号
+            # )
             # 这里模拟发送短信，实际项目中应该调用短信发送API
-            print(f"向 {phone} 发送验证码: {code}")
-            
-            return ApiResponse.success(None, "验证码发送成功，有效期10分钟")
+            print(f"向 {phone} 发送验证码: {code}, 用途: {purpose}")
+            code_data = {"sms_code": code, "purpose": purpose}
+            return ApiResponse.success(code_data, "验证码发送成功，有效期10分钟")
         
         return ApiResponse.error(
             "验证码发送失败", 
@@ -506,6 +535,218 @@ class UserViewSet(viewsets.ModelViewSet):
                 'message': message
             }
         )
+
+    @extend_schema(
+        summary="绑定手机号",
+        description="通过验证码绑定或更换手机号",
+        responses={
+            200: OpenApiResponse(description="手机号绑定成功"),
+            400: OpenApiResponse(description="绑定失败，提供的信息无效")
+        }
+    )
+    @action(detail=False, methods=['post'], url_path='bind-phone')
+    def bind_phone(self, request):
+        """
+        绑定手机号
+        """
+        serializer = BindPhoneSerializer(
+            data=request.data,
+            context={'request': request}
+        )
+        
+        if serializer.is_valid():
+            phone = serializer.validated_data['phone']
+            code = serializer.validated_data['code']
+            
+            # 验证码校验
+            cache_key = f"sms_code_{phone}"
+            cached_code = cache.get(cache_key)
+            
+            if not cached_code or cached_code != code:
+                return ApiResponse.error(
+                    "验证码错误或已过期", 
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    data={
+                        'field': 'code',
+                        'message': "验证码错误或已过期"
+                    }
+                )
+            
+            # 检查该手机号是否已被其他账户绑定
+            if User.objects.filter(phone=phone).exclude(id=request.user.id).exists():
+                return ApiResponse.error(
+                    "该手机号已被其他账户绑定", 
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    data={
+                        'field': 'phone',
+                        'message': "该手机号已被其他账户绑定，请使用其他手机号"
+                    }
+                )
+            
+            # 绑定手机号
+            request.user.phone = phone
+            request.user.save(update_fields=['phone'])
+            
+            # 清除缓存中的验证码
+            cache.delete(cache_key)
+            
+            # 返回更新后的用户信息
+            serializer = UserProfileSerializer(request.user)
+            return ApiResponse.success(serializer.data, "手机号绑定成功")
+        
+        # 序列化器验证失败
+        field = next(iter(serializer.errors)) if serializer.errors else 'unknown'
+        message = next(iter(serializer.errors.values()))[0] if serializer.errors else "手机号绑定失败"
+        
+        return ApiResponse.error(
+            "手机号绑定失败", 
+            status_code=status.HTTP_400_BAD_REQUEST,
+            data={
+                'field': field,
+                'message': message
+            }
+        )
+
+    @extend_schema(
+        summary="发送邮箱绑定链接",
+        description="发送邮箱绑定激活链接",
+        responses={
+            200: OpenApiResponse(description="激活链接发送成功"),
+            400: OpenApiResponse(description="发送失败，提供的信息无效")
+        }
+    )
+    @action(detail=False, methods=['post'], url_path='send-email-bind')
+    def send_email_bind(self, request):
+        """
+        发送邮箱绑定激活链接
+        """
+        serializer = BindEmailSerializer(
+            data=request.data,
+            context={'request': request}
+        )
+        
+        if serializer.is_valid():
+            email = serializer.validated_data['email']
+            
+            # 检查该邮箱是否已被其他账户绑定
+            if User.objects.filter(email=email).exclude(id=request.user.id).exists():
+                return ApiResponse.error(
+                    "该邮箱已被其他账户绑定", 
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    data={
+                        'field': 'email',
+                        'message': "该邮箱已被其他账户绑定，请使用其他邮箱"
+                    }
+                )
+            
+            # 生成验证令牌（简单实现，实际项目中应该使用更安全的方法）
+            # 例如使用Django内置的default_token_generator
+            import uuid
+            import base64
+            token = base64.urlsafe_b64encode(uuid.uuid4().bytes).decode('utf-8').rstrip('=')
+            
+            # 将令牌存入缓存，设置过期时间为24小时
+            cache_key = f"email_bind_{email}"
+            cache_data = {
+                'user_id': request.user.id,
+                'email': email
+            }
+            cache.set(cache_key, cache_data, 60 * 60 * 24)
+            
+            # 构建激活链接
+            # 实际项目中，这个URL应该是前端页面的URL，处理验证逻辑
+            frontend_url = settings.FRONTEND_URL or 'http://localhost:5173'
+            activate_url = f"{frontend_url}/verify-email?token={token}&email={email}&type=bind"
+            
+            # 发送邮件
+            try:
+                send_mail(
+                    subject='绑定邮箱',
+                    message=f'请点击以下链接完成邮箱绑定：{activate_url}\n链接有效期为24小时。',
+                    from_email=settings.EMAIL_HOST_USER,
+                    recipient_list=[email],
+                    fail_silently=False,
+                )
+                return ApiResponse.success({
+                    'activate_url': activate_url, # 仅开发环境返回，生产环境应该移除
+                    'email': email,
+                    'expires_in': '24小时'
+                }, "激活链接已发送到您的邮箱，请查收并点击链接完成绑定")
+            except Exception as e:
+                print(f"邮件发送失败: {str(e)}")
+                return ApiResponse.error(
+                    "邮件发送失败，请稍后重试", 
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
+                )
+        
+        # 序列化器验证失败
+        field = next(iter(serializer.errors)) if serializer.errors else 'email'
+        message = next(iter(serializer.errors.values()))[0] if serializer.errors else "邮箱验证失败"
+        
+        return ApiResponse.error(
+            "邮件发送失败", 
+            status_code=status.HTTP_400_BAD_REQUEST,
+            data={
+                'field': field,
+                'message': message
+            }
+        )
+        
+    @extend_schema(
+        summary="验证邮箱绑定",
+        description="验证邮箱绑定激活链接",
+        responses={
+            200: OpenApiResponse(description="邮箱绑定成功"),
+            400: OpenApiResponse(description="验证失败，链接无效或已过期")
+        }
+    )
+    @action(detail=False, methods=['get'], url_path='verify-email', permission_classes=[permissions.AllowAny])
+    def verify_email_bind(self, request):
+        """
+        验证邮箱绑定
+        """
+        token = request.query_params.get('token')
+        email = request.query_params.get('email')
+        
+        if not token or not email:
+            return ApiResponse.error(
+                "无效的验证链接", 
+                status_code=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # 从缓存获取绑定信息
+        cache_key = f"email_bind_{email}"
+        cache_data = cache.get(cache_key)
+        
+        if not cache_data:
+            return ApiResponse.error(
+                "验证链接已过期或无效", 
+                status_code=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            # 获取用户
+            user = User.objects.get(id=cache_data['user_id'])
+            
+            # 更新邮箱
+            user.email = email
+            user.save(update_fields=['email'])
+            
+            # 清除缓存
+            cache.delete(cache_key)
+            
+            return ApiResponse.success(None, "邮箱绑定成功")
+        except User.DoesNotExist:
+            return ApiResponse.error(
+                "用户不存在", 
+                status_code=status.HTTP_404_NOT_FOUND
+            )
+        except Exception as e:
+            print(f"邮箱绑定失败: {str(e)}")
+            return ApiResponse.error(
+                "邮箱绑定失败，请稍后重试", 
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
 
 @extend_schema(
