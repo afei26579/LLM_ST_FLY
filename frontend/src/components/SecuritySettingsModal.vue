@@ -266,6 +266,7 @@ const showBindPhoneForm = () => {
 const showChangePhoneForm = () => {
   phoneForm.value.submitText = '更换绑定';
   phoneForm.value.phone = '';
+  phoneForm.value.errors.phone = '';
   showPhoneForm.value = true;
 };
 
@@ -285,6 +286,7 @@ const showBindEmailForm = () => {
 const showChangeEmailForm = () => {
   emailForm.value.submitText = '发送验证邮件';
   emailForm.value.email = '';
+  emailForm.value.errors.email = '';
   showEmailForm.value = true;
 };
 
@@ -305,6 +307,8 @@ const validatePhone = () => {
   
   if (!phoneRegex.test(phoneForm.value.phone)) {
     phoneForm.value.errors.phone = '请输入有效的手机号码';
+  } else if (userPhone.value && phoneForm.value.phone === userPhone.value) {
+    phoneForm.value.errors.phone = '新手机号不能与当前绑定的手机号相同';
   } else {
     phoneForm.value.errors.phone = '';
   }
@@ -315,6 +319,12 @@ const sendPhoneCode = async () => {
   // 验证手机号格式
   validatePhone();
   if (phoneForm.value.errors.phone) {
+    return;
+  }
+  
+  // 再次验证新旧手机号不能相同
+  if (userPhone.value && phoneForm.value.phone === userPhone.value) {
+    phoneForm.value.errors.phone = '新手机号不能与当前绑定的手机号相同';
     return;
   }
   
@@ -351,6 +361,12 @@ const handlePhoneSubmit = async () => {
   // 验证手机号格式
   validatePhone();
   if (phoneForm.value.errors.phone) {
+    return;
+  }
+  
+  // 再次验证新旧手机号不能相同
+  if (userPhone.value && phoneForm.value.phone === userPhone.value) {
+    phoneForm.value.errors.phone = '新手机号不能与当前绑定的手机号相同';
     return;
   }
   
@@ -408,6 +424,8 @@ const validateEmail = () => {
   
   if (!emailRegex.test(emailForm.value.email)) {
     emailForm.value.errors.email = '请输入有效的邮箱地址';
+  } else if (userEmail.value && emailForm.value.email === userEmail.value) {
+    emailForm.value.errors.email = '新邮箱不能与当前绑定的邮箱相同';
   } else {
     emailForm.value.errors.email = '';
   }
@@ -419,6 +437,12 @@ const handleEmailSubmit = async () => {
   validateEmail();
   
   if (emailForm.value.errors.email) {
+    return;
+  }
+  
+  // 再次验证新旧邮箱不能相同
+  if (userEmail.value && emailForm.value.email === userEmail.value) {
+    emailForm.value.errors.email = '新邮箱不能与当前绑定的邮箱相同';
     return;
   }
   

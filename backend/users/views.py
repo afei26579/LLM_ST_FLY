@@ -13,6 +13,7 @@ import string
 from django.core.mail import send_mail
 from django.conf import settings
 from django.core.cache import cache
+from django.template.loader import render_to_string
 from twilio.rest import Client as Twilio_client
 from core.config import TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_PHONE_NUMBER
 
@@ -660,12 +661,24 @@ class UserViewSet(viewsets.ModelViewSet):
             
             # 发送邮件
             try:
+                # 准备模板上下文
+                context = {
+                    'activate_url': activate_url
+                }
+                
+                # 渲染HTML邮件内容
+                html_message = render_to_string('emails/email_binding.html', context)
+                
+                # 纯文本邮件内容
+                plain_message = f'请点击以下链接完成邮箱绑定：{activate_url}\n链接有效期为24小时。\n如果打不开链接，请复制链接在浏览器打开。'
+                
                 send_mail(
                     subject='绑定邮箱',
-                    message=f'请点击以下链接完成邮箱绑定：{activate_url}\n链接有效期为24小时。',
+                    message=plain_message,
                     from_email=settings.EMAIL_HOST_USER,
                     recipient_list=[email],
                     fail_silently=False,
+                    html_message=html_message
                 )
                 return ApiResponse.success({
                     'activate_url': activate_url, # 仅开发环境返回，生产环境应该移除
