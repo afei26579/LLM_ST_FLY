@@ -4,6 +4,26 @@
 import axios from 'axios'
 import type { AxiosInstance, InternalAxiosRequestConfig, AxiosResponse } from 'axios'
 
+// 聊天消息接口
+export interface ChatMessage {
+  role: 'user' | 'assistant' | 'system';
+  content: string;
+  timestamp?: Date;
+  id?: number;
+  tokens_used?: number;
+}
+
+// 对话接口
+export interface Conversation {
+  id: number;
+  title: string;
+  created_at: string;
+  updated_at: string;
+  messages?: ChatMessage[];
+  message_count: number;
+  last_message?: ChatMessage;
+}
+
 // API基础配置
 const API_CONFIG = {
   // 后端API的基础URL
@@ -435,20 +455,235 @@ class ApiService {
   // 验证邮箱绑定API
   async verifyEmailBind(token: string, email: string): Promise<ApiResponse<any>> {
     try {
-      const response = await this.instance.get<ApiResponse<any>>(
-        `auth/users/verify-email/?token=${encodeURIComponent(token)}&email=${encodeURIComponent(email)}`
-      );
+      const response = await this.instance.get<ApiResponse<any>>(`auth/users/verify-email/?token=${token}&email=${email}`);
       return response.data;
     } catch (error: any) {
-      console.error('验证邮箱绑定失败:', error);
+      console.error('验证邮箱失败:', error);
       if (error.response) {
         return {
           code: error.response.status,
-          message: error.response.data.message || '验证邮箱绑定失败',
+          message: error.response.data.message || '验证邮箱失败',
           data: error.response.data
         };
       }
       throw error;
+    }
+  }
+
+  // 聊天完成API - 使用DashScope大模型
+  async chatCompletion(messages: ChatMessage[], conversationId?: number): Promise<ApiResponse<any>> {
+    try {
+      console.log("发送聊天请求:", { messages, conversation_id: conversationId })
+      const response = await this.instance.post<ApiResponse<any>>('chat/completion/', { 
+        messages,
+        conversation_id: conversationId
+      });
+      console.log("聊天请求原始响应:", response)
+      
+      // 后端已经返回标准格式 { code, message, data }，直接返回即可
+      return response.data;
+    } catch (error: any) {
+      console.error('聊天请求失败:', error);
+      
+      // 详细记录错误信息
+      if (error.response) {
+        console.error('错误响应数据:', error.response.data);
+        console.error('错误状态码:', error.response.status);
+        
+        return {
+          code: error.response.status,
+          message: error.response.data?.message || '聊天请求失败，服务器返回错误',
+          data: {
+            content: "抱歉，服务器处理请求时出错，请稍后再试。",
+            conversation_id: conversationId
+          }
+        };
+      }
+      
+      if (error.request) {
+        console.error('请求已发送但未收到响应');
+        return {
+          code: 500,
+          message: '聊天请求超时，未收到服务器响应',
+          data: {
+            content: "抱歉，服务器响应超时，请检查网络连接并稍后再试。",
+            conversation_id: conversationId
+          }
+        };
+      }
+      
+      return {
+        code: 500,
+        message: error.message || '网络错误，请检查网络连接',
+        data: {
+          content: "抱歉，发生网络错误，请检查网络连接并稍后再试。",
+          conversation_id: conversationId
+        }
+      };
+    }
+  }
+
+  // 获取对话列表
+  async getConversations(): Promise<ApiResponse<Conversation[]>> {
+    try {
+      console.log("获取对话列表")
+      const response = await this.instance.get<ApiResponse<Conversation[]>>('chat/conversations/');
+      console.log("获取对话列表原始响应:", response)
+      
+      // 后端已经返回标准格式 { code, message, data }，直接返回即可
+      return response.data;
+    } catch (error: any) {
+      console.error('获取对话列表失败:', error);
+      
+      if (error.response) {
+        console.error('错误响应数据:', error.response.data);
+        console.error('错误状态码:', error.response.status);
+        
+        return {
+          code: error.response.status,
+          message: error.response.data?.message || '获取对话列表失败，服务器返回错误',
+          data: []
+        };
+      }
+      
+      if (error.request) {
+        console.error('请求已发送但未收到响应');
+        return {
+          code: 500,
+          message: '请求超时，未收到服务器响应',
+          data: []
+        };
+      }
+      
+      return {
+        code: 500,
+        message: error.message || '网络错误，请检查网络连接',
+        data: []
+      };
+    }
+  }
+
+  // 获取单个对话详情
+  async getConversation(id: number): Promise<ApiResponse<Conversation>> {
+    try {
+      console.log("获取对话详情:", id)
+      const response = await this.instance.get<ApiResponse<Conversation>>(`chat/conversations/${id}/`);
+      console.log("获取对话详情原始响应:", response)
+      
+      // 后端已经返回标准格式 { code, message, data }，直接返回即可
+      return response.data;
+    } catch (error: any) {
+      console.error('获取对话详情失败:', error);
+      
+      if (error.response) {
+        console.error('错误响应数据:', error.response.data);
+        console.error('错误状态码:', error.response.status);
+        
+        return {
+          code: error.response.status,
+          message: error.response.data?.message || '获取对话详情失败，服务器返回错误',
+          data: {} as Conversation
+        };
+      }
+      
+      if (error.request) {
+        console.error('请求已发送但未收到响应');
+        return {
+          code: 500,
+          message: '请求超时，未收到服务器响应',
+          data: {} as Conversation
+        };
+      }
+      
+      return {
+        code: 500,
+        message: error.message || '网络错误，请检查网络连接',
+        data: {} as Conversation
+      };
+    }
+  }
+
+  // 创建新对话
+  async createConversation(title: string): Promise<ApiResponse<Conversation>> {
+    try {
+      console.log("创建新对话:", title)
+      const response = await this.instance.post<ApiResponse<Conversation>>('chat/conversations/', { title });
+      console.log("创建对话原始响应:", response)
+      
+      // 后端已经返回标准格式 { code, message, data }，直接返回即可
+      return response.data;
+    } catch (error: any) {
+      console.error('创建对话失败:', error);
+      
+      if (error.response) {
+        console.error('错误响应数据:', error.response.data);
+        console.error('错误状态码:', error.response.status);
+        
+        return {
+          code: error.response.status,
+          message: error.response.data?.message || '创建对话失败，服务器返回错误',
+          data: {} as Conversation
+        };
+      }
+      
+      if (error.request) {
+        console.error('请求已发送但未收到响应');
+        return {
+          code: 500,
+          message: '请求超时，未收到服务器响应',
+          data: {} as Conversation
+        };
+      }
+      
+      return {
+        code: 500,
+        message: error.message || '网络错误，请检查网络连接',
+        data: {} as Conversation
+      };
+    }
+  }
+
+  // 删除对话
+  async deleteConversation(id: number): Promise<ApiResponse<any>> {
+    try {
+      const response = await this.instance.delete<ApiResponse<any>>(`chat/conversations/${id}/`);
+      return response.data;
+    } catch (error: any) {
+      console.error('删除对话失败:', error);
+      if (error.response) {
+        return {
+          code: error.response.status,
+          message: error.response.data.message || '删除对话失败',
+          data: {}
+        };
+      }
+      return {
+        code: 500,
+        message: '网络错误，请检查网络连接',
+        data: {}
+      };
+    }
+  }
+
+  // 清空对话消息
+  async clearConversationMessages(id: number): Promise<ApiResponse<any>> {
+    try {
+      const response = await this.instance.delete<ApiResponse<any>>(`chat/conversations/${id}/clear_messages/`);
+      return response.data;
+    } catch (error: any) {
+      console.error('清空对话消息失败:', error);
+      if (error.response) {
+        return {
+          code: error.response.status,
+          message: error.response.data.message || '清空对话消息失败',
+          data: {}
+        };
+      }
+      return {
+        code: 500,
+        message: '网络错误，请检查网络连接',
+        data: {}
+      };
     }
   }
 }

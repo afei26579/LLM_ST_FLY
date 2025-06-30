@@ -34,6 +34,7 @@ urlpatterns = [
     # API版本
     path("api/v1/", include([
         path("auth/", include("users.urls")),  # 用户认证与权限相关的URL
+        path("chat/", include("chat.urls")),   # 聊天相关的URL
         # 这里可以添加其他应用的URL
     ])),
 ]

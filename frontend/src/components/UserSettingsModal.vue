@@ -262,7 +262,7 @@ const loadUserInfo = async () => {
   try {
     // 从后端获取最新的用户信息
     const response = await apiService.getUserInfo();
-    console.log(response, 'response~~~~~~~~~~~~')
+   
     // 使用API返回的数据
     if (response.code >= 200 && response.code < 300 && response.data) {
       // 更新authStore中的用户信息

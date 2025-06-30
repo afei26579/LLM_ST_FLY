@@ -382,7 +382,7 @@ const loadUserInfo = async () => {
   try {
     // 从后端获取最新的用户信息
     const response = await apiService.getUserInfo()
-    console.log(response,"response+++++++++++++")
+  
     if (response.code >= 200 && response.code < 300 && response.data) {
       userInfo.value = response.data
      

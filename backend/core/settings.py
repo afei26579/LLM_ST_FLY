@@ -48,6 +48,7 @@ INSTALLED_APPS = [
     
     # 自定义应用
     "users",
+    "chat",
 ]
 
 MIDDLEWARE = [
@@ -223,6 +224,9 @@ EMAIL_HOST_USER = '490095023@qq.com'  # 发送邮件的邮箱地址，根据实�
 EMAIL_HOST_PASSWORD = 'pslvkdsectqwcadf'  # 发送邮件的邮箱密码，根据实际情况修改
 DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
 FRONTEND_URL = 'http://localhost:5173'
+
+# DashScope API密钥（请替换为您的实际API密钥）
+DASHSCOPE_API_KEY = os.environ.get('DASHSCOPE_API_KEY', '')
 # 缓存配置，用于存储验证码
 CACHES = {
     'default': {
