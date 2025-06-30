@@ -11,6 +11,31 @@ const inputElement = ref<HTMLTextAreaElement | null>(null)
 const searchQuery = ref('')
 const activeConversationId = ref<number | null>(null)
 const authStore = useAuthStore()
+const isCenterLayout = ref(false)
+
+// 根据当前时间获取问候语
+const getGreeting = () => {
+  const hour = new Date().getHours()
+  if (hour >= 5 && hour < 12) {
+    return '上午好'
+  } else if (hour >= 12 && hour < 14) {
+    return '中午好'
+  } else if (hour >= 14 && hour < 18) {
+    return '下午好'
+  } else {
+    return '晚上好'
+  }
+}
+
+// 计算用户显示名称
+const userDisplayName = computed(() => {
+  return authStore.userInfo?.nickname || authStore.userInfo?.username || '用户'
+})
+
+// 计算问候语
+const greeting = computed(() => {
+  return getGreeting()
+})
 
 // 聊天消息（扩展API的ChatMessage类型）
 interface ChatMessage extends ApiChatMessage {
@@ -101,6 +126,9 @@ const createNewConversation = async () => {
     // 切换到新对话
     activeConversationId.value = tempId
     
+    // 设置居中布局
+    isCenterLayout.value = true
+    
     // 重置输入框
     userInput.value = ''
     
@@ -133,6 +161,10 @@ const switchConversation = async (id: number) => {
     
     // 加载对话详情
     await loadConversationDetail(id)
+    
+    // 检查对话是否有消息，决定布局
+    const conversation = conversations.find(c => c.id === id)
+    isCenterLayout.value = conversation?.messages.length === 0
     
     // 滚动到底部
     nextTick(() => {
@@ -214,6 +246,11 @@ const sendMessage = async () => {
     if (!conversation) {
       console.error('无法找到活动对话，ID:', activeConversationId.value)
       return
+    }
+    
+    // 发送第一条消息时，切换布局
+    if (conversation.messages.length === 0) {
+      isCenterLayout.value = false
     }
     
     // 如果是临时对话，需要先创建真实对话
@@ -454,6 +491,16 @@ const clearConversationMessages = async (id: number) => {
 onMounted(async () => {
   await loadConversationsFromServer()
   
+  // 如果没有活动对话，创建一个新的临时对话
+  if (activeConversationId.value === null) {
+    console.log("首次打开组件，创建新临时对话")
+    await createNewConversation()
+  } else {
+    // 检查当前对话是否有消息，决定布局
+    const conversation = conversations.find(c => c.id === activeConversationId.value)
+    isCenterLayout.value = conversation?.messages.length === 0
+  }
+  
   focusInput()
   scrollToBottom()
 })
@@ -489,28 +536,28 @@ const loadConversationsFromServer = async () => {
       
       console.log("对话列表更新完成，当前对话数量:", conversations.length)
       
-      // 如果没有对话，创建一个默认对话
-      if (conversations.length === 0) {
-        console.log("没有对话，创建默认对话")
-        const newConv = await createNewDefaultConversation()
-        if (newConv) {
-          console.log("成功创建默认对话:", newConv.id)
-        } else {
-          console.error("创建默认对话失败")
-        }
-      } else {
+      // 如果有对话，设置第一个对话为活动对话
+      if (conversations.length > 0) {
         // 设置第一个对话为活动对话
         activeConversationId.value = conversations[0].id
         console.log("设置第一个对话为活动对话:", activeConversationId.value)
         
         // 加载第一个对话详情
         await loadConversationDetail(activeConversationId.value)
+      } else {
+        // 如果没有对话，将活动对话ID设为null，等待后面创建新对话
+        activeConversationId.value = null
+        console.log("没有对话，活动对话ID设为null")
       }
     } else {
       console.error('加载对话失败:', response.message, response)
+      // 设置活动对话ID为null，等待后面创建新对话
+      activeConversationId.value = null
     }
   } catch (error) {
     console.error('加载对话出错:', error)
+    // 设置活动对话ID为null，等待后面创建新对话
+    activeConversationId.value = null
   } finally {
     isLoadingConversations.value = false
     console.log("对话加载完成，当前活动对话ID:", activeConversationId.value, "对话列表:", conversations)
@@ -565,64 +612,98 @@ const createNewDefaultConversation = async (userMessage?: string) => {
 <template>
   <div class="app-container">
     <!-- 聊天主区域 -->
-    <div class="chat-container">
-      <!-- 聊天内容区域 -->
-      <div class="chat-messages" ref="messagesContainer">
-        <div v-for="(message, index) in messages" :key="index" 
-             :class="['message', message.role === 'user' ? 'user-message' : 'ai-message']">
-          <div class="message-header">
-            <div class="avatar">
-              <span v-if="message.role === 'user'">👤</span>
-              <span v-else>🤖</span>
-            </div>
-            <div class="sender">{{ message.role === 'user' ? '你' : 'AI助手' }}</div>
-            <div class="timestamp" v-if="message.timestamp">{{ formatDate(message.timestamp) }}</div>
+    <div class="chat-container" :class="{ 'center-layout': isCenterLayout }">
+      <!-- 居中布局内容包装器 -->
+      <div v-if="isCenterLayout" class="center-content">
+        <!-- 欢迎信息 -->
+        <div class="welcome-container">
+          <div class="welcome-card">
+            <h2>{{ greeting }}，{{ userDisplayName }}，欢迎使用AI助手</h2>
           </div>
-          <div class="message-content" v-html="formatMessage(message.content)"></div>
         </div>
         
-        <!-- 加载中状态 -->
-        <div v-if="isLoading" class="message ai-message loading">
-          <div class="message-header">
-            <div class="avatar">🤖</div>
-            <div class="sender">AI助手</div>
-          </div>
-          <div class="message-content">
-            <div class="typing-indicator">
-              <span></span>
-              <span></span>
-              <span></span>
-            </div>
+        <!-- 输入区域 -->
+        <div class="chat-input-container" :class="{ 'centered-input': isCenterLayout }">
+          <div class="input-wrapper">
+            <textarea 
+              v-model="userInput" 
+              @keydown.enter="handleKeyDown"
+              placeholder="请输入问题..."
+              rows="3"
+              ref="inputElement"
+              class="chat-input"
+            ></textarea>
+            <button 
+              class="send-button" 
+              @click="sendMessage"
+              :disabled="isLoading || !userInput.trim()"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="22" y1="2" x2="11" y2="13"></line>
+                <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+              </svg>
+            </button>
           </div>
         </div>
       </div>
       
-      <!-- 输入区域 -->
-      <div class="chat-input-container">
-        <div class="input-wrapper">
-          <textarea 
-            v-model="userInput" 
-            @keydown.enter="handleKeyDown"
-            placeholder="请输入问题..."
-            rows="1"
-            ref="inputElement"
-            class="chat-input"
-          ></textarea>
-          <button 
-            class="send-button" 
-            @click="sendMessage"
-            :disabled="isLoading || !userInput.trim()"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <line x1="22" y1="2" x2="11" y2="13"></line>
-              <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
-            </svg>
-          </button>
+      <!-- 常规布局 -->
+      <template v-else>
+        <!-- 聊天内容区域 -->
+        <div class="chat-messages" ref="messagesContainer">
+          <div v-for="(message, index) in messages" :key="index" 
+               :class="['message', message.role === 'user' ? 'user-message' : 'ai-message']">
+            <div class="message-header">
+              <div class="avatar">
+                <span v-if="message.role === 'user'">👤</span>
+                <span v-else>🤖</span>
+              </div>
+              <div class="sender">{{ message.role === 'user' ? '你' : 'AI助手' }}</div>
+              <div class="timestamp" v-if="message.timestamp">{{ formatDate(message.timestamp) }}</div>
+            </div>
+            <div class="message-content" v-html="formatMessage(message.content)"></div>
+          </div>
+          
+          <!-- 加载中状态 -->
+          <div v-if="isLoading" class="message ai-message loading">
+            <div class="message-header">
+              <div class="avatar">🤖</div>
+              <div class="sender">AI助手</div>
+            </div>
+            <div class="message-content">
+              <div class="typing-indicator">
+                <span></span>
+                <span></span>
+                <span></span>
+              </div>
+            </div>
+          </div>
         </div>
-        <div class="input-info">
-          按 Enter 发送，Shift + Enter 换行
+        
+        <!-- 输入区域 -->
+        <div class="chat-input-container" :class="{ 'centered-input': isCenterLayout }">
+          <div class="input-wrapper">
+            <textarea 
+              v-model="userInput" 
+              @keydown.enter="handleKeyDown"
+              placeholder="请输入问题..."
+              rows="3"
+              ref="inputElement"
+              class="chat-input"
+            ></textarea>
+            <button 
+              class="send-button" 
+              @click="sendMessage"
+              :disabled="isLoading || !userInput.trim()"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="22" y1="2" x2="11" y2="13"></line>
+                <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+              </svg>
+            </button>
+          </div>
         </div>
-      </div>
+      </template>
     </div>
     
     <!-- 右侧功能区 -->
@@ -716,7 +797,7 @@ const createNewDefaultConversation = async (userMessage?: string) => {
   width: 300px;
   height: 100%;
   background-color: #f8fafc;
-  border-left: 1px solid #e2e8f0;
+  border-left: none;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -728,7 +809,7 @@ const createNewDefaultConversation = async (userMessage?: string) => {
 
 .sidebar-header {
   padding: 1rem;
-  border-bottom: 1px solid #e2e8f0;
+  border-bottom: none;
 }
 
 .new-chat-button {
@@ -764,15 +845,15 @@ const createNewDefaultConversation = async (userMessage?: string) => {
   width: 100%;
   padding: 0.75rem;
   padding-left: 2.5rem;
-  border: 1px solid #e2e8f0;
+  border: none;
   border-radius: 6px;
   font-size: 0.875rem;
-  background-color: white;
+  background-color: #f1f3f4;
 }
 
 .search-input:focus {
   outline: none;
-  border-color: #4f74e3;
+  border-color: transparent;
   box-shadow: 0 0 0 2px rgba(79, 116, 227, 0.2);
 }
 
@@ -808,6 +889,7 @@ const createNewDefaultConversation = async (userMessage?: string) => {
   transition: background-color 0.2s;
   margin-bottom: 0.5rem;
   position: relative;
+  border: none;
 }
 
 .conversation-item:hover {
@@ -922,15 +1004,51 @@ const createNewDefaultConversation = async (userMessage?: string) => {
   padding: 1rem;
   overflow: hidden;
   margin-right: 300px; /* 为右侧边栏留出空间 */
+  transition: all 0.3s ease;
 }
 
-.chat-messages {
-  flex-grow: 1;
-  overflow-y: auto;
-  padding: 1rem;
+.chat-container.center-layout {
+  justify-content: center;
+  align-items: center;
   display: flex;
   flex-direction: column;
-  gap: 1.5rem;
+}
+
+.chat-container.center-layout .chat-messages {
+  justify-content: center;
+  align-items: center;
+  flex: 0;
+  margin-bottom: 0;
+  padding-top: 0;
+  height: auto;
+}
+
+.welcome-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  margin-bottom: 3rem;
+}
+
+.welcome-card {
+  text-align: center;
+  padding: 2rem;
+  background-color: transparent;
+  border-radius: 0.75rem;
+  max-width: 80%;
+  animation: fade-in 0.5s ease-out;
+  box-shadow: none;
+}
+
+.welcome-card h2 {
+  margin-bottom: 0;
+  color: #334155;
+  font-size: 2rem;
+}
+
+.welcome-card p {
+  color: #64748b;
 }
 
 .message {
@@ -939,6 +1057,7 @@ const createNewDefaultConversation = async (userMessage?: string) => {
   border-radius: 0.5rem;
   animation: fade-in 0.3s ease-out;
   line-height: 1.6;
+  border: none;
 }
 
 @keyframes fade-in {
@@ -984,33 +1103,59 @@ const createNewDefaultConversation = async (userMessage?: string) => {
 }
 
 .chat-input-container {
+  max-width: 1000px;
   margin-top: 1rem;
   padding: 1rem;
-  background-color: #fff;
+  background-color: transparent;
   border-radius: 0.5rem;
-  box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.05);
+  box-shadow: none;
+  width: 100%;
+  transition: all 0.3s ease;
+  margin: 1rem auto;
+}
+
+.chat-input-container.centered-input {
+  max-width: 1000px;
+  margin: 1rem auto;
+  position: relative;
+  z-index: 5;
 }
 
 .input-wrapper {
   display: flex;
   align-items: flex-end;
-  border: 1px solid #ddd;
-  border-radius: 0.5rem;
+  border: none;
+  border-radius: 0.75rem;
   overflow: hidden;
-  background-color: #fff;
-  padding: 0.5rem;
+  background-color: #f1f3f4;
+  padding: 0.75rem;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+  min-height: 60px;
 }
 
 .chat-input {
   flex-grow: 1;
   border: none;
   outline: none;
-  padding: 0.5rem;
+  padding: 0.75rem;
   resize: none;
   font-family: inherit;
-  font-size: 1rem;
-  max-height: 200px;
+  font-size: 1.1rem;
+  max-height: 300px;
   background: transparent;
+  width: 100%;
+  line-height: 1.5;
+}
+
+/* 移除不同状态下的特殊样式，保持一致性 */
+.chat-input-container.centered-input .input-wrapper {
+  min-height: 60px;
+  border: none;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+.chat-input-container.centered-input .chat-input {
+  font-size: 1.1rem;
 }
 
 .send-button {
@@ -1094,5 +1239,39 @@ const createNewDefaultConversation = async (userMessage?: string) => {
   .chat-container {
     margin-right: 0;
   }
+  
+  .chat-input-container.centered-input {
+    max-width: 90%;
+  }
+}
+
+/* 新增样式用于整体内容的垂直居中 */
+.chat-container.center-layout .center-content {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  height: 100%;
+  width: 100%;
+  padding: 0 1rem;
+  margin-top: -25vh; /* 进一步向上移动整体内容 */
+}
+
+/* 调整居中布局时的输入框容器 */
+.chat-container.center-layout .chat-input-container {
+  position: relative;
+  margin-top: 0;
+  width: 100%;
+}
+
+/* 添加聊天消息样式，之前被误删了 */
+.chat-messages {
+  flex-grow: 1;
+  overflow-y: auto;
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  width: 100%;
 }
 </style>

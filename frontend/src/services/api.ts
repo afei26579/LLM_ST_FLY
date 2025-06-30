@@ -476,7 +476,8 @@ class ApiService {
       console.log("发送聊天请求:", { messages, conversation_id: conversationId })
       const response = await this.instance.post<ApiResponse<any>>('chat/completion/', { 
         messages,
-        conversation_id: conversationId
+        conversation_id: conversationId,
+        timeout: 60000
       });
       console.log("聊天请求原始响应:", response)
       
