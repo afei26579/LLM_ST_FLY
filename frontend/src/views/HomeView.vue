@@ -4,6 +4,9 @@ import { apiService } from '../services/api'
 import type { ChatMessage as ApiChatMessage } from '../services/api'
 import { useAuthStore } from '../stores/auth'
 
+// 导入AI头像
+import aiAvatar from '../assets/static/ai_touxiang.png'
+
 const userInput = ref('')
 const isLoading = ref(false)
 const messagesContainer = ref<HTMLElement | null>(null)
@@ -92,12 +95,13 @@ const filteredConversations = computed(() => {
 // 创建新对话 - 仅在前端创建临时对话
 const createNewConversation = async () => {
   try {
-    // 检查当前对话是否为空对话，如果是空对话，不允许创建新对话
+    // 如果当前对话是个空对话且是临时对话，就直接使用它
     if (activeConversationId.value !== null) {
       const activeConv = conversations.find(c => c.id === activeConversationId.value)
-      if (activeConv && activeConv.messages.length === 0) {
-        console.log("当前对话没有消息，不允许创建新对话")
-        return null
+      if (activeConv && activeConv.messages.length === 0 && activeConv.isTemporary) {
+        console.log("当前已有临时空对话，不创建新对话")
+        isCenterLayout.value = true
+        return activeConv
       }
     }
     
@@ -491,15 +495,9 @@ const clearConversationMessages = async (id: number) => {
 onMounted(async () => {
   await loadConversationsFromServer()
   
-  // 如果没有活动对话，创建一个新的临时对话
-  if (activeConversationId.value === null) {
-    console.log("首次打开组件，创建新临时对话")
-    await createNewConversation()
-  } else {
-    // 检查当前对话是否有消息，决定布局
-    const conversation = conversations.find(c => c.id === activeConversationId.value)
-    isCenterLayout.value = conversation?.messages.length === 0
-  }
+  // 无论是否有活动对话，都创建一个新的临时对话
+  console.log("首次打开组件，创建新临时对话")
+  await createNewConversation()
   
   focusInput()
   scrollToBottom()
@@ -536,19 +534,9 @@ const loadConversationsFromServer = async () => {
       
       console.log("对话列表更新完成，当前对话数量:", conversations.length)
       
-      // 如果有对话，设置第一个对话为活动对话
-      if (conversations.length > 0) {
-        // 设置第一个对话为活动对话
-        activeConversationId.value = conversations[0].id
-        console.log("设置第一个对话为活动对话:", activeConversationId.value)
-        
-        // 加载第一个对话详情
-        await loadConversationDetail(activeConversationId.value)
-      } else {
-        // 如果没有对话，将活动对话ID设为null，等待后面创建新对话
-        activeConversationId.value = null
-        console.log("没有对话，活动对话ID设为null")
-      }
+      // 不设置任何活动对话，等待后面创建新对话
+      activeConversationId.value = null
+      console.log("加载完成，活动对话ID设为null，准备创建新对话")
     } else {
       console.error('加载对话失败:', response.message, response)
       // 设置活动对话ID为null，等待后面创建新对话
@@ -652,29 +640,50 @@ const createNewDefaultConversation = async (userMessage?: string) => {
         <!-- 聊天内容区域 -->
         <div class="chat-messages" ref="messagesContainer">
           <div v-for="(message, index) in messages" :key="index" 
-               :class="['message', message.role === 'user' ? 'user-message' : 'ai-message']">
-            <div class="message-header">
-              <div class="avatar">
-                <span v-if="message.role === 'user'">👤</span>
-                <span v-else>🤖</span>
+               :class="['message-wrapper', message.role === 'user' ? 'user-message-wrapper' : 'ai-message-wrapper']">
+            <!-- AI消息 -->
+            <template v-if="message.role !== 'user'">
+              <div class="avatar-container">
+                <img :src="aiAvatar" alt="AI" class="avatar-img">
               </div>
-              <div class="sender">{{ message.role === 'user' ? '你' : 'AI助手' }}</div>
-              <div class="timestamp" v-if="message.timestamp">{{ formatDate(message.timestamp) }}</div>
-            </div>
-            <div class="message-content" v-html="formatMessage(message.content)"></div>
+              <div class="message-with-name">
+                <div class="avatar-name">AI助手</div>
+                <div class="message ai-message">
+                  <div class="message-content" v-html="formatMessage(message.content)"></div>
+                  <div class="message-time" v-if="message.timestamp">{{ formatDate(message.timestamp) }}</div>
+                </div>
+              </div>
+            </template>
+            
+            <!-- 用户消息 -->
+            <template v-else>
+              <div class="message-with-name">
+                <div class="avatar-name user-name">{{ userDisplayName }}</div>
+                <div class="message user-message">
+                  <div class="message-content" v-html="formatMessage(message.content)"></div>
+                  <div class="message-time" v-if="message.timestamp">{{ formatDate(message.timestamp) }}</div>
+                </div>
+              </div>
+              <div class="avatar-container" :style="{ backgroundColor: authStore.userInfo?.avatar ? 'transparent' : '#1989fa' }">
+                <img v-if="authStore.userInfo?.avatar" :src="authStore.userInfo.avatar" alt="User" class="avatar-img">
+                <span v-else class="user-avatar">{{ userDisplayName.slice(0, 1) }}</span>
+              </div>
+            </template>
           </div>
           
           <!-- 加载中状态 -->
-          <div v-if="isLoading" class="message ai-message loading">
-            <div class="message-header">
-              <div class="avatar">🤖</div>
-              <div class="sender">AI助手</div>
+          <div v-if="isLoading" class="message-wrapper ai-message-wrapper">
+            <div class="avatar-container">
+              <img :src="aiAvatar" alt="AI" class="avatar-img">
             </div>
-            <div class="message-content">
-              <div class="typing-indicator">
-                <span></span>
-                <span></span>
-                <span></span>
+            <div class="message-with-name">
+              <div class="avatar-name">AI助手</div>
+              <div class="message ai-message loading">
+                <div class="typing-indicator">
+                  <span></span>
+                  <span></span>
+                  <span></span>
+                </div>
               </div>
             </div>
           </div>
@@ -989,6 +998,11 @@ const createNewDefaultConversation = async (userMessage?: string) => {
   to {transform: rotate(360deg);}
 }
 
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
 .no-results {
   padding: 2rem 0;
   text-align: center;
@@ -1051,55 +1065,163 @@ const createNewDefaultConversation = async (userMessage?: string) => {
   color: #64748b;
 }
 
-.message {
-  max-width: 85%;
-  padding: 1rem;
-  border-radius: 0.5rem;
+.message-wrapper {
+  display: flex;
+  margin-bottom: 25px;
+  width: 100%;
+  position: relative;
   animation: fade-in 0.3s ease-out;
-  line-height: 1.6;
-  border: none;
+  align-items: flex-start;
 }
 
-@keyframes fade-in {
-  from { opacity: 0; transform: translateY(10px); }
-  to { opacity: 1; transform: translateY(0); }
+.user-message-wrapper {
+  justify-content: flex-end;
+}
+
+.ai-message-wrapper {
+  justify-content: flex-start;
+}
+
+.avatar-container {
+  width: 40px;
+  height: 40px;
+  border-radius: 4px;
+  overflow: hidden;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.user-avatar {
+  color: white;
+  font-size: 18px;
+  font-weight: bold;
+}
+
+.message-with-name {
+  display: flex;
+  flex-direction: column;
+  max-width: 65%;
+}
+
+.avatar-name {
+  font-size: 12px;
+  color: #666;
+  margin-bottom: 4px;
+  padding-left: 8px;
+}
+
+.user-name {
+  text-align: right;
+  padding-right: 8px;
+}
+
+.user-message-wrapper .message-with-name {
+  margin-right: 10px;
+  align-items: flex-end;
+}
+
+.ai-message-wrapper .message-with-name {
+  margin-left: 10px;
+  align-items: flex-start;
+}
+
+.message {
+  max-width: 100%;
+  padding: 10px 16px;
+  border-radius: 3px;
+  position: relative;
+  word-break: break-word;
 }
 
 .user-message {
-  align-self: flex-end;
-  background-color: #1a73e8;
-  color: white;
-  border-bottom-right-radius: 0;
+  background-color: #95ec69;
+  color: #000;
+  border-top-right-radius: 0;
 }
 
 .ai-message {
-  align-self: flex-start;
-  background-color: #f1f3f4;
-  color: #202124;
-  border-bottom-left-radius: 0;
+  background-color: white;
+  color: #000;
+  border-top-left-radius: 0;
+  box-shadow: 0 1px 1px rgba(0, 0, 0, 0.05);
 }
 
-.message-header {
-  display: flex;
-  align-items: center;
-  margin-bottom: 0.5rem;
-  font-weight: 500;
+.user-message::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: -10px;
+  width: 0;
+  height: 0;
+  border-left: 10px solid #95ec69;
+  border-top: 10px solid transparent;
 }
 
-.avatar {
-  margin-right: 0.5rem;
-  font-size: 1.2rem;
-}
-
-.timestamp {
-  margin-left: auto;
-  font-size: 0.75rem;
-  font-weight: normal;
-  opacity: 0.7;
+.ai-message::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -10px;
+  width: 0;
+  height: 0;
+  border-right: 10px solid white;
+  border-top: 10px solid transparent;
 }
 
 .message-content {
-  font-size: 1rem;
+  font-size: 16px;
+  line-height: 1.5;
+}
+
+.message-time {
+  font-size: 12px;
+  color: #999;
+  margin-top: 5px;
+  text-align: right;
+}
+
+/* 加载动画修改 */
+.loading {
+  min-width: 80px;
+}
+
+.typing-indicator {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 0;
+}
+
+.typing-indicator span {
+  width: 8px;
+  height: 8px;
+  background-color: #bbb;
+  border-radius: 50%;
+  display: inline-block;
+  margin: 0 2px;
+  animation: blink 1.4s infinite both;
+}
+
+.typing-indicator span:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.typing-indicator span:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+@keyframes blink {
+  0% { opacity: 0.6; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.2); }
+  100% { opacity: 0.6; transform: scale(1); }
 }
 
 .chat-input-container {
@@ -1147,7 +1269,6 @@ const createNewDefaultConversation = async (userMessage?: string) => {
   line-height: 1.5;
 }
 
-/* 移除不同状态下的特殊样式，保持一致性 */
 .chat-input-container.centered-input .input-wrapper {
   min-height: 60px;
   border: none;
@@ -1177,49 +1298,6 @@ const createNewDefaultConversation = async (userMessage?: string) => {
 .send-button:disabled {
   color: #ccc;
   cursor: not-allowed;
-}
-
-.input-info {
-  margin-top: 0.5rem;
-  font-size: 0.75rem;
-  color: #666;
-  text-align: right;
-}
-
-/* 加载动画 */
-.loading .message-content {
-  display: flex;
-  align-items: center;
-}
-
-.typing-indicator {
-  display: flex;
-  align-items: center;
-}
-
-.typing-indicator span {
-  width: 8px;
-  height: 8px;
-  background-color: #606060;
-  border-radius: 50%;
-  display: inline-block;
-  margin: 0 2px;
-  opacity: 0.6;
-  animation: blink 1.4s infinite both;
-}
-
-.typing-indicator span:nth-child(2) {
-  animation-delay: 0.2s;
-}
-
-.typing-indicator span:nth-child(3) {
-  animation-delay: 0.4s;
-}
-
-@keyframes blink {
-  0% { opacity: 0.6; transform: scale(1); }
-  50% { opacity: 1; transform: scale(1.2); }
-  100% { opacity: 0.6; transform: scale(1); }
 }
 
 /* 响应式布局 */
@@ -1264,14 +1342,14 @@ const createNewDefaultConversation = async (userMessage?: string) => {
   width: 100%;
 }
 
-/* 添加聊天消息样式，之前被误删了 */
+/* 添加聊天消息样式 */
 .chat-messages {
   flex-grow: 1;
   overflow-y: auto;
   padding: 1rem;
   display: flex;
   flex-direction: column;
-  gap: 1.5rem;
   width: 100%;
+  background-color: #f5f5f5;
 }
 </style>
