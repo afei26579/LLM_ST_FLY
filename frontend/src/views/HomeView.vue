@@ -15,6 +15,10 @@ const searchQuery = ref('')
 const activeConversationId = ref<number | null>(null)
 const authStore = useAuthStore()
 const isCenterLayout = ref(false)
+// 跟踪哪些对话展开了历史记录
+const expandedConversations = ref<Set<number>>(new Set())
+// 跟踪哪些对话正在加载历史记录
+const loadingHistoryConversations = ref<Set<number>>(new Set())
 
 // 根据当前时间获取问候语
 const getGreeting = () => {
@@ -202,7 +206,13 @@ const loadConversationDetail = async (conversationId: number) => {
       if (localConv) {
         // 确保messages是数组
         if (Array.isArray(conv.messages)) {
-          localConv.messages = conv.messages
+          localConv.messages = conv.messages.map(msg => {
+            // 确保每条消息都有timestamp属性
+            return {
+              ...msg,
+              timestamp: msg.timestamp ? new Date(msg.timestamp) : new Date()
+            }
+          })
         } else {
           localConv.messages = []
           console.warn("返回的messages不是数组:", conv.messages)
@@ -218,7 +228,10 @@ const loadConversationDetail = async (conversationId: number) => {
         const newConv = {
           id: conv.id,
           title: conv.title || '未命名对话',
-          messages: Array.isArray(conv.messages) ? conv.messages : [],
+          messages: Array.isArray(conv.messages) ? conv.messages.map(msg => ({
+            ...msg,
+            timestamp: msg.timestamp ? new Date(msg.timestamp) : new Date()
+          })) : [],
           lastUpdated: new Date(conv.updated_at || new Date()),
           preview: conv.last_message?.content || '空对话',
           message_count: conv.message_count || 0,
@@ -595,6 +608,95 @@ const createNewDefaultConversation = async (userMessage?: string) => {
     return null
   }
 }
+
+// Toggle conversation expansion
+const toggleConversationExpand = async (id: number) => {
+  if (expandedConversations.value.has(id)) {
+    expandedConversations.value.delete(id)
+  } else {
+    expandedConversations.value.add(id)
+    
+    // 查找当前对话
+    const conversation = conversations.find(c => c.id === id)
+    if (conversation && (!conversation.messages || conversation.messages.length === 0) && conversation.message_count > 0) {
+      // 需要加载对话历史
+      loadingHistoryConversations.value.add(id)
+      await loadConversationDetail(id)
+      loadingHistoryConversations.value.delete(id)
+    }
+  }
+}
+
+// Check if a conversation is expanded
+const isConversationExpanded = (id: number) => {
+  return expandedConversations.value.has(id)
+}
+
+// Check if a conversation history is loading
+const isHistoryLoading = (id: number) => {
+  return loadingHistoryConversations.value.has(id)
+}
+
+// Get user questions from a conversation
+const getUserQuestions = (conversation: Conversation) => {
+  if (!conversation.messages || conversation.messages.length === 0) return []
+  
+  return conversation.messages
+    .filter(message => message.role === 'user')
+    .map((message, index) => ({
+      content: message.content,
+      timestamp: message.timestamp,
+      index: index // 保存消息在对话中的位置，用于后续定位
+    }))
+}
+
+// 跳转到特定问题
+const jumpToQuestion = (conversationId: number, questionIndex: number) => {
+  // 如果不是当前对话，先切换到该对话
+  if (activeConversationId.value !== conversationId) {
+    switchConversation(conversationId).then(() => {
+      scrollToQuestion(questionIndex)
+    })
+  } else {
+    scrollToQuestion(questionIndex)
+  }
+}
+
+// 滚动到特定问题
+const scrollToQuestion = (questionIndex: number) => {
+  nextTick(() => {
+    const conversation = conversations.find(c => c.id === activeConversationId.value)
+    if (!conversation || !conversation.messages) return
+    
+    // 找到用户问题在整个消息列表中的实际位置
+    const userMessages = conversation.messages.filter(msg => msg.role === 'user')
+    if (questionIndex >= userMessages.length) return
+    
+    const targetMessage = userMessages[questionIndex]
+    const targetIndex = conversation.messages.findIndex(msg => 
+      msg.role === targetMessage.role && 
+      msg.content === targetMessage.content &&
+      msg.timestamp === targetMessage.timestamp
+    )
+    
+    if (targetIndex === -1) return
+    
+    // 找到对应的DOM元素并滚动
+    const messageElements = messagesContainer.value?.querySelectorAll('.message-wrapper')
+    if (messageElements && targetIndex < messageElements.length) {
+      messageElements[targetIndex].scrollIntoView({ behavior: 'smooth', block: 'center' })
+      
+      // 添加高亮效果
+      const messageEl = messageElements[targetIndex] as HTMLElement
+      messageEl.classList.add('highlighted')
+      
+      // 3秒后移除高亮
+      setTimeout(() => {
+        messageEl.classList.remove('highlighted')
+      }, 3000)
+    }
+  })
+}
 </script>
 
 <template>
@@ -755,33 +857,56 @@ const createNewDefaultConversation = async (userMessage?: string) => {
           class="conversation-item"
           :class="{ 'active': conversation.id === activeConversationId }"
         >
-          <div class="conversation-content" @click="switchConversation(conversation.id)">
-            <div class="conversation-title">{{ conversation.title }}</div>
-            <div class="conversation-preview">{{ conversation.preview }}</div>
-            <div class="conversation-date">{{ formatDate(conversation.lastUpdated) }}</div>
+          <div class="conversation-main">
+            <div class="conversation-content" @click="switchConversation(conversation.id)">
+              <div class="conversation-title">{{ conversation.title }}</div>
+              <div class="conversation-preview">{{ conversation.preview }}</div>
+              <div class="conversation-date">{{ formatDate(conversation.lastUpdated) }}</div>
+            </div>
+            <div class="conversation-actions">
+              <button 
+                v-if="conversation.message_count > 2"
+                class="action-btn expand-btn" 
+                title="展开历史问题"
+                @click.stop="toggleConversationExpand(conversation.id)"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <polyline v-if="!isConversationExpanded(conversation.id)" points="6 9 12 15 18 9"></polyline>
+                  <polyline v-else points="18 15 12 9 6 15"></polyline>
+                </svg>
+              </button>
+              <button 
+                class="action-btn delete-btn" 
+                title="删除对话"
+                @click.stop="deleteConversation(conversation.id)"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <polyline points="3 6 5 6 21 6"></polyline>
+                  <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                </svg>
+              </button>
+            </div>
           </div>
-          <div class="conversation-actions">
-            <button 
-              class="action-btn" 
-              title="清空对话"
-              @click.stop="clearConversationMessages(conversation.id)"
+          
+          <!-- 展开的用户问题历史 -->
+          <div v-if="isConversationExpanded(conversation.id)" class="conversation-history">
+            <div v-if="isHistoryLoading(conversation.id)" class="history-loading">
+              <div class="history-spinner"></div>
+              <span>加载历史问题中...</span>
+            </div>
+            <div v-else-if="getUserQuestions(conversation).length === 0" class="history-empty">
+              没有找到用户问题
+            </div>
+            <div 
+              v-else 
+              v-for="(question, index) in getUserQuestions(conversation)" 
+              :key="index" 
+              class="history-question"
+              @click.stop="jumpToQuestion(conversation.id, question.index)"
             >
-              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
-                <line x1="9" y1="9" x2="15" y2="15"></line>
-                <line x1="15" y1="9" x2="9" y2="15"></line>
-              </svg>
-            </button>
-            <button 
-              class="action-btn delete-btn" 
-              title="删除对话"
-              @click.stop="deleteConversation(conversation.id)"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <polyline points="3 6 5 6 21 6"></polyline>
-                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-              </svg>
-            </button>
+              <div class="question-content">{{ question.content }}</div>
+              <div class="question-time">{{ formatDate(question.timestamp) }}</div>
+            </div>
           </div>
         </div>
         
@@ -891,9 +1016,7 @@ const createNewDefaultConversation = async (userMessage?: string) => {
 
 .conversation-item {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0.75rem;
+  flex-direction: column;
   border-radius: 6px;
   transition: background-color 0.2s;
   margin-bottom: 0.5rem;
@@ -907,6 +1030,14 @@ const createNewDefaultConversation = async (userMessage?: string) => {
 
 .conversation-item.active {
   background-color: #e2e8f0;
+}
+
+.conversation-main {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem;
+  width: 100%;
 }
 
 .conversation-content {
@@ -1351,5 +1482,128 @@ const createNewDefaultConversation = async (userMessage?: string) => {
   flex-direction: column;
   width: 100%;
   background-color: #f5f5f5;
+}
+
+.expand-btn {
+  background: transparent;
+  border: none;
+  color: #64748b;
+  padding: 0.25rem;
+  border-radius: 4px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+.expand-btn:hover {
+  background-color: rgba(0, 0, 0, 0.05);
+  color: #334155;
+}
+
+.conversation-history {
+  width: 100%;
+  padding: 0.5rem;
+  margin-top: 0.5rem;
+  background-color: #edf2f7;
+  border-radius: 4px;
+  max-height: 200px;
+  overflow-y: auto;
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.history-question {
+  padding: 0.75rem;
+  margin-bottom: 0.5rem;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  background-color: #ffffff;
+  border-left: 3px solid #4f74e3;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.history-question:hover {
+  background-color: #f8fafc;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+}
+
+.history-question:last-child {
+  margin-bottom: 0;
+}
+
+.question-content {
+  font-size: 14px;
+  color: #334155;
+  margin-bottom: 8px;
+  word-break: break-word;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  line-height: 1.4;
+}
+
+.question-time {
+  font-size: 12px;
+  color: #94a3b8;
+  display: flex;
+  align-items: center;
+}
+
+.question-time::before {
+  content: '';
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' width='12' height='12' stroke='%2394a3b8' stroke-width='2' fill='none' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='10'%3E%3C/circle%3E%3Cpolyline points='12 6 12 12 16 14'%3E%3C/polyline%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: center;
+  margin-right: 4px;
+}
+
+.history-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 1rem;
+  color: #64748b;
+  font-size: 0.875rem;
+  background-color: rgba(255, 255, 255, 0.7);
+  border-radius: 6px;
+  margin: 0.5rem 0;
+}
+
+.history-spinner {
+  width: 18px;
+  height: 18px;
+  border: 2px solid rgba(79, 116, 227, 0.2);
+  border-top-color: #4f74e3;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+.history-empty {
+  text-align: center;
+  padding: 1rem;
+  color: #64748b;
+  font-size: 0.875rem;
+  background-color: #ffffff;
+  border-radius: 6px;
+  border-left: 3px solid #cbd5e1;
+  margin: 0.5rem 0;
+}
+
+.highlighted {
+  animation: highlight-pulse 3s ease;
+}
+
+@keyframes highlight-pulse {
+  0% { background-color: rgba(79, 116, 227, 0.1); }
+  50% { background-color: rgba(79, 116, 227, 0.2); }
+  100% { background-color: transparent; }
 }
 </style>
