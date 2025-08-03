@@ -132,6 +132,7 @@ class LoginSerializer(serializers.Serializer):
 
 class GroupSerializer(serializers.ModelSerializer):
     """用户组序列化器"""
+    
     class Meta:
         model = Group
         fields = ['id', 'name']
@@ -279,4 +280,112 @@ class BindEmailSerializer(serializers.Serializer):
     def validate_email(self, value):
         """验证邮箱格式"""
         # EmailField已经验证了基本格式，这里可以添加额外的验证逻辑
-        return value 
+        return value
+
+
+class UserListSerializer(serializers.ModelSerializer):
+    """用户列表序列化器"""
+    role = serializers.SerializerMethodField()
+    createdAt = serializers.DateTimeField(source='date_joined', read_only=True, format='%Y-%m-%dT%H:%M:%S')
+    isActive = serializers.BooleanField(source='is_active')
+    
+    class Meta:
+        model = User
+        fields = ['id', 'username', 'email', 'role', 'isActive', 'createdAt']
+        
+    def get_role(self, obj):
+        """获取用户角色信息"""
+        try:
+            group = obj.groups.first()
+            if group:
+                return {
+                    'id': group.id,
+                    'name': group.name
+                }
+            return None
+        except Exception:
+            return None
+
+
+class UserCreateSerializer(serializers.ModelSerializer):
+    """用户创建序列化器"""
+    roleId = serializers.IntegerField(required=False, write_only=True, allow_null=True)
+    password = serializers.CharField(write_only=True, required=True)
+    isActive = serializers.BooleanField(source='is_active', default=True)
+    
+    class Meta:
+        model = User
+        fields = ['username', 'email', 'password', 'roleId', 'isActive']
+        
+    def validate_email(self, value):
+        """验证邮箱唯一性"""
+        if User.objects.filter(email=value).exists():
+            raise serializers.ValidationError(_("该邮箱已被注册"))
+        return value
+        
+    def validate_username(self, value):
+        """验证用户名唯一性"""
+        if User.objects.filter(username=value).exists():
+            raise serializers.ValidationError(_("该用户名已被使用"))
+        return value
+        
+    def create(self, validated_data):
+        role_id = validated_data.pop('roleId', None)
+        user = User.objects.create_user(**validated_data)
+        
+        # 分配用户组
+        if role_id:
+            try:
+                group = Group.objects.get(id=role_id)
+                user.groups.add(group)
+            except Group.DoesNotExist:
+                pass
+        
+        return user
+
+
+class UserUpdateSerializer(serializers.ModelSerializer):
+    """用户更新序列化器"""
+    roleId = serializers.IntegerField(required=False, write_only=True, allow_null=True)
+    isActive = serializers.BooleanField(source='is_active', required=False)
+    
+    class Meta:
+        model = User
+        fields = ['username', 'email', 'roleId', 'isActive']
+        
+    def validate_email(self, value):
+        """验证邮箱唯一性"""
+        instance = self.instance
+        if User.objects.exclude(id=instance.id).filter(email=value).exists():
+            raise serializers.ValidationError(_("该邮箱已被注册"))
+        return value
+        
+    def validate_username(self, value):
+        """验证用户名唯一性"""
+        instance = self.instance
+        if User.objects.exclude(id=instance.id).filter(username=value).exists():
+            raise serializers.ValidationError(_("该用户名已被使用"))
+        return value
+        
+    def update(self, instance, validated_data):
+        role_id = validated_data.pop('roleId', None)
+        
+        # 更新用户基本信息
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        instance.save()
+        
+        # 更新用户组
+        if role_id is not None:
+            # 清除现有用户组
+            instance.groups.clear()
+            
+            # 分配新用户组
+            if role_id:
+                try:
+                    group = Group.objects.get(id=role_id)
+                    instance.groups.add(group)
+                except Group.DoesNotExist:
+                    pass
+        
+        return instance 

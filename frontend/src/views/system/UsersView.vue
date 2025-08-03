@@ -57,6 +57,12 @@
               </button>
             </td>
           </tr>
+          <tr v-if="loading">
+            <td colspan="7" class="loading-row">加载中...</td>
+          </tr>
+          <tr v-if="!loading && users.length === 0">
+            <td colspan="7" class="empty-row">暂无用户数据</td>
+          </tr>
         </tbody>
       </table>
     </div>
@@ -113,7 +119,7 @@
             </div>
             <div class="modal-footer">
               <button type="button" class="cancel-btn" @click="closeUserModal">取消</button>
-              <button type="submit" class="save-btn">保存</button>
+              <button type="submit" class="save-btn" :disabled="submitting">{{ submitting ? '保存中...' : '保存' }}</button>
             </div>
           </form>
         </div>
@@ -136,85 +142,41 @@
           <p class="delete-message">确定要删除用户 <strong>{{ currentUser.username }}</strong> 吗？此操作不可撤销。</p>
           <div class="modal-footer">
             <button type="button" class="cancel-btn" @click="closeDeleteModal">取消</button>
-            <button type="button" class="delete-confirm-btn" @click="deleteUser">删除</button>
+            <button type="button" class="delete-confirm-btn" @click="deleteUserConfirm" :disabled="submitting">
+              {{ submitting ? '删除中...' : '删除' }}
+            </button>
           </div>
         </div>
       </div>
-    </div>
-    
-    <!-- 操作结果提示 -->
-    <div v-if="notification.show" class="notification" :class="notification.type">
-      {{ notification.message }}
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, onMounted } from 'vue'
+import { useToast } from 'vue-toastification'
+import ApiService from '@/services/api'
+import type { UserListItem, RoleItem } from '@/services/api'
 
-// 定义类型接口
-interface Role {
-  id: number
-  name: string
-  description: string
-}
+// 创建API服务实例
+const api = new ApiService()
+// 创建toast实例
+const toast = useToast()
 
-interface User {
-  id: number
-  username: string
-  email: string
-  password?: string
-  roleId?: number
-  role?: Role
-  isActive: boolean
-  createdAt: string
-}
+// 定义角色类型接口
+interface Role extends RoleItem {}
 
-// 模拟角色数据
-const roles = ref<Role[]>([
-  { id: 1, name: '管理员', description: '系统管理员，拥有所有权限' },
-  { id: 2, name: '运营', description: '运营人员，负责内容管理' },
-  { id: 3, name: '用户', description: '普通用户，仅有基本访问权限' }
-])
-
-// 模拟用户数据
-const users = ref<User[]>([
-  {
-    id: 1,
-    username: 'admin',
-    email: 'admin@example.com',
-    roleId: 1,
-    role: roles.value[0],
-    isActive: true,
-    createdAt: '2023-06-10T08:30:00Z'
-  },
-  {
-    id: 2,
-    username: 'operator',
-    email: 'operator@example.com',
-    roleId: 2,
-    role: roles.value[1],
-    isActive: true,
-    createdAt: '2023-06-12T10:20:00Z'
-  },
-  {
-    id: 3,
-    username: 'user1',
-    email: 'user1@example.com',
-    roleId: 3,
-    role: roles.value[2],
-    isActive: false,
-    createdAt: '2023-06-15T14:45:00Z'
-  }
-])
-
-// 弹窗状态
+// 状态变量
+const users = ref<UserListItem[]>([])
+const roles = ref<Role[]>([])
+const loading = ref(false)
+const submitting = ref(false)
 const showUserModal = ref(false)
 const showDeleteModal = ref(false)
 const isEditing = ref(false)
 
 // 当前操作的用户
-const currentUser = ref<User>({
+const currentUser = ref<UserListItem>({
   id: 0,
   username: '',
   email: '',
@@ -222,34 +184,56 @@ const currentUser = ref<User>({
   roleId: undefined,
   isActive: true,
   createdAt: new Date().toISOString()
-})
-
-// 消息通知
-const notification = reactive({
-  show: false,
-  message: '',
-  type: 'success',
-  timeout: null as number | null
-})
+} as UserListItem)
 
 // 显示通知消息
 function showNotification(message: string, type: 'success' | 'error' = 'success') {
-  if (notification.timeout) {
-    clearTimeout(notification.timeout)
+  if (type === 'success') {
+    toast.success(message, {
+      timeout: 3000
+    })
+  } else {
+    toast.error(message, {
+      timeout: 5000
+    })
   }
-  
-  notification.message = message
-  notification.type = type
-  notification.show = true
-  
-  // 3秒后自动关闭
-  notification.timeout = setTimeout(() => {
-    notification.show = false
-  }, 3000) as unknown as number
+}
+
+// 获取用户列表
+async function fetchUsers() {
+  loading.value = true
+  try {
+    const response = await api.getUserList()
+    if (response.code === 200 || response.code === 0) {
+      users.value = response.data
+    } else {
+      showNotification(response.message || '获取用户列表失败', 'error')
+    }
+  } catch (error: any) {
+    console.error('获取用户列表失败:', error)
+    showNotification('获取用户列表失败: ' + error.message, 'error')
+  } finally {
+    loading.value = false
+  }
+}
+
+// 获取角色列表
+async function fetchRoles() {
+  try {
+    const response = await api.getRoleList()
+    if (response.code === 200 || response.code === 0) {
+      roles.value = response.data
+    } else {
+      showNotification(response.message || '获取角色列表失败', 'error')
+    }
+  } catch (error: any) {
+    console.error('获取角色列表失败:', error)
+    showNotification('获取角色列表失败: ' + error.message, 'error')
+  }
 }
 
 // 打开用户编辑/添加弹窗
-function openUserModal(user?: User) {
+function openUserModal(user?: UserListItem) {
   if (user) {
     // 编辑模式
     isEditing.value = true
@@ -267,7 +251,7 @@ function openUserModal(user?: User) {
       roleId: undefined,
       isActive: true,
       createdAt: new Date().toISOString()
-    }
+    } as UserListItem
   }
   showUserModal.value = true
 }
@@ -278,43 +262,54 @@ function closeUserModal() {
 }
 
 // 保存用户信息
-function saveUser() {
-  if (isEditing.value) {
-    // 更新现有用户
-    const index = users.value.findIndex(u => u.id === currentUser.value.id)
-    if (index !== -1) {
-      // 更新角色信息
-      if (currentUser.value.roleId) {
-        currentUser.value.role = roles.value.find(r => r.id === currentUser.value.roleId)
+async function saveUser() {
+  submitting.value = true
+  try {
+    let response
+    
+    if (isEditing.value) {
+      // 更新现有用户
+      response = await api.updateUser(currentUser.value.id, {
+        username: currentUser.value.username,
+        email: currentUser.value.email,
+        roleId: currentUser.value.roleId,
+        isActive: currentUser.value.isActive
+      })
+      
+      if (response.code === 200 || response.code === 0) {
+        showNotification('用户更新成功')
       } else {
-        currentUser.value.role = undefined
+        showNotification(response.message || '用户更新失败', 'error')
+        submitting.value = false
+        return
       }
-      users.value[index] = { ...currentUser.value }
-      showNotification('用户更新成功')
-    }
-  } else {
-    // 添加新用户
-    const newId = users.value.length > 0 ? Math.max(...users.value.map(u => u.id)) + 1 : 1
-    const newUser: User = {
-      ...currentUser.value,
-      id: newId
-    }
-    
-    // 设置角色信息
-    if (newUser.roleId) {
-      newUser.role = roles.value.find(r => r.id === newUser.roleId)
+    } else {
+      // 添加新用户
+      response = await api.createUser(currentUser.value)
+      
+      if (response.code === 200 || response.code === 0) {
+        showNotification('用户添加成功')
+      } else {
+        showNotification(response.message || '用户添加失败', 'error')
+        submitting.value = false
+        return
+      }
     }
     
-    users.value.push(newUser)
-    showNotification('用户添加成功')
+    // 重新获取用户列表
+    await fetchUsers()
+    // 关闭弹窗
+    closeUserModal()
+  } catch (error: any) {
+    console.error('保存用户失败:', error)
+    showNotification('保存用户失败: ' + error.message, 'error')
+  } finally {
+    submitting.value = false
   }
-  
-  // 关闭弹窗
-  closeUserModal()
 }
 
 // 确认删除用户
-function confirmDelete(user: User) {
+function confirmDelete(user: UserListItem) {
   currentUser.value = { ...user }
   showDeleteModal.value = true
 }
@@ -325,21 +320,42 @@ function closeDeleteModal() {
 }
 
 // 删除用户
-function deleteUser() {
-  const index = users.value.findIndex(u => u.id === currentUser.value.id)
-  if (index !== -1) {
-    users.value.splice(index, 1)
-    showNotification('用户已删除')
+async function deleteUserConfirm() {
+  submitting.value = true
+  try {
+    const response = await api.deleteUser(currentUser.value.id)
+    
+    if (response.code === 200 || response.code === 0) {
+      showNotification('用户已删除')
+      // 重新获取用户列表
+      await fetchUsers()
+      closeDeleteModal()
+    } else {
+      showNotification(response.message || '删除用户失败', 'error')
+    }
+  } catch (error: any) {
+    console.error('删除用户失败:', error)
+    showNotification('删除用户失败: ' + error.message, 'error')
+  } finally {
+    submitting.value = false
   }
-  closeDeleteModal()
 }
 
 // 切换用户状态（激活/停用）
-function toggleUserStatus(user: User) {
-  const index = users.value.findIndex(u => u.id === user.id)
-  if (index !== -1) {
-    users.value[index].isActive = !users.value[index].isActive
-    showNotification(`用户状态已${users.value[index].isActive ? '激活' : '停用'}`)
+async function toggleUserStatus(user: UserListItem) {
+  try {
+    const response = await api.updateUserStatus(user.id, !user.isActive)
+    
+    if (response.code === 200 || response.code === 0) {
+      // 更新本地状态
+      user.isActive = !user.isActive
+      showNotification(`用户状态已${user.isActive ? '激活' : '停用'}`)
+    } else {
+      showNotification(response.message || '更新用户状态失败', 'error')
+    }
+  } catch (error: any) {
+    console.error('更新用户状态失败:', error)
+    showNotification('更新用户状态失败: ' + error.message, 'error')
   }
 }
 
@@ -355,10 +371,9 @@ function formatDate(dateStr: string): string {
   })
 }
 
-// 组件挂载时，可以在这里调用API获取数据
-onMounted(() => {
-  // 这里可以添加API调用，获取用户数据和角色数据
-  console.log('用户管理组件已挂载，准备获取数据')
+// 组件挂载时获取数据
+onMounted(async () => {
+  await Promise.all([fetchUsers(), fetchRoles()])
 })
 </script>
 
@@ -424,6 +439,12 @@ tr:last-child td {
 
 tr:hover {
   background-color: #f5f5f5;
+}
+
+.loading-row, .empty-row {
+  text-align: center;
+  padding: 20px;
+  color: #666;
 }
 
 /* 状态标签 */
@@ -563,8 +584,13 @@ input:focus, select:focus, textarea:focus {
   cursor: pointer;
 }
 
-.save-btn:hover {
+.save-btn:hover:not(:disabled) {
   background-color: #3e8e41;
+}
+
+.save-btn:disabled {
+  background-color: #cccccc;
+  cursor: not-allowed;
 }
 
 .cancel-btn {
@@ -584,44 +610,17 @@ input:focus, select:focus, textarea:focus {
   cursor: pointer;
 }
 
-.delete-confirm-btn:hover {
+.delete-confirm-btn:hover:not(:disabled) {
   background-color: #d32f2f;
+}
+
+.delete-confirm-btn:disabled {
+  background-color: #ffcccc;
+  cursor: not-allowed;
 }
 
 .delete-message {
   font-size: 16px;
   margin-bottom: 10px;
-}
-
-/* 通知消息 */
-.notification {
-  position: fixed;
-  top: 20px;
-  right: 20px;
-  padding: 15px 20px;
-  border-radius: 4px;
-  color: white;
-  z-index: 1000;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
-  animation: slideIn 0.3s ease-out forwards;
-}
-
-.notification.success {
-  background-color: #4CAF50;
-}
-
-.notification.error {
-  background-color: #f44336;
-}
-
-@keyframes slideIn {
-  from {
-    transform: translateX(100%);
-    opacity: 0;
-  }
-  to {
-    transform: translateX(0);
-    opacity: 1;
-  }
 }
 </style> 

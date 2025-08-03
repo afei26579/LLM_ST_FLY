@@ -6,11 +6,15 @@ from rest_framework_simplejwt.views import (
     TokenVerifyView,
 )
 
-from .views import UserViewSet, LoginView, RegisterView
+from .views import (
+    LoginView, UserViewSet, RegisterView, 
+    UserManagementViewSet, GroupViewSet
+)
 
 # 创建路由器并注册ViewSets
 router = DefaultRouter()
-router.register(r'users', UserViewSet)
+router.register(r'users', UserManagementViewSet, basename='user-management')
+router.register(r'roles', GroupViewSet, basename='roles')
 
 # 打印路由器生成的URL
 print("="*50)
@@ -25,7 +29,7 @@ urlpatterns = [
     path('token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     path('token/verify/', TokenVerifyView.as_view(), name='token_verify'),
     
-    # 自定义登录和注册视图
+    # 用户认证和管理视图
     path('login/', LoginView.as_view(), name='login'),
     path('register/', RegisterView.as_view(), name='register'),
     

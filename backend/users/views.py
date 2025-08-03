@@ -16,13 +16,17 @@ from django.core.cache import cache
 from django.template.loader import render_to_string
 from twilio.rest import Client as Twilio_client
 from core.config import TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_PHONE_NUMBER
+from django.contrib.auth.models import Group
 
 from .serializers import (
     UserSerializer, UserProfileSerializer, LoginSerializer,
     GroupSerializer, UserGroupSerializer, ChangePasswordSerializer,
     SendSmsCodeSerializer, SendEmailCodeSerializer,
     ResetPasswordPhoneSerializer, ResetPasswordEmailSerializer,
-    BindPhoneSerializer, BindEmailSerializer
+    BindPhoneSerializer, BindEmailSerializer,
+    UserListSerializer,
+    UserCreateSerializer,
+    UserUpdateSerializer
 )
 from .permissions import IsAdminUser, IsStaffOrAdmin, IsSelfOrAdmin
 
@@ -178,7 +182,7 @@ class UserViewSet(viewsets.ModelViewSet):
             400: OpenApiResponse(description="更新失败，提供的信息无效")
         }
     )
-    @action(detail=False, methods=['get', 'put', 'patch'], url_path='me')
+    @action(detail=False, methods=['get', 'put', 'patch'], url_path='me', permission_classes=[permissions.IsAuthenticated])
     def me(self, request):
         """
         获取或更新当前用户信息
@@ -793,3 +797,41 @@ class RegisterView(generics.CreateAPIView):
                 'access': str(refresh.access_token),
             }
         }, "注册成功", status_code=status.HTTP_201_CREATED)
+
+
+class UserManagementViewSet(viewsets.ModelViewSet):
+    """用户管理视图集"""
+    queryset = User.objects.all().order_by('-date_joined')
+    permission_classes = [IsAdminUser]
+    
+    def get_serializer_class(self):
+        if self.action == 'create':
+            return UserCreateSerializer
+        elif self.action in ['update', 'partial_update']:
+            return UserUpdateSerializer
+        return UserListSerializer
+    
+    @action(detail=True, methods=['patch'])
+    def status(self, request, pk=None):
+        """更新用户状态"""
+        user = self.get_object()
+        is_active = request.data.get('isActive')
+        
+        if is_active is None:
+            return Response(
+                {'error': '请提供isActive字段'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        user.is_active = is_active
+        user.save()
+        
+        serializer = self.get_serializer(user)
+        return Response(serializer.data)
+
+
+class GroupViewSet(viewsets.ReadOnlyModelViewSet):
+    """用户组视图集"""
+    queryset = Group.objects.all()
+    serializer_class = GroupSerializer
+    permission_classes = [IsAdminUser]

@@ -24,6 +24,29 @@ export interface Conversation {
   last_message?: ChatMessage;
 }
 
+// 用户列表接口
+export interface UserListItem {
+  id: number;
+  username: string;
+  email: string;
+  password?: string;
+  roleId?: number;
+  role?: {
+    id: number;
+    name: string;
+    description?: string;
+  };
+  isActive: boolean;
+  createdAt: string;
+}
+
+// 角色列表项接口
+export interface RoleItem {
+  id: number;
+  name: string;
+  description?: string;
+}
+
 // API基础配置
 const API_CONFIG = {
   // 后端API的基础URL
@@ -687,7 +710,125 @@ class ApiService {
       };
     }
   }
+
+  // 获取用户列表
+  async getUserList(): Promise<ApiResponse<UserListItem[]>> {
+    try {
+      const response = await this.instance.get<ApiResponse<UserListItem[]>>('auth/users/');
+      return response.data;
+    } catch (error: any) {
+      console.error('获取用户列表失败:', error);
+      if (error.response) {
+        return {
+          code: error.response.status,
+          message: error.response.data.message || '获取用户列表失败',
+          data: []
+        };
+      }
+      return {
+        code: 500,
+        message: '网络错误，请检查网络连接',
+        data: []
+      };
+    }
+  }
+  
+  // 获取用户详情
+  async getUserDetail(id: number): Promise<ApiResponse<UserListItem>> {
+    try {
+      const response = await this.instance.get<ApiResponse<UserListItem>>(`auth/users/${id}/`);
+      return response.data;
+    } catch (error: any) {
+      console.error('获取用户详情失败:', error);
+      throw error;
+    }
+  }
+  
+  // 创建用户
+  async createUser(userData: Partial<UserListItem>): Promise<ApiResponse<UserListItem>> {
+    try {
+      const response = await this.instance.post<ApiResponse<UserListItem>>('auth/users/', userData);
+      return response.data;
+    } catch (error: any) {
+      console.error('创建用户失败:', error);
+      if (error.response) {
+        return {
+          code: error.response.status,
+          message: error.response.data.message || '创建用户失败',
+          data: {} as UserListItem
+        };
+      }
+      throw error;
+    }
+  }
+  
+  // 更新用户信息
+  async updateUser(id: number, userData: Partial<UserListItem>): Promise<ApiResponse<UserListItem>> {
+    try {
+      const response = await this.instance.put<ApiResponse<UserListItem>>(`auth/users/${id}/`, userData);
+      return response.data;
+    } catch (error: any) {
+      console.error('更新用户失败:', error);
+      if (error.response) {
+        return {
+          code: error.response.status,
+          message: error.response.data.message || '更新用户失败',
+          data: {} as UserListItem
+        };
+      }
+      throw error;
+    }
+  }
+  
+  // 删除用户
+  async deleteUser(id: number): Promise<ApiResponse<any>> {
+    try {
+      const response = await this.instance.delete<ApiResponse<any>>(`auth/users/${id}/`);
+      return response.data;
+    } catch (error: any) {
+      console.error('删除用户失败:', error);
+      throw error;
+    }
+  }
+  
+  // 更新用户状态
+  async updateUserStatus(id: number, isActive: boolean): Promise<ApiResponse<UserListItem>> {
+    try {
+      const response = await this.instance.patch<ApiResponse<UserListItem>>(`auth/users/${id}/status/`, {
+        isActive
+      });
+      return response.data;
+    } catch (error: any) {
+      console.error('更新用户状态失败:', error);
+      throw error;
+    }
+  }
+  
+  // 获取角色列表
+  async getRoleList(): Promise<ApiResponse<RoleItem[]>> {
+    try {
+      const response = await this.instance.get<ApiResponse<RoleItem[]>>('auth/roles/');
+      return response.data;
+    } catch (error: any) {
+      console.error('获取角色列表失败:', error);
+      if (error.response) {
+        return {
+          code: error.response.status,
+          message: error.response.data.message || '获取角色列表失败',
+          data: []
+        };
+      }
+      return {
+        code: 500,
+        message: '网络错误，请检查网络连接',
+        data: []
+      };
+    }
+  }
 }
 
-// 创建单例并导出
-export const apiService = new ApiService(); 
+// 创建并导出实例
+export const apiService = new ApiService();
+
+// 同时提供类作为默认导出
+export default ApiService; 
