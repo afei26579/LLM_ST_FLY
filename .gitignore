@@ -91,6 +91,7 @@ $RECYCLE.BIN/
 # IDE相关
 .idea/
 .vscode/
+.codebuddy/
 *.sublime-project
 *.sublime-workspace
 .project

@@ -204,9 +204,10 @@ async function fetchUsers() {
   loading.value = true
   try {
     const response = await api.getUserList()
-    console.log(response)
+    
     if (response.code === 200 || response.code === 0) {
-      users.value = response.data
+      // 修复：从分页数据中提取用户列表
+      users.value = response.data?.list || []
     } else {
       showNotification(response.message || '获取用户列表失败', 'error')
     }

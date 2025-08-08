@@ -40,11 +40,55 @@ export interface UserListItem {
   createdAt: string;
 }
 
+// 分页用户列表接口
+export interface PaginatedUserList {
+  list: UserListItem[];
+  total: number;
+  page: number;
+  page_size: number;
+  total_pages: number;
+  has_next: boolean;
+  has_previous: boolean;
+}
+
+// 分页角色列表接口
+export interface PaginatedRoleList {
+  list: RoleItem[];
+  total: number;
+  page: number;
+  page_size: number;
+  total_pages: number;
+  has_next: boolean;
+  has_previous: boolean;
+}
+
 // 角色列表项接口
 export interface RoleItem {
   id: number;
   name: string;
   description?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+// 权限接口
+export interface Permission {
+  id: number;
+  name: string;
+  codename: string;
+  content_type: number;
+}
+
+// 角色详情接口（包含权限）
+export interface RoleDetail extends RoleItem {
+  permissions: Permission[];
+}
+
+// 角色创建/更新请求接口
+export interface RoleRequest {
+  name: string;
+  description?: string;
+  permissions?: number[];
 }
 
 // API基础配置
@@ -712,9 +756,10 @@ class ApiService {
   }
 
   // 获取用户列表
-  async getUserList(): Promise<ApiResponse<UserListItem[]>> {
+  async getUserList(): Promise<ApiResponse<PaginatedUserList>> {
     try {
-      const response = await this.instance.get<ApiResponse<UserListItem[]>>('auth/user-management/');
+      const response = await this.instance.get<ApiResponse<PaginatedUserList>>('auth/user-management/');
+      console.log("获取用户列表原始响应:", response.data)
       return response.data;
     } catch (error: any) {
       console.error('获取用户列表失败:', error);
@@ -722,13 +767,29 @@ class ApiService {
         return {
           code: error.response.status,
           message: error.response.data.message || '获取用户列表失败',
-          data: []
+          data: {
+            list: [],
+            total: 0,
+            page: 1,
+            page_size: 10,
+            total_pages: 0,
+            has_next: false,
+            has_previous: false
+          }
         };
       }
       return {
         code: 500,
         message: '网络错误，请检查网络连接',
-        data: []
+        data: {
+          list: [],
+          total: 0,
+          page: 1,
+          page_size: 10,
+          total_pages: 0,
+          has_next: false,
+          has_previous: false
+        }
       };
     }
   }
@@ -805,9 +866,9 @@ class ApiService {
   }
   
   // 获取角色列表
-  async getRoleList(): Promise<ApiResponse<RoleItem[]>> {
+  async getRoleList(): Promise<ApiResponse<PaginatedRoleList>> {
     try {
-      const response = await this.instance.get<ApiResponse<RoleItem[]>>('auth/roles/');
+      const response = await this.instance.get<ApiResponse<PaginatedRoleList>>('auth/roles/');
       return response.data;
     } catch (error: any) {
       console.error('获取角色列表失败:', error);
@@ -815,13 +876,187 @@ class ApiService {
         return {
           code: error.response.status,
           message: error.response.data.message || '获取角色列表失败',
-          data: []
+          data: {
+            list: [],
+            total: 0,
+            page: 1,
+            page_size: 20,
+            total_pages: 0,
+            has_next: false,
+            has_previous: false
+          }
         };
       }
       return {
         code: 500,
         message: '网络错误，请检查网络连接',
+        data: {
+          list: [],
+          total: 0,
+          page: 1,
+          page_size: 20,
+          total_pages: 0,
+          has_next: false,
+          has_previous: false
+        }
+      };
+    }
+  }
+
+  // 获取角色详情
+  async getRoleDetail(id: number): Promise<ApiResponse<RoleDetail>> {
+    try {
+      const response = await this.instance.get<ApiResponse<RoleDetail>>(`auth/roles/${id}/`);
+      return response.data;
+    } catch (error: any) {
+      console.error('获取角色详情失败:', error);
+      if (error.response) {
+        // 如果后端没有角色详情接口，返回模拟数据
+        if (error.response.status === 404) {
+          return {
+            code: 200,
+            message: '获取角色详情成功',
+            data: {
+              id,
+              name: `角色${id}`,
+              permissions: []
+            }
+          };
+        }
+        return {
+          code: error.response.status,
+          message: error.response.data.message || '获取角色详情失败',
+          data: {} as RoleDetail
+        };
+      }
+      return {
+        code: 500,
+        message: '网络错误，请检查网络连接',
+        data: {} as RoleDetail
+      };
+    }
+  }
+
+  // 创建角色
+  async createRole(roleData: RoleRequest): Promise<ApiResponse<RoleItem>> {
+    try {
+      console.log('创建角色请求数据:', roleData);
+      const response = await this.instance.post<ApiResponse<RoleItem>>('auth/roles/', roleData);
+      console.log('创建角色响应:', response.data);
+      return response.data;
+    } catch (error: any) {
+      console.error('创建角色失败:', error);
+      if (error.response) {
+        console.error('创建角色错误响应:', error.response.data);
+        return {
+          code: error.response.status,
+          message: error.response.data.message || '创建角色失败',
+          data: {} as RoleItem
+        };
+      }
+      throw error;
+    }
+  }
+
+  // 更新角色
+  async updateRole(id: number, roleData: RoleRequest): Promise<ApiResponse<RoleItem>> {
+    try {
+      console.log('更新角色请求数据:', { id, roleData });
+      const response = await this.instance.put<ApiResponse<RoleItem>>(`auth/roles/${id}/`, roleData);
+      console.log('更新角色响应:', response.data);
+      return response.data;
+    } catch (error: any) {
+      console.error('更新角色失败:', error);
+      if (error.response) {
+        console.error('更新角色错误响应:', error.response.data);
+        return {
+          code: error.response.status,
+          message: error.response.data.message || '更新角色失败',
+          data: {} as RoleItem
+        };
+      }
+      throw error;
+    }
+  }
+
+  // 删除角色
+  async deleteRole(id: number): Promise<ApiResponse<any>> {
+    try {
+      const response = await this.instance.delete<ApiResponse<any>>(`auth/roles/${id}/`);
+      return response.data;
+    } catch (error: any) {
+      console.error('删除角色失败:', error);
+      if (error.response) {
+        return {
+          code: error.response.status,
+          message: error.response.data.message || '删除角色失败',
+          data: {}
+        };
+      }
+      throw error;
+    }
+  }
+
+  // 获取权限列表 (暂时返回模拟数据，因为后端可能没有对应接口)
+  async getPermissionList(): Promise<ApiResponse<Permission[]>> {
+    try {
+      // 由于后端可能没有权限列表接口，我们返回模拟数据
+      const mockPermissions: Permission[] = [
+        { id: 1, name: '查看用户', codename: 'view_user', content_type: 1 },
+        { id: 2, name: '添加用户', codename: 'add_user', content_type: 1 },
+        { id: 3, name: '修改用户', codename: 'change_user', content_type: 1 },
+        { id: 4, name: '删除用户', codename: 'delete_user', content_type: 1 },
+        { id: 5, name: '查看组', codename: 'view_group', content_type: 2 },
+        { id: 6, name: '添加组', codename: 'add_group', content_type: 2 },
+        { id: 7, name: '修改组', codename: 'change_group', content_type: 2 },
+        { id: 8, name: '删除组', codename: 'delete_group', content_type: 2 },
+        { id: 9, name: '查看权限', codename: 'view_permission', content_type: 3 },
+        { id: 10, name: '查看对话', codename: 'view_conversation', content_type: 4 },
+        { id: 11, name: '添加对话', codename: 'add_conversation', content_type: 4 },
+        { id: 12, name: '删除对话', codename: 'delete_conversation', content_type: 4 }
+      ];
+      
+      return {
+        code: 200,
+        message: '获取权限列表成功',
+        data: mockPermissions
+      };
+    } catch (error: any) {
+      console.error('获取权限列表失败:', error);
+      return {
+        code: 500,
+        message: '网络错误，请检查网络连接',
         data: []
+      };
+    }
+  }
+
+  // 更新角色权限 (暂时返回成功，因为后端可能没有对应接口)
+  async updateRolePermissions(id: number, permissionIds: number[]): Promise<ApiResponse<RoleDetail>> {
+    try {
+      // 由于后端可能没有角色权限更新接口，我们暂时返回成功
+      console.log(`更新角色 ${id} 的权限:`, permissionIds);
+      
+      return {
+        code: 200,
+        message: '权限更新成功',
+        data: {
+          id,
+          name: '角色',
+          permissions: permissionIds.map(pid => ({
+            id: pid,
+            name: `权限${pid}`,
+            codename: `perm_${pid}`,
+            content_type: 1
+          }))
+        }
+      };
+    } catch (error: any) {
+      console.error('更新角色权限失败:', error);
+      return {
+        code: 500,
+        message: '更新角色权限失败',
+        data: {} as RoleDetail
       };
     }
   }

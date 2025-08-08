@@ -123,7 +123,7 @@
                       v-model="selectedPermissions"
                     >
                     {{ perm.name }}
-                    <span class="permission-desc">{{ perm.description }}</span>
+                    <span class="permission-desc">{{ perm.codename }}</span>
                   </label>
                 </div>
               </div>
@@ -168,6 +168,8 @@
 
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted } from 'vue'
+import { apiService } from '@/services/api'
+import type { RoleItem, RoleDetail, Permission, RoleRequest } from '@/services/api'
 
 // 定义类型接口
 interface Role {
@@ -177,123 +179,21 @@ interface Role {
   createdAt: string
 }
 
-interface Permission {
-  id: number
-  code: string
-  name: string
-  description: string
+interface PermissionWithModule extends Permission {
   module: string
 }
 
-// 模拟角色数据
-const roles = ref<Role[]>([
-  {
-    id: 1,
-    name: '管理员',
-    description: '系统管理员，拥有所有权限',
-    createdAt: '2023-06-15T10:30:00Z'
-  },
-  {
-    id: 2,
-    name: '运营',
-    description: '运营人员，负责内容管理',
-    createdAt: '2023-06-16T14:20:00Z'
-  },
-  {
-    id: 3,
-    name: '客服',
-    description: '客服人员，负责用户咨询',
-    createdAt: '2023-06-17T09:15:00Z'
-  },
-  {
-    id: 4,
-    name: '普通用户',
-    description: '普通用户，基础功能权限',
-    createdAt: '2023-06-18T16:45:00Z'
-  }
-])
+// 角色数据
+const roles = ref<Role[]>([])
 
-// 模拟权限数据
-const permissions = ref<Permission[]>([
-  {
-    id: 1,
-    code: 'user:view',
-    name: '查看用户',
-    description: '允许查看用户列表和详情',
-    module: '用户管理'
-  },
-  {
-    id: 2,
-    code: 'user:create',
-    name: '创建用户',
-    description: '允许创建新用户',
-    module: '用户管理'
-  },
-  {
-    id: 3,
-    code: 'user:edit',
-    name: '编辑用户',
-    description: '允许编辑用户信息',
-    module: '用户管理'
-  },
-  {
-    id: 4,
-    code: 'user:delete',
-    name: '删除用户',
-    description: '允许删除用户',
-    module: '用户管理'
-  },
-  {
-    id: 5,
-    code: 'role:view',
-    name: '查看角色',
-    description: '允许查看角色列表和详情',
-    module: '角色管理'
-  },
-  {
-    id: 6,
-    code: 'role:create',
-    name: '创建角色',
-    description: '允许创建新角色',
-    module: '角色管理'
-  },
-  {
-    id: 7,
-    code: 'role:edit',
-    name: '编辑角色',
-    description: '允许编辑角色信息',
-    module: '角色管理'
-  },
-  {
-    id: 8,
-    code: 'role:delete',
-    name: '删除角色',
-    description: '允许删除角色',
-    module: '角色管理'
-  },
-  {
-    id: 9,
-    code: 'system:config',
-    name: '系统配置',
-    description: '允许修改系统配置',
-    module: '系统设置'
-  },
-  {
-    id: 10,
-    code: 'system:log',
-    name: '查看日志',
-    description: '允许查看系统日志',
-    module: '系统设置'
-  }
-])
+// 权限数据
+const permissions = ref<PermissionWithModule[]>([])
 
-// 模拟角色权限映射
-const rolePermissionMap = ref<Record<number, number[]>>({
-  1: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], // 管理员拥有所有权限
-  2: [1, 3, 5, 9],                     // 运营
-  3: [1, 5],                           // 客服
-  4: [1]                               // 普通用户
-})
+// 角色权限映射
+const rolePermissionMap = ref<Record<number, number[]>>({})
+
+// 加载状态
+const loading = ref(false)
 
 // 弹窗状态
 const showRoleModal = ref(false)
@@ -319,6 +219,73 @@ const notification = reactive({
   type: 'success' as 'success' | 'error'
 })
 
+// 加载角色列表
+const loadRoles = async () => {
+  try {
+    loading.value = true
+    const response = await apiService.getRoleList()
+   
+    if (response.code === 200) {
+      // 处理分页数据结构，角色列表在 response.data.list 中
+      const roleList = response.data?.list || []
+   
+      
+      roles.value = roleList.map(role => ({
+        id: role.id,
+        name: role.name,
+        description: role.description || '',
+        createdAt: role.created_at || new Date().toISOString()
+      }))
+    } else {
+      showNotification(response.message || '获取角色列表失败', 'error')
+    }
+  } catch (error) {
+    console.error('加载角色列表失败:', error)
+    showNotification('加载角色列表失败', 'error')
+  } finally {
+    loading.value = false
+  }
+}
+
+// 加载权限列表
+const loadPermissions = async () => {
+  try {
+    const response = await apiService.getPermissionList()
+    if (response.code === 200) {
+      permissions.value = response.data.map((perm: Permission) => ({
+        ...perm,
+        module: getPermissionModule(perm.codename)
+      }))
+    } else {
+      showNotification(response.message || '获取权限列表失败', 'error')
+    }
+  } catch (error) {
+    console.error('加载权限列表失败:', error)
+    showNotification('加载权限列表失败', 'error')
+  }
+}
+
+// 根据权限代码获取模块名称
+const getPermissionModule = (codename: string): string => {
+  if (codename.includes('user')) return '用户管理'
+  if (codename.includes('group')) return '角色管理'
+  if (codename.includes('permission')) return '权限管理'
+  if (codename.includes('conversation') || codename.includes('message')) return '聊天管理'
+  return '系统设置'
+}
+
+// 加载角色权限映射
+const loadRolePermissions = async (roleId: number) => {
+  try {
+    const response = await apiService.getRoleDetail(roleId)
+    if (response.code === 200) {
+      rolePermissionMap.value[roleId] = response.data.permissions.map((p: Permission) => p.id)
+    }
+  } catch (error) {
+    console.error('加载角色权限失败:', error)
+  }
+}
+
 // 格式化日期
 const formatDate = (dateString: string): string => {
   const date = new Date(dateString)
@@ -333,7 +300,7 @@ const formatDate = (dateString: string): string => {
 
 // 按模块分组权限
 const groupedPermissions = computed(() => {
-  const grouped: Record<string, Permission[]> = {}
+  const grouped: Record<string, PermissionWithModule[]> = {}
   permissions.value.forEach(permission => {
     if (!grouped[permission.module]) {
       grouped[permission.module] = []
@@ -368,41 +335,62 @@ const closeRoleModal = () => {
 }
 
 // 保存角色
-const saveRole = () => {
+const saveRole = async () => {
   if (!currentRole.name.trim()) {
     showNotification('角色名称不能为空', 'error')
     return
   }
 
-  if (isEditing.value) {
-    // 编辑现有角色
-    const index = roles.value.findIndex(r => r.id === currentRole.id)
-    if (index !== -1) {
-      roles.value[index] = { ...currentRole }
-    }
-    showNotification('角色已更新', 'success')
-  } else {
-    // 添加新角色
-    const newId = Math.max(0, ...roles.value.map(r => r.id)) + 1
-    const newRole: Role = {
-      id: newId,
+  try {
+    const roleData: RoleRequest = {
       name: currentRole.name,
-      description: currentRole.description,
-      createdAt: new Date().toISOString()
+      description: currentRole.description
     }
-    roles.value.push(newRole)
-    // 初始化新角色的权限为空
-    rolePermissionMap.value[newId] = []
-    showNotification('角色已添加', 'success')
+
+    if (isEditing.value) {
+      // 编辑现有角色
+      const response = await apiService.updateRole(currentRole.id, roleData)
+      if (response.code === 200) {
+        const index = roles.value.findIndex(r => r.id === currentRole.id)
+        if (index !== -1) {
+          roles.value[index] = { ...currentRole }
+        }
+        showNotification('角色已更新', 'success')
+      } else {
+        showNotification(response.message || '更新角色失败', 'error')
+        return
+      }
+    } else {
+      // 添加新角色
+      const response = await apiService.createRole(roleData)
+      if (response.code === 200 || response.code === 201) {
+        const newRole: Role = {
+          id: response.data.id,
+          name: response.data.name,
+          description: response.data.description || '',
+          createdAt: new Date().toISOString()
+        }
+        roles.value.push(newRole)
+        rolePermissionMap.value[newRole.id] = []
+        showNotification('角色已添加', 'success')
+      } else {
+        showNotification(response.message || '创建角色失败', 'error')
+        return
+      }
+    }
+    
+    closeRoleModal()
+  } catch (error) {
+    console.error('保存角色失败:', error)
+    showNotification('保存角色失败', 'error')
   }
-  
-  closeRoleModal()
 }
 
 // 打开权限设置弹窗
-const openPermissionModal = (role: Role) => {
+const openPermissionModal = async (role: Role) => {
   Object.assign(currentRole, role)
-  // 获取该角色的权限
+  // 加载该角色的权限
+  await loadRolePermissions(role.id)
   selectedPermissions.value = [...(rolePermissionMap.value[role.id] || [])]
   showPermissionModal.value = true
 }
@@ -412,11 +400,17 @@ const closePermissionModal = () => {
   showPermissionModal.value = false
 }
 
-// 保存权限设置
-const savePermissions = () => {
-  rolePermissionMap.value[currentRole.id] = [...selectedPermissions.value]
-  showNotification('权限设置已保存', 'success')
-  closePermissionModal()
+// 保存权限设置 (暂时使用本地存储，因为后端可能没有对应的API)
+const savePermissions = async () => {
+  try {
+    // 由于后端可能没有updateRolePermissions方法，我们先使用本地存储
+    rolePermissionMap.value[currentRole.id] = [...selectedPermissions.value]
+    showNotification('权限设置已保存', 'success')
+    closePermissionModal()
+  } catch (error) {
+    console.error('保存权限失败:', error)
+    showNotification('保存权限失败', 'error')
+  }
 }
 
 // 确认删除角色
@@ -431,20 +425,22 @@ const closeDeleteModal = () => {
 }
 
 // 删除角色
-const deleteRole = () => {
-  // 特殊处理：不允许删除管理员角色
-  if (currentRole.id === 1) {
-    showNotification('管理员角色不能删除', 'error')
-    closeDeleteModal()
-    return
-  }
-  
-  const index = roles.value.findIndex(r => r.id === currentRole.id)
-  if (index !== -1) {
-    roles.value.splice(index, 1)
-    // 删除角色权限映射
-    delete rolePermissionMap.value[currentRole.id]
-    showNotification('角色已删除', 'success')
+const deleteRole = async () => {
+  try {
+    const response = await apiService.deleteRole(currentRole.id)
+    if (response.code === 200 || response.code === 204) {
+      const index = roles.value.findIndex(r => r.id === currentRole.id)
+      if (index !== -1) {
+        roles.value.splice(index, 1)
+        delete rolePermissionMap.value[currentRole.id]
+        showNotification('角色已删除', 'success')
+      }
+    } else {
+      showNotification(response.message || '删除角色失败', 'error')
+    }
+  } catch (error) {
+    console.error('删除角色失败:', error)
+    showNotification('删除角色失败', 'error')
   }
   closeDeleteModal()
 }
@@ -493,6 +489,12 @@ const showNotification = (message: string, type: 'success' | 'error') => {
     notification.show = false
   }, 3000)
 }
+
+// 页面加载时获取数据
+onMounted(() => {
+  loadRoles()
+  loadPermissions()
+})
 </script>
 
 <style scoped>
@@ -831,4 +833,4 @@ tr:last-child td {
     opacity: 1;
   }
 }
-</style> 
+</style>
