@@ -17,12 +17,6 @@ router.register(r'users', UserViewSet, basename='user')  # 添加UserViewSet，�
 router.register(r'user-management', UserManagementViewSet, basename='user-management')  # 重命名管理视图集
 router.register(r'roles', GroupViewSet, basename='roles')
 
-# 打印路由器生成的URL
-print("="*50)
-print("Router URLs:")
-for url in router.urls:
-    print(f"{url.pattern} - {url.name} - {url.callback}")
-print("="*50)
 
 urlpatterns = [
     # JWT令牌视图

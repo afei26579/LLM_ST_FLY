@@ -2,9 +2,14 @@
 """Django's command-line utility for administrative tasks."""
 import os
 import sys
-
+from pathlib import Path
 
 def main():
+    BASE_DIR = Path(__file__).resolve().parent
+    env_file = BASE_DIR / f".env.{os.environ.get('DJANGO_ENV', 'development')}"
+    if os.path.exists(env_file):
+        os.environ.setdefault('ENV_FILE', str(env_file))
+
     """Run administrative tasks."""
     os.environ.setdefault("DJANGO_SETTINGS_MODULE", "core.settings")
     try:

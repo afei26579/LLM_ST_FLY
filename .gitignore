@@ -115,3 +115,11 @@ tmp/
 .env.development.local
 .env.test.local
 .env.production.local 
+.env.development
+.env.production
+
+# 忽略所有 .env 文件
+.env*
+
+# 但保留 .env.example 作为模板
+!.env.example
