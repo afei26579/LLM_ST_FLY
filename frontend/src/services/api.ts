@@ -714,7 +714,7 @@ class ApiService {
   // 获取用户列表
   async getUserList(): Promise<ApiResponse<UserListItem[]>> {
     try {
-      const response = await this.instance.get<ApiResponse<UserListItem[]>>('auth/users/');
+      const response = await this.instance.get<ApiResponse<UserListItem[]>>('auth/user-management/');
       return response.data;
     } catch (error: any) {
       console.error('获取用户列表失败:', error);
@@ -736,7 +736,7 @@ class ApiService {
   // 获取用户详情
   async getUserDetail(id: number): Promise<ApiResponse<UserListItem>> {
     try {
-      const response = await this.instance.get<ApiResponse<UserListItem>>(`auth/users/${id}/`);
+      const response = await this.instance.get<ApiResponse<UserListItem>>(`auth/user-management/${id}/`);
       return response.data;
     } catch (error: any) {
       console.error('获取用户详情失败:', error);
@@ -747,7 +747,7 @@ class ApiService {
   // 创建用户
   async createUser(userData: Partial<UserListItem>): Promise<ApiResponse<UserListItem>> {
     try {
-      const response = await this.instance.post<ApiResponse<UserListItem>>('auth/users/', userData);
+      const response = await this.instance.post<ApiResponse<UserListItem>>('auth/user-management/', userData);
       return response.data;
     } catch (error: any) {
       console.error('创建用户失败:', error);
@@ -765,7 +765,7 @@ class ApiService {
   // 更新用户信息
   async updateUser(id: number, userData: Partial<UserListItem>): Promise<ApiResponse<UserListItem>> {
     try {
-      const response = await this.instance.put<ApiResponse<UserListItem>>(`auth/users/${id}/`, userData);
+      const response = await this.instance.put<ApiResponse<UserListItem>>(`auth/user-management/${id}/`, userData);
       return response.data;
     } catch (error: any) {
       console.error('更新用户失败:', error);
@@ -783,7 +783,7 @@ class ApiService {
   // 删除用户
   async deleteUser(id: number): Promise<ApiResponse<any>> {
     try {
-      const response = await this.instance.delete<ApiResponse<any>>(`auth/users/${id}/`);
+      const response = await this.instance.delete<ApiResponse<any>>(`auth/user-management/${id}/`);
       return response.data;
     } catch (error: any) {
       console.error('删除用户失败:', error);
@@ -794,7 +794,7 @@ class ApiService {
   // 更新用户状态
   async updateUserStatus(id: number, isActive: boolean): Promise<ApiResponse<UserListItem>> {
     try {
-      const response = await this.instance.patch<ApiResponse<UserListItem>>(`auth/users/${id}/status/`, {
+      const response = await this.instance.patch<ApiResponse<UserListItem>>(`auth/user-management/${id}/status/`, {
         isActive
       });
       return response.data;

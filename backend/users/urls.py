@@ -13,7 +13,8 @@ from .views import (
 
 # 创建路由器并注册ViewSets
 router = DefaultRouter()
-router.register(r'users', UserManagementViewSet, basename='user-management')
+router.register(r'users', UserViewSet, basename='user')  # 添加UserViewSet，提供/users/me/端点
+router.register(r'user-management', UserManagementViewSet, basename='user-management')  # 重命名管理视图集
 router.register(r'roles', GroupViewSet, basename='roles')
 
 # 打印路由器生成的URL
