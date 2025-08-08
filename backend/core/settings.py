@@ -25,9 +25,9 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = "django-insecure-67cb%(wq^i=f8b6uz%c(-(w5&p-$uixa_n)www4ynhu(+l&pe$"
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = False
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ['ylongf.cn', 'www.ylongf.cn', 'localhost', '47.97.183.126']
 
 
 # Application definition
@@ -65,6 +65,7 @@ MIDDLEWARE = [
 
 # CORS设置
 CORS_ALLOW_ALL_ORIGINS = DEBUG  # 开发环境允许所有来源访问
+CSRF_TRUSTED_ORIGINS = ['https://www.ylongf.cn']
 CORS_ALLOW_CREDENTIALS = True  # 允许携带认证信息
 CORS_ALLOW_METHODS = [
     'DELETE', 'GET', 'OPTIONS', 'PATCH', 'POST', 'PUT'
@@ -111,16 +112,13 @@ WSGI_APPLICATION = "core.wsgi.application"
 
 DATABASES = {
     "default": {
-        "ENGINE": "django.db.backends.mysql",
+        "ENGINE": "django.db.backends.postgresql",
         "NAME": "llm_st_fly",
-        "USER": "root",
-        "PASSWORD": "123456",
+        "USER": "afei26579",
+        "PASSWORD": os.environ.get("PSQL_PWD"),
         "HOST": "localhost",
-        "PORT": "3306",
-        "OPTIONS": {
-            "init_command": "SET sql_mode='STRICT_TRANS_TABLES'",
-            "charset": "utf8mb4",
-        },
+        "PORT": "5432",
+        
     }
 }
 
@@ -234,3 +232,7 @@ CACHES = {
         'LOCATION': 'unique-snowflake',
     }
 }
+
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+SESSION_COOKIE_SECURE = True
+CSRF_COOKIE_SECURE = True
