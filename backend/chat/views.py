@@ -16,38 +16,13 @@ from .serializers import (
     ConversationSerializer, ConversationListSerializer,
     MessageSerializer, MessageCreateSerializer
 )
+from core.response import StandardResponse
+from core.views import StandardModelViewSet
 
 # 从环境变量或设置中获取DashScope API密钥
 DASHSCOPE_API_KEY = getattr(settings, 'DASHSCOPE_API_KEY', os.environ.get('DASHSCOPE_API_KEY', ''))
 
-# 自定义API响应类
-class ApiResponse:
-    """
-    标准化API响应格式
-    """
-    @staticmethod
-    def success(data=None, message="Success", status_code=200):
-        """
-        成功响应
-        """
-        return Response({
-            "code": status_code,
-            "message": message,
-            "data": data
-        }, status=status_code)
-    
-    @staticmethod
-    def error(message="Error", status_code=400, data=None):
-        """
-        错误响应
-        """
-        return Response({
-            "code": status_code,
-            "message": message,
-            "data": data
-        }, status=status_code)
-
-class ConversationViewSet(viewsets.ModelViewSet):
+class ConversationViewSet(StandardModelViewSet):
     """
     对话管理视图集
     """
@@ -80,90 +55,6 @@ class ConversationViewSet(viewsets.ModelViewSet):
         except Exception as e:
             print(f"创建对话失败: {str(e)}")
             raise
-    
-    def list(self, request, *args, **kwargs):
-        try:
-            print(f"获取用户 {request.user.username} 的对话列表")
-            queryset = self.filter_queryset(self.get_queryset())
-            print(f"找到 {queryset.count()} 个对话")
-            
-            # 如果需要分页
-            page = self.paginate_queryset(queryset)
-            if page is not None:
-                serializer = self.get_serializer(page, many=True)
-                # 不使用分页器的响应格式，直接返回标准格式
-                return ApiResponse.success(
-                    serializer.data,
-                    message="成功",
-                    status_code=200
-                )
-            
-            serializer = self.get_serializer(queryset, many=True)
-            
-            return ApiResponse.success(
-                serializer.data,
-                message="成功",
-                status_code=200
-            )
-        except Exception as e:
-            print(f"获取对话列表失败: {str(e)}")
-            return ApiResponse.error(
-                message=f'服务器错误: {str(e)}',
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
-    
-    def retrieve(self, request, *args, **kwargs):
-        try:
-            instance = self.get_object()
-            print(f"获取对话详情: id={instance.id}, title={instance.title}")
-            serializer = self.get_serializer(instance)
-            return ApiResponse.success(
-                serializer.data,
-                message="成功",
-                status_code=200
-            )
-        except Exception as e:
-            print(f"获取对话详情失败: {str(e)}")
-            return ApiResponse.error(
-                message=f'服务器错误: {str(e)}',
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
-    
-    def create(self, request, *args, **kwargs):
-        try:
-            print(f"创建对话请求: {request.data}")
-            serializer = self.get_serializer(data=request.data)
-            serializer.is_valid(raise_exception=True)
-            self.perform_create(serializer)
-            headers = self.get_success_headers(serializer.data)
-            return ApiResponse.success(
-                serializer.data,
-                message="对话创建成功",
-                status_code=status.HTTP_201_CREATED
-            )
-        except Exception as e:
-            print(f"创建对话失败: {str(e)}")
-            return ApiResponse.error(
-                message=f'创建对话失败: {str(e)}',
-                status_code=status.HTTP_400_BAD_REQUEST
-            )
-    
-    def destroy(self, request, *args, **kwargs):
-        try:
-            instance = self.get_object()
-            print(f"删除对话: id={instance.id}, title={instance.title}")
-            self.perform_destroy(instance)
-            return ApiResponse.success(
-                None,
-                message="对话删除成功",
-                status_code=status.HTTP_200_OK
-            )
-        except Exception as e:
-            print(f"删除对话失败: {str(e)}")
-            return ApiResponse.error(
-                message=f'删除对话失败: {str(e)}',
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
     
     @action(detail=True, methods=['post'])
     def add_message(self, request, pk=None):
@@ -210,16 +101,17 @@ class ConversationViewSet(viewsets.ModelViewSet):
             conversation.messages.all().delete()
             print(f"已删除 {count} 条消息")
             
-            return ApiResponse.success(
-                None,
+            return StandardResponse.success(
+                data=None,
                 message=f'对话消息已清空，共删除 {count} 条消息',
-                status_code=200
+                request_id=getattr(request, 'request_id', None)
             )
         except Exception as e:
             print(f"清空消息失败: {str(e)}")
-            return ApiResponse.error(
+            return StandardResponse.error(
                 message=f'清空消息失败: {str(e)}',
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
+                code=500,
+                request_id=getattr(request, 'request_id', None)
             )
 
 
@@ -239,9 +131,10 @@ class ChatCompletionView(APIView):
             
             if not messages:
                 print("错误: 消息为空")
-                return ApiResponse.error(
+                return StandardResponse.error(
                     message="消息不能为空",
-                    status_code=status.HTTP_400_BAD_REQUEST
+                    code=400,
+                    request_id=getattr(request, 'request_id', None)
                 )
             
             # 处理对话
@@ -330,9 +223,10 @@ class ChatCompletionView(APIView):
             import traceback
             print(f"处理请求时出错: {str(e)}")
             print(traceback.format_exc())
-            return ApiResponse.error(
+            return StandardResponse.error(
                 message=f'服务器错误: {str(e)}',
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
+                code=500,
+                request_id=getattr(request, 'request_id', None)
             )
     
     def call_dashscope_api(self, messages):

@@ -55,6 +55,37 @@ const router = createRouter({
       component: () => import('../views/system/PermissionsView.vue'),
       meta: { requiresAuth: true }
     },
+    // 系统管理 - 日志管理
+    {
+      path: '/logs',
+      name: 'logs',
+      component: () => import('../views/system/LogsView.vue'),
+      meta: { requiresAuth: true }
+    },
+    {
+      path: '/logs/system',
+      name: 'system-logs',
+      component: () => import('../views/system/SystemLogsView.vue'),
+      meta: { requiresAuth: true }
+    },
+    {
+      path: '/logs/user',
+      name: 'user-logs',
+      component: () => import('../views/system/UserLogsView.vue'),
+      meta: { requiresAuth: true }
+    },
+    {
+      path: '/logs/api',
+      name: 'api-logs',
+      component: () => import('../views/system/ApiLogsView.vue'),
+      meta: { requiresAuth: true }
+    },
+    {
+      path: '/logs/error',
+      name: 'error-logs',
+      component: () => import('../views/system/ErrorLogsView.vue'),
+      meta: { requiresAuth: true }
+    },
     // 将其他未匹配路由重定向到首页
     {
       path: '/:pathMatch(.*)*',

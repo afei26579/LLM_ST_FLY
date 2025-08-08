@@ -35,6 +35,8 @@ urlpatterns = [
     path("api/v1/", include([
         path("auth/", include("users.urls")),  # 用户认证与权限相关的URL
         path("chat/", include("chat.urls")),   # 聊天相关的URL
+        path("logs/", include("logs.urls")),   # 日志管理相关的URL
+        path("monitoring/", include("core.monitoring_urls")),  # 响应格式监控相关的URL
         # 这里可以添加其他应用的URL
     ])),
 ]

@@ -204,6 +204,7 @@ async function fetchUsers() {
   loading.value = true
   try {
     const response = await api.getUserList()
+    console.log(response)
     if (response.code === 200 || response.code === 0) {
       users.value = response.data
     } else {

@@ -336,16 +336,15 @@ class UserViewSet(viewsets.ModelViewSet):
             # 这里模拟发送短信，实际项目中应该调用短信发送API
             print(f"向 {phone} 发送验证码: {code}, 用途: {purpose}")
             code_data = {"sms_code": code, "purpose": purpose}
-            return StandardResponse.success(code_data, "验证码发送成功，有效期10分钟", request_id=getattr(request, 'request_id', None))
+            return ApiResponse.success(code_data, "验证码发送成功，有效期10分钟")
         
-        return StandardResponse.error(
+        return ApiResponse.error(
             "验证码发送失败", 
-            code=400,
+            status_code=status.HTTP_400_BAD_REQUEST,
             data={
                 'field': 'phone',
                 'message': serializer.errors['phone'][0] if 'phone' in serializer.errors else "手机号验证失败"
-            },
-            request_id=getattr(request, 'request_id', None)
+            }
         )
     
     @extend_schema(
@@ -383,23 +382,21 @@ class UserViewSet(viewsets.ModelViewSet):
                     recipient_list=[email],
                     fail_silently=False,
                 )
-                return StandardResponse.success(None, "验证码已发送到您的邮箱，有效期10分钟", request_id=getattr(request, 'request_id', None))
+                return ApiResponse.success(None, "验证码已发送到您的邮箱，有效期10分钟")
             except Exception as e:
                 print(f"邮件发送失败: {str(e)}")
-                return StandardResponse.error(
+                return ApiResponse.error(
                     "验证码发送失败，请稍后重试", 
-                    code=500,
-                    request_id=getattr(request, 'request_id', None)
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
                 )
         
-        return StandardResponse.error(
+        return ApiResponse.error(
             "验证码发送失败", 
-            code=400,
+            status_code=status.HTTP_400_BAD_REQUEST,
             data={
                 'field': 'email',
                 'message': serializer.errors['email'][0] if 'email' in serializer.errors else "邮箱验证失败"
-            },
-            request_id=getattr(request, 'request_id', None)
+            }
         )
     
     @extend_schema(
@@ -427,14 +424,13 @@ class UserViewSet(viewsets.ModelViewSet):
             cached_code = cache.get(cache_key)
             
             if not cached_code or cached_code != code:
-                return StandardResponse.error(
+                return ApiResponse.error(
                     "验证码错误或已过期", 
-                    code=400,
+                    status_code=status.HTTP_400_BAD_REQUEST,
                     data={
                         'field': 'phoneCode',
                         'message': "验证码错误或已过期"
-                    },
-                    request_id=getattr(request, 'request_id', None)
+                    }
                 )
             
             # 更新密码
@@ -446,26 +442,24 @@ class UserViewSet(viewsets.ModelViewSet):
                 # 清除缓存中的验证码
                 cache.delete(cache_key)
                 
-                return StandardResponse.success(None, "密码重置成功", request_id=getattr(request, 'request_id', None))
+                return ApiResponse.success(None, "密码重置成功")
             except User.DoesNotExist:
-                return StandardResponse.error(
+                return ApiResponse.error(
                     "用户不存在", 
-                    code=404,
-                    request_id=getattr(request, 'request_id', None)
+                    status_code=status.HTTP_404_NOT_FOUND
                 )
         
         # 序列化器验证失败
         field = next(iter(serializer.errors)) if serializer.errors else 'unknown'
         message = next(iter(serializer.errors.values()))[0] if serializer.errors else "密码重置失败"
         
-        return StandardResponse.error(
+        return ApiResponse.error(
             "密码重置失败", 
-            code=400,
+            status_code=status.HTTP_400_BAD_REQUEST,
             data={
                 'field': field,
                 'message': message
-            },
-            request_id=getattr(request, 'request_id', None)
+            }
         )
     
     @extend_schema(
@@ -493,14 +487,13 @@ class UserViewSet(viewsets.ModelViewSet):
             cached_code = cache.get(cache_key)
             
             if not cached_code or cached_code != code:
-                return StandardResponse.error(
+                return ApiResponse.error(
                     "验证码错误或已过期", 
-                    code=400,
+                    status_code=status.HTTP_400_BAD_REQUEST,
                     data={
                         'field': 'emailCode',
                         'message': "验证码错误或已过期"
-                    },
-                    request_id=getattr(request, 'request_id', None)
+                    }
                 )
             
             # 更新密码
@@ -512,26 +505,24 @@ class UserViewSet(viewsets.ModelViewSet):
                 # 清除缓存中的验证码
                 cache.delete(cache_key)
                 
-                return StandardResponse.success(None, "密码重置成功", request_id=getattr(request, 'request_id', None))
+                return ApiResponse.success(None, "密码重置成功")
             except User.DoesNotExist:
-                return StandardResponse.error(
+                return ApiResponse.error(
                     "用户不存在", 
-                    code=404,
-                    request_id=getattr(request, 'request_id', None)
+                    status_code=status.HTTP_404_NOT_FOUND
                 )
         
         # 序列化器验证失败
         field = next(iter(serializer.errors)) if serializer.errors else 'unknown'
         message = next(iter(serializer.errors.values()))[0] if serializer.errors else "密码重置失败"
         
-        return StandardResponse.error(
+        return ApiResponse.error(
             "密码重置失败", 
-            code=400,
+            status_code=status.HTTP_400_BAD_REQUEST,
             data={
                 'field': field,
                 'message': message
-            },
-            request_id=getattr(request, 'request_id', None)
+            }
         )
 
     @extend_schema(
@@ -561,26 +552,24 @@ class UserViewSet(viewsets.ModelViewSet):
             cached_code = cache.get(cache_key)
             
             if not cached_code or cached_code != code:
-                return StandardResponse.error(
+                return ApiResponse.error(
                     "验证码错误或已过期", 
-                    code=400,
+                    status_code=status.HTTP_400_BAD_REQUEST,
                     data={
                         'field': 'code',
                         'message': "验证码错误或已过期"
-                    },
-                    request_id=getattr(request, 'request_id', None)
+                    }
                 )
             
             # 检查该手机号是否已被其他账户绑定
             if User.objects.filter(phone=phone).exclude(id=request.user.id).exists():
-                return StandardResponse.error(
+                return ApiResponse.error(
                     "该手机号已被其他账户绑定", 
-                    code=400,
+                    status_code=status.HTTP_400_BAD_REQUEST,
                     data={
                         'field': 'phone',
                         'message': "该手机号已被其他账户绑定，请使用其他手机号"
-                    },
-                    request_id=getattr(request, 'request_id', None)
+                    }
                 )
             
             # 绑定手机号
@@ -592,20 +581,19 @@ class UserViewSet(viewsets.ModelViewSet):
             
             # 返回更新后的用户信息
             serializer = UserProfileSerializer(request.user)
-            return StandardResponse.success(serializer.data, "手机号绑定成功", request_id=getattr(request, 'request_id', None))
+            return ApiResponse.success(serializer.data, "手机号绑定成功")
         
         # 序列化器验证失败
         field = next(iter(serializer.errors)) if serializer.errors else 'unknown'
         message = next(iter(serializer.errors.values()))[0] if serializer.errors else "手机号绑定失败"
         
-        return StandardResponse.error(
+        return ApiResponse.error(
             "手机号绑定失败", 
-            code=400,
+            status_code=status.HTTP_400_BAD_REQUEST,
             data={
                 'field': field,
                 'message': message
-            },
-            request_id=getattr(request, 'request_id', None)
+            }
         )
 
     @extend_schema(
@@ -631,14 +619,13 @@ class UserViewSet(viewsets.ModelViewSet):
             
             # 检查该邮箱是否已被其他账户绑定
             if User.objects.filter(email=email).exclude(id=request.user.id).exists():
-                return StandardResponse.error(
+                return ApiResponse.error(
                     "该邮箱已被其他账户绑定", 
-                    code=400,
+                    status_code=status.HTTP_400_BAD_REQUEST,
                     data={
                         'field': 'email',
                         'message': "该邮箱已被其他账户绑定，请使用其他邮箱"
-                    },
-                    request_id=getattr(request, 'request_id', None)
+                    }
                 )
             
             # 生成验证令牌（简单实现，实际项目中应该使用更安全的方法）
@@ -681,31 +668,29 @@ class UserViewSet(viewsets.ModelViewSet):
                     fail_silently=False,
                     html_message=html_message
                 )
-                return StandardResponse.success({
+                return ApiResponse.success({
                     'activate_url': activate_url, # 仅开发环境返回，生产环境应该移除
                     'email': email,
                     'expires_in': '24小时'
-                }, "激活链接已发送到您的邮箱，请查收并点击链接完成绑定", request_id=getattr(request, 'request_id', None))
+                }, "激活链接已发送到您的邮箱，请查收并点击链接完成绑定")
             except Exception as e:
                 print(f"邮件发送失败: {str(e)}")
-                return StandardResponse.error(
+                return ApiResponse.error(
                     "邮件发送失败，请稍后重试", 
-                    code=500,
-                    request_id=getattr(request, 'request_id', None)
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
                 )
         
         # 序列化器验证失败
         field = next(iter(serializer.errors)) if serializer.errors else 'email'
         message = next(iter(serializer.errors.values()))[0] if serializer.errors else "邮箱验证失败"
         
-        return StandardResponse.error(
+        return ApiResponse.error(
             "邮件发送失败", 
-            code=400,
+            status_code=status.HTTP_400_BAD_REQUEST,
             data={
                 'field': field,
                 'message': message
-            },
-            request_id=getattr(request, 'request_id', None)
+            }
         )
         
     @extend_schema(
@@ -725,10 +710,9 @@ class UserViewSet(viewsets.ModelViewSet):
         email = request.query_params.get('email')
         
         if not token or not email:
-            return StandardResponse.error(
+            return ApiResponse.error(
                 "无效的验证链接", 
-                code=400,
-                request_id=getattr(request, 'request_id', None)
+                status_code=status.HTTP_400_BAD_REQUEST
             )
         
         # 从缓存获取绑定信息
@@ -736,10 +720,9 @@ class UserViewSet(viewsets.ModelViewSet):
         cache_data = cache.get(cache_key)
         
         if not cache_data:
-            return StandardResponse.error(
+            return ApiResponse.error(
                 "验证链接已过期或无效", 
-                code=400,
-                request_id=getattr(request, 'request_id', None)
+                status_code=status.HTTP_400_BAD_REQUEST
             )
         
         try:
@@ -753,19 +736,17 @@ class UserViewSet(viewsets.ModelViewSet):
             # 清除缓存
             cache.delete(cache_key)
             
-            return StandardResponse.success(None, "邮箱绑定成功", request_id=getattr(request, 'request_id', None))
+            return ApiResponse.success(None, "邮箱绑定成功")
         except User.DoesNotExist:
-            return StandardResponse.error(
+            return ApiResponse.error(
                 "用户不存在", 
-                code=404,
-                request_id=getattr(request, 'request_id', None)
+                status_code=status.HTTP_404_NOT_FOUND
             )
         except Exception as e:
             print(f"邮箱绑定失败: {str(e)}")
-            return StandardResponse.error(
+            return ApiResponse.error(
                 "邮箱绑定失败，请稍后重试", 
-                code=500,
-                request_id=getattr(request, 'request_id', None)
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
 
@@ -793,16 +774,16 @@ class RegisterView(generics.CreateAPIView):
         # 创建JWT令牌
         refresh = RefreshToken.for_user(user)
         
-        return StandardResponse.success({
+        return ApiResponse.success({
             'user': UserSerializer(user).data,
             'token': {
                 'refresh': str(refresh),
                 'access': str(refresh.access_token),
             }
-        }, "注册成功", code=201, request_id=getattr(request, 'request_id', None))
+        }, "注册成功", status_code=status.HTTP_201_CREATED)
 
 
-class UserManagementViewSet(StandardModelViewSet):
+class UserManagementViewSet(viewsets.ModelViewSet):
     """用户管理视图集"""
     queryset = User.objects.all().order_by('-date_joined')
     permission_classes = [IsAdminUser]
@@ -821,24 +802,19 @@ class UserManagementViewSet(StandardModelViewSet):
         is_active = request.data.get('isActive')
         
         if is_active is None:
-            return StandardResponse.error(
-                '请提供isActive字段',
-                code=400,
-                request_id=self.get_request_id()
+            return Response(
+                {'error': '请提供isActive字段'},
+                status=status.HTTP_400_BAD_REQUEST
             )
         
         user.is_active = is_active
         user.save()
         
         serializer = self.get_serializer(user)
-        return StandardResponse.success(
-            serializer.data,
-            message="用户状态更新成功",
-            request_id=self.get_request_id()
-        )
+        return Response(serializer.data)
 
 
-class GroupViewSet(StandardModelViewSet):
+class GroupViewSet(viewsets.ReadOnlyModelViewSet):
     """用户组视图集"""
     queryset = Group.objects.all()
     serializer_class = GroupSerializer

@@ -37,8 +37,10 @@ INSTALLED_APPS = [
     "corsheaders",
     "drf_spectacular",
     'django_extensions',
+    'django_filters',
     "users",
     "chat",
+    "logs",
 ]
 
 MIDDLEWARE = [
@@ -50,7 +52,11 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    "core.middleware.RequestIDMiddleware",  # 添加请求ID中间件
     "users.middleware.UserLastLoginIPMiddleware",
+    "logs.middleware.ApiLoggingMiddleware",
+    "logs.middleware.UserActionLoggingMiddleware",
+    "logs.middleware.ErrorLoggingMiddleware",
 ]
 
 # CORS 设置
@@ -127,9 +133,15 @@ REST_FRAMEWORK = {
     'DEFAULT_PERMISSION_CLASSES': [
         'rest_framework.permissions.IsAuthenticated',
     ],
-    'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
-    'PAGE_SIZE': 10,
+    'DEFAULT_PAGINATION_CLASS': 'core.response.StandardPagination',  # 使用标准分页器
+    'PAGE_SIZE': 20,
     'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
+    'DEFAULT_FILTER_BACKENDS': [
+        'django_filters.rest_framework.DjangoFilterBackend',
+        'rest_framework.filters.SearchFilter',
+        'rest_framework.filters.OrderingFilter',
+    ],
+    'EXCEPTION_HANDLER': 'core.exceptions.custom_exception_handler',  # 自定义异常处理器
 }
 
 # JWT
@@ -206,3 +218,81 @@ if not DEBUG:
     SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
+
+# 创建日志目录
+os.makedirs(BASE_DIR / 'logs', exist_ok=True)
+
+# 日志配置
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'verbose': {
+            'format': '{levelname} {asctime} {module} {process:d} {thread:d} {message}',
+            'style': '{',
+        },
+        'simple': {
+            'format': '{levelname} {message}',
+            'style': '{',
+        },
+    },
+    'filters': {
+        'require_debug_false': {
+            '()': 'django.utils.log.RequireDebugFalse',
+        },
+        'require_debug_true': {
+            '()': 'django.utils.log.RequireDebugTrue',
+        },
+    },
+    'handlers': {
+        'console': {
+            'level': 'INFO',
+            'class': 'logging.StreamHandler',
+            'formatter': 'simple',
+            'filters': ['require_debug_true'],
+        },
+        'file': {
+            'level': 'INFO',
+            'class': 'logging.handlers.RotatingFileHandler',
+            'filename': str(BASE_DIR / 'logs' / 'django.log'),
+            'maxBytes': 1024*1024*10,  # 10MB
+            'backupCount': 5,
+            'formatter': 'verbose',
+        },
+        'mail_admins': {
+            'level': 'ERROR',
+            'class': 'django.utils.log.AdminEmailHandler',
+            'filters': ['require_debug_false'],
+            'formatter': 'verbose',
+        },
+    },
+    'root': {
+        'level': 'INFO',
+        'handlers': ['console'],
+    },
+    'loggers': {
+        'django': {
+            'handlers': ['console', 'file'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+        'llm_st_fly': {
+            'handlers': ['console', 'file'],
+            'level': 'DEBUG',
+            'propagate': False,
+        },
+        'logs': {
+            'handlers': ['console', 'file'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+    },
+}
+
+# Celery 配置（如果使用）
+CELERY_BROKER_URL = env('CELERY_BROKER_URL', default='redis://localhost:6379/0')
+CELERY_RESULT_BACKEND = env('CELERY_RESULT_BACKEND', default='redis://localhost:6379/0')
+CELERY_ACCEPT_CONTENT = ['json']
+CELERY_TASK_SERIALIZER = 'json'
+CELERY_RESULT_SERIALIZER = 'json'
+CELERY_TIMEZONE = TIME_ZONE
