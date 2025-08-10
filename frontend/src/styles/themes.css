@@ -1,0 +1,222 @@
+/* 主题CSS变量定义 */
+
+/* 默认深色主题变量 */
+:root {
+  /* 基础颜色 */
+  --color-primary: #5e9bff;
+  --color-secondary: #9ca3af;
+  --color-background: #0f172a;
+  --color-surface: #1e293b;
+  --color-text: #e1e6f5;
+  --color-textSecondary: #94a3b8;
+  --color-border: #334155;
+  --color-accent: #a569ff;
+  --color-success: #22c55e;
+  --color-warning: #fbbf24;
+  --color-error: #f87171;
+  --color-info: #38bdf8;
+
+  /* 侧边栏 */
+  --sidebar-background: linear-gradient(180deg, #1a2233 0%, #0c1425 100%);
+  --sidebar-text: #e1e6f5;
+  --sidebar-activeBackground: rgba(94, 155, 255, 0.15);
+  --sidebar-activeText: #5e9bff;
+  --sidebar-hoverBackground: rgba(255, 255, 255, 0.08);
+  --sidebar-border: rgba(255, 255, 255, 0.1);
+
+  /* 头部 */
+  --header-background: #1e293b;
+  --header-text: #e1e6f5;
+  --header-border: #334155;
+
+  /* 卡片 */
+  --card-background: #1e293b;
+  --card-border: #334155;
+  --card-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3), 0 4px 6px -2px rgba(0, 0, 0, 0.2);
+
+  /* 按钮 */
+  --button-primary: #5e9bff;
+  --button-primaryHover: #4f8aff;
+  --button-secondary: #64748b;
+  --button-secondaryHover: #475569;
+}
+
+/* 浅色主题 */
+.theme-light {
+  /* 基础颜色 */
+  --color-primary: #3b82f6;
+  --color-secondary: #6b7280;
+  --color-background: #ffffff;
+  --color-surface: #f8fafc;
+  --color-text: #1f2937;
+  --color-textSecondary: #6b7280;
+  --color-border: #e5e7eb;
+  --color-accent: #8b5cf6;
+  --color-success: #10b981;
+  --color-warning: #f59e0b;
+  --color-error: #ef4444;
+  --color-info: #06b6d4;
+
+  /* 侧边栏 */
+  --sidebar-background: linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
+  --sidebar-text: #374151;
+  --sidebar-activeBackground: rgba(59, 130, 246, 0.1);
+  --sidebar-activeText: #3b82f6;
+  --sidebar-hoverBackground: rgba(0, 0, 0, 0.05);
+  --sidebar-border: #e5e7eb;
+
+  /* 头部 */
+  --header-background: #ffffff;
+  --header-text: #1f2937;
+  --header-border: #e5e7eb;
+
+  /* 卡片 */
+  --card-background: #ffffff;
+  --card-border: #e5e7eb;
+  --card-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+
+  /* 按钮 */
+  --button-primary: #3b82f6;
+  --button-primaryHover: #2563eb;
+  --button-secondary: #6b7280;
+  --button-secondaryHover: #4b5563;
+}
+
+/* 深色主题 */
+.theme-dark {
+  /* 基础颜色 */
+  --color-primary: #5e9bff;
+  --color-secondary: #9ca3af;
+  --color-background: #0f172a;
+  --color-surface: #1e293b;
+  --color-text: #e1e6f5;
+  --color-textSecondary: #94a3b8;
+  --color-border: #334155;
+  --color-accent: #a569ff;
+  --color-success: #22c55e;
+  --color-warning: #fbbf24;
+  --color-error: #f87171;
+  --color-info: #38bdf8;
+
+  /* 侧边栏 */
+  --sidebar-background: linear-gradient(180deg, #1a2233 0%, #0c1425 100%);
+  --sidebar-text: #e1e6f5;
+  --sidebar-activeBackground: rgba(94, 155, 255, 0.15);
+  --sidebar-activeText: #5e9bff;
+  --sidebar-hoverBackground: rgba(255, 255, 255, 0.08);
+  --sidebar-border: rgba(255, 255, 255, 0.1);
+
+  /* 头部 */
+  --header-background: #1e293b;
+  --header-text: #e1e6f5;
+  --header-border: #334155;
+
+  /* 卡片 */
+  --card-background: #1e293b;
+  --card-border: #334155;
+  --card-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3), 0 4px 6px -2px rgba(0, 0, 0, 0.2);
+
+  /* 按钮 */
+  --button-primary: #5e9bff;
+  --button-primaryHover: #4f8aff;
+  --button-secondary: #64748b;
+  --button-secondaryHover: #475569;
+}
+
+/* 未来科技主题 */
+.theme-future {
+  /* 基础颜色 */
+  --color-primary: #00d4ff;
+  --color-secondary: #7c3aed;
+  --color-background: #0a0a0f;
+  --color-surface: #1a1a2e;
+  --color-text: #e0e7ff;
+  --color-textSecondary: #a5b4fc;
+  --color-border: #3730a3;
+  --color-accent: #ff006e;
+  --color-success: #00ff88;
+  --color-warning: #ffaa00;
+  --color-error: #ff0055;
+  --color-info: #00aaff;
+
+  /* 侧边栏 */
+  --sidebar-background: linear-gradient(180deg, #16213e 0%, #0f172a 50%, #1a1a2e 100%);
+  --sidebar-text: #e0e7ff;
+  --sidebar-activeBackground: linear-gradient(90deg, rgba(0, 212, 255, 0.2) 0%, rgba(255, 0, 110, 0.1) 100%);
+  --sidebar-activeText: #00d4ff;
+  --sidebar-hoverBackground: rgba(0, 212, 255, 0.1);
+  --sidebar-border: linear-gradient(90deg, #3730a3 0%, #7c3aed 100%);
+
+  /* 头部 */
+  --header-background: linear-gradient(90deg, #1a1a2e 0%, #16213e 100%);
+  --header-text: #e0e7ff;
+  --header-border: #3730a3;
+
+  /* 卡片 */
+  --card-background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+  --card-border: #3730a3;
+  --card-shadow: 0 0 20px rgba(0, 212, 255, 0.1), 0 0 40px rgba(255, 0, 110, 0.05);
+
+  /* 按钮 */
+  --button-primary: linear-gradient(90deg, #00d4ff 0%, #7c3aed 100%);
+  --button-primaryHover: linear-gradient(90deg, #00b8e6 0%, #6d28d9 100%);
+  --button-secondary: #7c3aed;
+  --button-secondaryHover: #6d28d9;
+}
+
+/* 全局样式 */
+body {
+  background-color: var(--color-background);
+  color: var(--color-text);
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* 滚动条样式 */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--color-surface);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-textSecondary);
+}
+
+/* 未来科技主题特殊效果 */
+.theme-future .sidebar {
+  box-shadow: 
+    0 0 20px rgba(0, 212, 255, 0.1),
+    0 0 40px rgba(255, 0, 110, 0.05),
+    inset 0 1px 0 rgba(0, 212, 255, 0.1);
+}
+
+.theme-future .nav-item.router-link-active {
+  box-shadow: 
+    0 0 10px rgba(0, 212, 255, 0.3),
+    inset 0 1px 0 rgba(0, 212, 255, 0.2);
+}
+
+.theme-future .submenu-item.router-link-active {
+  box-shadow: 
+    0 0 10px rgba(0, 212, 255, 0.3),
+    inset 0 1px 0 rgba(0, 212, 255, 0.2);
+}
+
+/* 动画效果 */
+.theme-future .nav-item:hover,
+.theme-future .submenu-item:hover {
+  box-shadow: 0 0 15px rgba(0, 212, 255, 0.2);
+}
+
+.theme-future .user-dropdown {
+  box-shadow: 
+    0 0 20px rgba(0, 212, 255, 0.2),
+    0 0 40px rgba(255, 0, 110, 0.1);
+}

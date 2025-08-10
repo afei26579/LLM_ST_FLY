@@ -62,6 +62,20 @@ const router = createRouter({
       component: () => import('../views/system/LogsView.vue'),
       meta: { requiresAuth: true }
     },
+    // 主题测试页面
+    {
+      path: '/theme-test',
+      name: 'theme-test',
+      component: () => import('../views/ThemeTestView.vue'),
+      meta: { requiresAuth: true }
+    },
+    // 主题展示页面
+    {
+      path: '/theme-showcase',
+      name: 'theme-showcase',
+      component: () => import('../views/ThemeShowcaseView.vue'),
+      meta: { requiresAuth: true }
+    },
     {
       path: '/logs/system',
       name: 'system-logs',

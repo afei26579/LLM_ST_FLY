@@ -133,6 +133,13 @@
             </svg>
             <span>安全设置</span>
           </div>
+          <div class="dropdown-item" @click="showThemeSettings">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="5"></circle>
+              <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"></path>
+            </svg>
+            <span>主题设置</span>
+          </div>
           <!--div class="dropdown-item" @click="showPasswordModal">
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
@@ -173,6 +180,13 @@
     @binding-updated="handleBindingUpdated"
   />
   
+  <!-- 主题设置弹窗 -->
+  <ThemeSettingsModal
+    :is-open="isThemeModalOpen"
+    @close="closeThemeModal"
+    @applied="handleThemeApplied"
+  />
+  
   <!-- 使用密码修改组件 -->
   <PasswordModal
     :is-open="isPasswordModalOpen"
@@ -182,15 +196,18 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useAuthStore } from '../stores/auth'
+import { useThemeStore } from '../stores/theme'
 import { useRouter } from 'vue-router'
 import UserSettingsModal from './UserSettingsModal.vue'
 import PasswordModal from './PasswordModal.vue'
 import SecuritySettingsModal from './SecuritySettingsModal.vue'
+import ThemeSettingsModal from './ThemeSettingsModal.vue'
 
 const router = useRouter()
 const authStore = useAuthStore()
+const themeStore = useThemeStore()
 
 const isCollapsed = ref(false)
 const isSystemMenuOpen = ref(true)
@@ -198,6 +215,12 @@ const isUserDropdownOpen = ref(false)
 const isSettingsModalOpen = ref(false)
 const isPasswordModalOpen = ref(false)
 const isSecurityModalOpen = ref(false)
+const isThemeModalOpen = ref(false)
+
+// 初始化主题
+onMounted(() => {
+  themeStore.loadTheme()
+})
 
 const toggleSidebar = () => {
   isCollapsed.value = !isCollapsed.value
@@ -252,6 +275,22 @@ const handleBindingUpdated = (type: string) => {
   console.log(`${type}绑定更新成功`)
 }
 
+// 显示主题设置弹框
+const showThemeSettings = () => {
+  isThemeModalOpen.value = true
+  isUserDropdownOpen.value = false
+}
+
+// 关闭主题设置弹框
+const closeThemeModal = () => {
+  isThemeModalOpen.value = false
+}
+
+// 处理主题应用成功
+const handleThemeApplied = (theme: string) => {
+  console.log(`主题已切换为: ${theme}`)
+}
+
 // 显示密码修改弹框
 const showPasswordModal = () => {
   isPasswordModalOpen.value = true
@@ -299,10 +338,10 @@ const handleSubMenuClick = () => {
   flex-direction: column;
   width: 250px;
   height: 100vh;
-  background: linear-gradient(180deg, #1a2233 0%, #0c1425 100%);
-  color: #e1e6f5;
+  background: var(--sidebar-background);
+  color: var(--sidebar-text);
   transition: width 0.3s ease;
-  box-shadow: 0 0 20px rgba(0, 0, 0, 0.2);
+  box-shadow: var(--card-shadow);
   position: fixed;
   left: 0;
   top: 0;
@@ -320,7 +359,7 @@ const handleSubMenuClick = () => {
   justify-content: space-between;
   padding: 1rem;
   height: 60px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  border-bottom: 1px solid var(--sidebar-border);
 }
 
 .logo {
@@ -336,7 +375,7 @@ const handleSubMenuClick = () => {
 .toggle-btn {
   background: transparent;
   border: none;
-  color: #e1e6f5;
+  color: var(--sidebar-text);
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -347,7 +386,7 @@ const handleSubMenuClick = () => {
 }
 
 .toggle-btn:hover {
-  background-color: rgba(255, 255, 255, 0.1);
+  background-color: var(--sidebar-hoverBackground);
 }
 
 .sidebar-content {
@@ -369,7 +408,7 @@ const handleSubMenuClick = () => {
   display: flex;
   align-items: center;
   padding: 0.75rem 1rem;
-  color: #e1e6f5;
+  color: var(--sidebar-text);
   text-decoration: none;
   cursor: pointer;
   transition: background-color 0.2s;
@@ -379,12 +418,12 @@ const handleSubMenuClick = () => {
 }
 
 .nav-item:hover {
-  background-color: rgba(255, 255, 255, 0.08);
+  background-color: var(--sidebar-hoverBackground);
 }
 
 .nav-item.router-link-active {
-  background-color: rgba(94, 155, 255, 0.15);
-  color: #5e9bff;
+  background: var(--sidebar-activeBackground);
+  color: var(--sidebar-activeText);
 }
 
 .nav-icon {
@@ -423,14 +462,14 @@ const handleSubMenuClick = () => {
   flex-direction: column;
   margin-left: 0;
   padding-left: 3.5rem;
-  background-color: rgba(0, 0, 0, 0.15);
+  background-color: var(--sidebar-hoverBackground);
 }
 
 .submenu-item {
   display: flex;
   align-items: center;
   padding: 0.75rem 1rem;
-  color: #e1e6f5;
+  color: var(--sidebar-text);
   text-decoration: none;
   cursor: pointer;
   transition: background-color 0.2s;
@@ -439,12 +478,12 @@ const handleSubMenuClick = () => {
 }
 
 .submenu-item:hover {
-  background-color: rgba(255, 255, 255, 0.08);
+  background-color: var(--sidebar-hoverBackground);
 }
 
 .submenu-item.router-link-active {
-  background-color: rgba(94, 155, 255, 0.15);
-  color: #5e9bff;
+  background: var(--sidebar-activeBackground);
+  color: var(--sidebar-activeText);
 }
 
 .submenu-icon {
@@ -473,7 +512,7 @@ const handleSubMenuClick = () => {
 /* 底部用户信息 */
 .sidebar-footer {
   padding: 1rem;
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  border-top: 1px solid var(--sidebar-border);
   margin-top: auto;
   position: relative;
 }
@@ -492,7 +531,7 @@ const handleSubMenuClick = () => {
 }
 
 .user-info:hover {
-  background-color: rgba(255, 255, 255, 0.08);
+  background-color: var(--sidebar-hoverBackground);
 }
 
 .dropdown-icon {
@@ -506,14 +545,14 @@ const handleSubMenuClick = () => {
   bottom: 100%;
   left: 0;
   width: 100%;
-  background: #1e293b;
+  background: var(--card-background);
   border-radius: 8px;
-  box-shadow: 0 5px 20px rgba(0, 0, 0, 0.3);
+  box-shadow: var(--card-shadow);
   margin-bottom: 0.5rem;
   overflow: hidden;
   z-index: 100;
   animation: dropdown-appear 0.2s ease-out;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--card-border);
 }
 
 @keyframes dropdown-appear {
@@ -531,7 +570,7 @@ const handleSubMenuClick = () => {
   display: flex;
   align-items: center;
   padding: 0.75rem 1rem;
-  color: #e1e6f5;
+  color: var(--color-text);
   cursor: pointer;
   transition: background-color 0.2s;
 }
@@ -542,21 +581,21 @@ const handleSubMenuClick = () => {
 }
 
 .dropdown-item:hover {
-  background-color: rgba(255, 255, 255, 0.08);
+  background-color: var(--sidebar-hoverBackground);
 }
 
 .dropdown-divider {
   height: 1px;
-  background-color: rgba(255, 255, 255, 0.1);
+  background-color: var(--color-border);
   margin: 0.25rem 0;
 }
 
 .logout {
-  color: #f87171;
+  color: var(--color-error);
 }
 
 .logout svg {
-  stroke: #f87171;
+  stroke: var(--color-error);
 }
 
 .avatar {
