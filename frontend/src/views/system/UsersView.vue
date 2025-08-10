@@ -25,11 +25,11 @@
             <td>{{ user.email }}</td>
             <td>{{ user.role?.name || '无角色' }}</td>
             <td>
-              <span class="status" :class="{'active': user.isActive, 'inactive': !user.isActive}">
-                {{ user.isActive ? '激活' : '停用' }}
+              <span class="status" :class="{'active': user.is_active, 'inactive': !user.is_active}">
+                {{ user.is_active ? '激活' : '停用' }}
               </span>
             </td>
-            <td>{{ formatDate(user.createdAt) }}</td>
+            <td>{{ formatDate(user.date_joined) }}</td>
             <td class="actions">
               <button class="edit-btn" title="编辑" @click="openUserModal(user)">
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -39,7 +39,7 @@
               </button>
               <button 
                 class="status-btn" 
-                :title="user.isActive ? '停用' : '激活'" 
+                :title="user.is_active ? '停用' : '激活'" 
                 @click="toggleUserStatus(user)"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -112,7 +112,7 @@
             </div>
             <div class="form-group">
               <label for="role">角色</label>
-              <select id="role" v-model="currentUser.roleId">
+              <select id="role" v-model="currentUser.user_role">
                 <option value="">无角色</option>
                 <option v-for="role in roles" :key="role.id" :value="role.id">{{ role.name }}</option>
               </select>
@@ -181,9 +181,9 @@ const currentUser = ref<UserListItem>({
   username: '',
   email: '',
   password: '',
-  roleId: undefined,
-  isActive: true,
-  createdAt: new Date().toISOString()
+  user_role: undefined,
+  is_active: true,
+  date_joined: new Date().toISOString()
 } as UserListItem)
 
 // 显示通知消息
@@ -208,6 +208,7 @@ async function fetchUsers() {
     if (response.code === 200 || response.code === 0) {
       // 修复：从分页数据中提取用户列表
       users.value = response.data?.list || []
+      
     } else {
       showNotification(response.message || '获取用户列表失败', 'error')
     }
@@ -250,9 +251,9 @@ function openUserModal(user?: UserListItem) {
       username: '',
       email: '',
       password: '',
-      roleId: undefined,
-      isActive: true,
-      createdAt: new Date().toISOString()
+      user_role: undefined,
+      is_active: true,
+      date_joined: new Date().toISOString()
     } as UserListItem
   }
   showUserModal.value = true
@@ -274,8 +275,8 @@ async function saveUser() {
       response = await api.updateUser(currentUser.value.id, {
         username: currentUser.value.username,
         email: currentUser.value.email,
-        roleId: currentUser.value.roleId,
-        isActive: currentUser.value.isActive
+        user_role: currentUser.value.user_role,
+        is_active: currentUser.value.is_active
       })
       
       if (response.code === 200 || response.code === 0) {
@@ -346,12 +347,12 @@ async function deleteUserConfirm() {
 // 切换用户状态（激活/停用）
 async function toggleUserStatus(user: UserListItem) {
   try {
-    const response = await api.updateUserStatus(user.id, !user.isActive)
+    const response = await api.updateUserStatus(user.id, !user.is_active)
     
     if (response.code === 200 || response.code === 0) {
       // 更新本地状态
-      user.isActive = !user.isActive
-      showNotification(`用户状态已${user.isActive ? '激活' : '停用'}`)
+      user.is_active = !user.is_active
+      showNotification(`用户状态已${user.is_active ? '激活' : '停用'}`)
     } else {
       showNotification(response.message || '更新用户状态失败', 'error')
     }

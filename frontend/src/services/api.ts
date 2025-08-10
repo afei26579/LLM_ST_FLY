@@ -30,14 +30,15 @@ export interface UserListItem {
   username: string;
   email: string;
   password?: string;
-  roleId?: number;
+  user_role?: number;
+  user_role_name?: string;
   role?: {
     id: number;
     name: string;
     description?: string;
   };
-  isActive: boolean;
-  createdAt: string;
+  is_active: boolean;
+  date_joined: string;
 }
 
 // 分页用户列表接口
@@ -798,6 +799,7 @@ class ApiService {
   async getUserDetail(id: number): Promise<ApiResponse<UserListItem>> {
     try {
       const response = await this.instance.get<ApiResponse<UserListItem>>(`auth/user-management/${id}/`);
+      
       return response.data;
     } catch (error: any) {
       console.error('获取用户详情失败:', error);
@@ -853,10 +855,10 @@ class ApiService {
   }
   
   // 更新用户状态
-  async updateUserStatus(id: number, isActive: boolean): Promise<ApiResponse<UserListItem>> {
+  async updateUserStatus(id: number, is_active: boolean): Promise<ApiResponse<UserListItem>> {
     try {
       const response = await this.instance.patch<ApiResponse<UserListItem>>(`auth/user-management/${id}/status/`, {
-        isActive
+        is_active
       });
       return response.data;
     } catch (error: any) {

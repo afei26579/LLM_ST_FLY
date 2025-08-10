@@ -8,14 +8,15 @@ from rest_framework_simplejwt.views import (
 
 from .views import (
     LoginView, UserViewSet, RegisterView, 
-    UserManagementViewSet, GroupViewSet
+    UserManagementViewSet, GroupViewSet, RoleViewSet
 )
 
 # 创建路由器并注册ViewSets
 router = DefaultRouter()
 router.register(r'users', UserViewSet, basename='user')  # 添加UserViewSet，提供/users/me/端点
 router.register(r'user-management', UserManagementViewSet, basename='user-management')  # 重命名管理视图集
-router.register(r'roles', GroupViewSet, basename='roles')
+router.register(r'groups', GroupViewSet, basename='groups')  # 用户组管理
+router.register(r'roles', RoleViewSet, basename='roles')  # 角色管理
 
 
 urlpatterns = [

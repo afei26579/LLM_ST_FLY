@@ -3,502 +3,989 @@ info:
   title: LLM ST FLY API
   version: 1.0.0
   description: 智能管理系统API文档
+  contact:
+    name: API Support
+    email: support@example.com
+  license:
+    name: MIT License
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: http://localhost:8000/api/v1
+    description: 开发环境
+  - url: https://api.ylongf.cn/api/v1
+    description: 生产环境
+
 paths:
-  /api/v1/auth/login/:
+  # 认证相关接口
+  /auth/login/:
     post:
-      operationId: api_v1_auth_login_create
-      description: 用户登录API
+      operationId: auth_login
+      summary: 用户登录
+      description: 用户通过用户名和密码登录系统
       tags:
-      - 认证
+        - 认证管理
       requestBody:
+        required: true
         content:
           application/json:
             schema:
               $ref: '#/components/schemas/LoginRequest'
             examples:
-              LoginExample:
+              login_example:
+                summary: 登录示例
                 value:
                   username: admin
                   password: password123
-                summary: Login Example
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/LoginRequest'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/LoginRequest'
-        required: true
-      security:
-      - jwtAuth: []
-      - {}
       responses:
         '200':
-          description: 登录成功，返回用户信息和JWT令牌
+          description: 登录成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
         '400':
-          description: 请求参数错误，缺少必要字段
+          description: 请求参数错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '401':
-          description: 认证失败，账号或密码错误
-  /api/v1/auth/register/:
+          description: 认证失败
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /auth/register/:
     post:
-      operationId: api_v1_auth_register_create
-      description: 用户注册API
+      operationId: auth_register
+      summary: 用户注册
+      description: 新用户注册账户
       tags:
-      - 认证
+        - 认证管理
       requestBody:
+        required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/UserRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/UserRequest'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/UserRequest'
-        required: true
-      security:
-      - jwtAuth: []
-      - {}
+              $ref: '#/components/schemas/UserCreateRequest'
       responses:
         '201':
-          description: 注册成功，返回用户信息和JWT令牌
+          description: 注册成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RegisterResponse'
         '400':
-          description: 注册失败，提供的信息无效
-  /api/v1/auth/token/:
-    post:
-      operationId: api_v1_auth_token_create
-      description: |-
-        Takes a set of user credentials and returns an access and refresh JSON web
-        token pair to prove the authentication of those credentials.
-      tags:
-      - api
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/TokenObtainPairRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/TokenObtainPairRequest'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/TokenObtainPairRequest'
-        required: true
-      responses:
-        '200':
+          description: 注册失败
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/TokenObtainPair'
-          description: ''
-  /api/v1/auth/token/refresh/:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /auth/token/:
     post:
-      operationId: api_v1_auth_token_refresh_create
-      description: |-
-        Takes a refresh type JSON web token and returns an access type JSON web
-        token if the refresh token is valid.
+      operationId: auth_token_obtain
+      summary: 获取JWT令牌
+      description: 通过用户名和密码获取JWT访问令牌和刷新令牌
       tags:
-      - api
+        - 认证管理
       requestBody:
+        required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/TokenRefreshRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/TokenRefreshRequest'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/TokenRefreshRequest'
-        required: true
+              $ref: '#/components/schemas/TokenObtainRequest'
       responses:
         '200':
+          description: 令牌获取成功
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/TokenRefresh'
-          description: ''
-  /api/v1/auth/token/verify/:
+                $ref: '#/components/schemas/TokenResponse'
+
+  /auth/token/refresh/:
     post:
-      operationId: api_v1_auth_token_verify_create
-      description: |-
-        Takes a token and indicates if it is valid.  This view provides no
-        information about a token's fitness for a particular use.
+      operationId: auth_token_refresh
+      summary: 刷新JWT令牌
+      description: 使用刷新令牌获取新的访问令牌
       tags:
-      - api
+        - 认证管理
       requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TokenRefreshRequest'
+      responses:
+        '200':
+          description: 令牌刷新成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenRefreshResponse'
+
+  /auth/token/verify/:
+    post:
+      operationId: auth_token_verify
+      summary: 验证JWT令牌
+      description: 验证JWT令牌是否有效
+      tags:
+        - 认证管理
+      requestBody:
+        required: true
         content:
           application/json:
             schema:
               $ref: '#/components/schemas/TokenVerifyRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/TokenVerifyRequest'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/TokenVerifyRequest'
-        required: true
       responses:
         '200':
-          description: No response body
-  /api/v1/auth/users/:
+          description: 令牌有效
+        '401':
+          description: 令牌无效
+
+  # 角色管理接口
+  /auth/roles/:
     get:
-      operationId: api_v1_auth_users_list
-      description: 用户管理视图集
-      parameters:
-      - name: page
-        required: false
-        in: query
-        description: A page number within the paginated result set.
-        schema:
-          type: integer
+      operationId: roles_list
+      summary: 获取角色列表
+      description: 获取系统中所有角色的列表
       tags:
-      - 用户管理
+        - 角色管理
+      parameters:
+        - name: page
+          in: query
+          description: 页码
+          schema:
+            type: integer
+        - name: search
+          in: query
+          description: 搜索关键词
+          schema:
+            type: string
+        - name: is_system
+          in: query
+          description: 是否为系统角色
+          schema:
+            type: boolean
       security:
-      - jwtAuth: []
+        - jwtAuth: []
       responses:
         '200':
+          description: 角色列表获取成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedRoleList'
+
+    post:
+      operationId: roles_create
+      summary: 创建角色
+      description: 创建新的用户角色（仅管理员）
+      tags:
+        - 角色管理
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RoleCreateRequest'
+      security:
+        - jwtAuth: []
+      responses:
+        '201':
+          description: 角色创建成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Role'
+        '400':
+          description: 创建失败
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: 权限不足
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /auth/roles/{id}/:
+    get:
+      operationId: roles_retrieve
+      summary: 获取角色详情
+      description: 获取指定角色的详细信息
+      tags:
+        - 角色管理
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: 角色ID
+          schema:
+            type: integer
+      security:
+        - jwtAuth: []
+      responses:
+        '200':
+          description: 角色详情获取成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Role'
+        '404':
+          description: 角色不存在
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    put:
+      operationId: roles_update
+      summary: 更新角色
+      description: 更新指定角色的信息（仅管理员）
+      tags:
+        - 角色管理
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: 角色ID
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RoleUpdateRequest'
+      security:
+        - jwtAuth: []
+      responses:
+        '200':
+          description: 角色更新成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Role'
+        '400':
+          description: 更新失败
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: 权限不足
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    patch:
+      operationId: roles_partial_update
+      summary: 部分更新角色
+      description: 部分更新指定角色的信息（仅管理员）
+      tags:
+        - 角色管理
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: 角色ID
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RoleUpdateRequest'
+      security:
+        - jwtAuth: []
+      responses:
+        '200':
+          description: 角色更新成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Role'
+
+    delete:
+      operationId: roles_destroy
+      summary: 删除角色
+      description: 删除指定角色（仅管理员，系统角色不可删除）
+      tags:
+        - 角色管理
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: 角色ID
+          schema:
+            type: integer
+      security:
+        - jwtAuth: []
+      responses:
+        '204':
+          description: 角色删除成功
+        '400':
+          description: 删除失败
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: 权限不足
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /auth/roles/{id}/users/:
+    get:
+      operationId: roles_users_list
+      summary: 获取角色下的用户列表
+      description: 获取指定角色下的所有用户
+      tags:
+        - 角色管理
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: 角色ID
+          schema:
+            type: integer
+      security:
+        - jwtAuth: []
+      responses:
+        '200':
+          description: 用户列表获取成功
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/User'
+
+  # 用户管理接口
+  /auth/users/:
+    get:
+      operationId: users_list
+      summary: 获取用户列表
+      description: 获取系统中所有用户的列表（仅管理员）
+      tags:
+        - 用户管理
+      parameters:
+        - name: page
+          in: query
+          description: 页码
+          schema:
+            type: integer
+        - name: search
+          in: query
+          description: 搜索关键词
+          schema:
+            type: string
+        - name: user_role
+          in: query
+          description: 用户角色ID
+          schema:
+            type: integer
+        - name: is_active
+          in: query
+          description: 是否激活
+          schema:
+            type: boolean
+        - name: is_staff
+          in: query
+          description: 是否为员工
+          schema:
+            type: boolean
+      security:
+        - jwtAuth: []
+      responses:
+        '200':
+          description: 用户列表获取成功
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/PaginatedUserList'
-          description: ''
+
     post:
-      operationId: api_v1_auth_users_create
-      description: 用户管理视图集
+      operationId: users_create
+      summary: 创建用户
+      description: 创建新用户（仅管理员）
       tags:
-      - 用户管理
+        - 用户管理
       requestBody:
+        required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/UserRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/UserRequest'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/UserRequest'
-        required: true
+              $ref: '#/components/schemas/UserCreateRequest'
       security:
-      - jwtAuth: []
+        - jwtAuth: []
       responses:
         '201':
+          description: 用户创建成功
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/User'
-          description: ''
-  /api/v1/auth/users/{id}/:
+
+  /auth/users/{id}/:
     get:
-      operationId: api_v1_auth_users_retrieve
-      description: 用户管理视图集
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: integer
-        description: A unique integer value identifying this 用户.
-        required: true
+      operationId: users_retrieve
+      summary: 获取用户详情
+      description: 获取指定用户的详细信息
       tags:
-      - 用户管理
+        - 用户管理
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: 用户ID
+          schema:
+            type: integer
       security:
-      - jwtAuth: []
+        - jwtAuth: []
       responses:
         '200':
+          description: 用户详情获取成功
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/User'
-          description: ''
+
     put:
-      operationId: api_v1_auth_users_update
-      description: 用户管理视图集
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: integer
-        description: A unique integer value identifying this 用户.
-        required: true
+      operationId: users_update
+      summary: 更新用户
+      description: 更新指定用户的信息（仅管理员）
       tags:
-      - 用户管理
+        - 用户管理
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: 用户ID
+          schema:
+            type: integer
       requestBody:
+        required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/UserRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/UserRequest'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/UserRequest'
-        required: true
+              $ref: '#/components/schemas/UserUpdateRequest'
       security:
-      - jwtAuth: []
+        - jwtAuth: []
       responses:
         '200':
+          description: 用户更新成功
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/User'
-          description: ''
+
     patch:
-      operationId: api_v1_auth_users_partial_update
-      description: 用户管理视图集
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: integer
-        description: A unique integer value identifying this 用户.
-        required: true
+      operationId: users_partial_update
+      summary: 部分更新用户
+      description: 部分更新指定用户的信息（仅管理员）
       tags:
-      - 用户管理
+        - 用户管理
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: 用户ID
+          schema:
+            type: integer
       requestBody:
+        required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/PatchedUserRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/PatchedUserRequest'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/PatchedUserRequest'
+              $ref: '#/components/schemas/UserUpdateRequest'
       security:
-      - jwtAuth: []
+        - jwtAuth: []
       responses:
         '200':
+          description: 用户更新成功
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/User'
-          description: ''
+
     delete:
-      operationId: api_v1_auth_users_destroy
-      description: 用户管理视图集
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: integer
-        description: A unique integer value identifying this 用户.
-        required: true
+      operationId: users_destroy
+      summary: 删除用户
+      description: 删除指定用户（仅管理员）
       tags:
-      - 用户管理
+        - 用户管理
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: 用户ID
+          schema:
+            type: integer
       security:
-      - jwtAuth: []
+        - jwtAuth: []
       responses:
         '204':
-          description: No response body
-  /api/v1/auth/users/me/:
+          description: 用户删除成功
+
+  /auth/users/me/:
     get:
-      operationId: api_v1_auth_users_me_retrieve
-      description: 返回当前登录用户的详细信息
+      operationId: users_me_retrieve
       summary: 获取当前用户信息
+      description: 获取当前登录用户的详细信息
       tags:
-      - 用户管理
+        - 用户管理
       security:
-      - jwtAuth: []
+        - jwtAuth: []
       responses:
         '200':
+          description: 当前用户信息获取成功
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/UserProfile'
-          description: ''
+                $ref: '#/components/schemas/User'
+
     put:
-      operationId: api_v1_auth_users_me_update
-      description: 更新当前用户资料
+      operationId: users_me_update
+      summary: 更新当前用户信息
+      description: 更新当前登录用户的信息
       tags:
-      - 用户管理
+        - 用户管理
       requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/UserRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/UserRequest'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/UserRequest'
         required: true
-      security:
-      - jwtAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/User'
-          description: ''
-    patch:
-      operationId: api_v1_auth_users_me_partial_update
-      description: 更新当前用户资料
-      tags:
-      - 用户管理
-      requestBody:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/PatchedUserRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/PatchedUserRequest'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/PatchedUserRequest'
+              $ref: '#/components/schemas/UserUpdateRequest'
       security:
-      - jwtAuth: []
+        - jwtAuth: []
       responses:
         '200':
+          description: 用户信息更新成功
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/User'
-          description: ''
+
+    patch:
+      operationId: users_me_partial_update
+      summary: 部分更新当前用户信息
+      description: 部分更新当前登录用户的信息
+      tags:
+        - 用户管理
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserUpdateRequest'
+      security:
+        - jwtAuth: []
+      responses:
+        '200':
+          description: 用户信息更新成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+
+  /auth/users/change-password/:
+    post:
+      operationId: users_change_password
+      summary: 修改密码
+      description: 当前用户修改自己的密码
+      tags:
+        - 用户管理
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PasswordChangeRequest'
+      security:
+        - jwtAuth: []
+      responses:
+        '200':
+          description: 密码修改成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+
+  /auth/users/{id}/reset-password/:
+    post:
+      operationId: users_reset_password
+      summary: 重置用户密码
+      description: 管理员重置指定用户的密码
+      tags:
+        - 用户管理
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: 用户ID
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                new_password:
+                  type: string
+                  description: 新密码
+              required:
+                - new_password
+      security:
+        - jwtAuth: []
+      responses:
+        '200':
+          description: 密码重置成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+
+  /auth/users/{id}/toggle-active/:
+    post:
+      operationId: users_toggle_active
+      summary: 切换用户激活状态
+      description: 管理员切换指定用户的激活状态
+      tags:
+        - 用户管理
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: 用户ID
+          schema:
+            type: integer
+      security:
+        - jwtAuth: []
+      responses:
+        '200':
+          description: 用户状态切换成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    description: 操作结果消息
+                  is_active:
+                    type: boolean
+                    description: 当前激活状态
+
+  /auth/user-management/:
+    get:
+      operationId: user_management_list
+      summary: 用户管理列表
+      description: 获取用户管理列表（管理员专用）
+      tags:
+        - 用户管理
+      parameters:
+        - name: page
+          in: query
+          description: 页码
+          schema:
+            type: integer
+      security:
+        - jwtAuth: []
+      responses:
+        '200':
+          description: 用户管理列表获取成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedUserList'
+
+    post:
+      operationId: user_management_create
+      summary: 创建用户（管理）
+      description: 管理员创建新用户
+      tags:
+        - 用户管理
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserCreateRequest'
+      security:
+        - jwtAuth: []
+      responses:
+        '201':
+          description: 用户创建成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+
+  /auth/user-management/{id}/:
+    get:
+      operationId: user_management_retrieve
+      summary: 获取用户详情（管理）
+      description: 管理员获取指定用户的详细信息
+      tags:
+        - 用户管理
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: 用户ID
+          schema:
+            type: integer
+      security:
+        - jwtAuth: []
+      responses:
+        '200':
+          description: 用户详情获取成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+
+    put:
+      operationId: user_management_update
+      summary: 更新用户（管理）
+      description: 管理员更新指定用户的信息
+      tags:
+        - 用户管理
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: 用户ID
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserUpdateRequest'
+      security:
+        - jwtAuth: []
+      responses:
+        '200':
+          description: 用户更新成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+
+    patch:
+      operationId: user_management_partial_update
+      summary: 部分更新用户（管理）
+      description: 管理员部分更新指定用户的信息
+      tags:
+        - 用户管理
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: 用户ID
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserUpdateRequest'
+      security:
+        - jwtAuth: []
+      responses:
+        '200':
+          description: 用户更新成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+
+    delete:
+      operationId: user_management_destroy
+      summary: 删除用户（管理）
+      description: 管理员删除指定用户
+      tags:
+        - 用户管理
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: 用户ID
+          schema:
+            type: integer
+      security:
+        - jwtAuth: []
+      responses:
+        '204':
+          description: 用户删除成功
+
+  /auth/user-management/{id}/status/:
+    patch:
+      operationId: user_management_status_update
+      summary: 更新用户状态
+      description: 管理员更新指定用户的激活状态
+      tags:
+        - 用户管理
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: 用户ID
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                is_active:
+                  type: boolean
+                  description: 用户激活状态
+              required:
+                - is_active
+      security:
+        - jwtAuth: []
+      responses:
+        '200':
+          description: 用户状态更新成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+
 components:
   schemas:
+    # 基础响应模式
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+          description: 错误消息
+        code:
+          type: integer
+          description: 错误代码
+        details:
+          type: object
+          description: 错误详情
+      required:
+        - error
+
+    SuccessResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          description: 成功消息
+        data:
+          type: object
+          description: 响应数据
+
+    # 认证相关模式
     LoginRequest:
       type: object
-      description: 登录序列化器
       properties:
         username:
           type: string
+          description: 用户名
           minLength: 1
-          maxLength: 255
+          maxLength: 150
+        password:
+          type: string
+          description: 密码
+          writeOnly: true
+          minLength: 1
+      required:
+        - username
+        - password
+
+    LoginResponse:
+      type: object
+      properties:
+        user:
+          $ref: '#/components/schemas/User'
+        token:
+          type: object
+          properties:
+            refresh:
+              type: string
+              description: 刷新令牌
+            access:
+              type: string
+              description: 访问令牌
+          required:
+            - refresh
+            - access
+      required:
+        - user
+        - token
+
+    RegisterResponse:
+      type: object
+      properties:
+        user:
+          $ref: '#/components/schemas/User'
+        token:
+          type: object
+          properties:
+            refresh:
+              type: string
+              description: 刷新令牌
+            access:
+              type: string
+              description: 访问令牌
+          required:
+            - refresh
+            - access
+      required:
+        - user
+        - token
+
+    TokenObtainRequest:
+      type: object
+      properties:
+        username:
+          type: string
+          writeOnly: true
+          minLength: 1
         password:
           type: string
           writeOnly: true
           minLength: 1
-          title: 密码
       required:
-      - password
-      - username
-    PaginatedUserList:
-      type: object
-      required:
-      - count
-      - results
-      properties:
-        count:
-          type: integer
-          example: 123
-        next:
-          type: string
-          nullable: true
-          format: uri
-          example: http://api.example.org/accounts/?page=4
-        previous:
-          type: string
-          nullable: true
-          format: uri
-          example: http://api.example.org/accounts/?page=2
-        results:
-          type: array
-          items:
-            $ref: '#/components/schemas/User'
-    PatchedUserRequest:
-      type: object
-      description: 用户序列化器
-      properties:
-        username:
-          type: string
-          minLength: 1
-          title: 用户名
-          description: 必填；长度为150个字符或以下；只能包含字母、数字、特殊字符“@”、“.”、“-”和“_”。
-          pattern: ^[\w.@+-]+$
-          maxLength: 150
-        email:
-          type: string
-          format: email
-          title: 电子邮件地址
-          maxLength: 254
-        password:
-          type: string
-          writeOnly: true
-          minLength: 1
-        first_name:
-          type: string
-          title: 名字
-          maxLength: 150
-        last_name:
-          type: string
-          title: 姓氏
-          maxLength: 150
-        phone:
-          type: string
-          title: 电话号码
-          maxLength: 15
-        nickname:
-          type: string
-          title: 昵称
-          maxLength: 7
-        avatar:
-          type: string
-          format: binary
-          nullable: true
-          title: 头像
-        role:
-          allOf:
-          - $ref: '#/components/schemas/RoleEnum'
-          title: 用户角色
-        bio:
-          type: string
-          title: 个人简介
-        groups:
-          type: array
-          items:
-            type: integer
-            title: 用户组
-          title: 用户组
-    RoleEnum:
-      enum:
-      - admin
-      - staff
-      - user
-      type: string
-      description: |-
-        * `admin` - 管理员
-        * `staff` - 工作人员
-        * `user` - 普通用户
-    TokenObtainPair:
+        - username
+        - password
+
+    TokenResponse:
       type: object
       properties:
         access:
           type: string
-          readOnly: true
+          description: 访问令牌
         refresh:
           type: string
-          readOnly: true
+          description: 刷新令牌
       required:
-      - access
-      - refresh
-    TokenObtainPairRequest:
-      type: object
-      properties:
-        username:
-          type: string
-          writeOnly: true
-          minLength: 1
-        password:
-          type: string
-          writeOnly: true
-          minLength: 1
-      required:
-      - password
-      - username
-    TokenRefresh:
-      type: object
-      properties:
-        access:
-          type: string
-          readOnly: true
-      required:
-      - access
+        - access
+        - refresh
+
     TokenRefreshRequest:
       type: object
       properties:
@@ -507,7 +994,17 @@ components:
           writeOnly: true
           minLength: 1
       required:
-      - refresh
+        - refresh
+
+    TokenRefreshResponse:
+      type: object
+      properties:
+        access:
+          type: string
+          description: 新的访问令牌
+      required:
+        - access
+
     TokenVerifyRequest:
       type: object
       properties:
@@ -516,184 +1013,320 @@ components:
           writeOnly: true
           minLength: 1
       required:
-      - token
-    User:
+        - token
+
+    # 角色相关模式
+    Role:
       type: object
-      description: 用户序列化器
       properties:
         id:
           type: integer
           readOnly: true
-        username:
+        code:
           type: string
-          title: 用户名
-          description: 必填；长度为150个字符或以下；只能包含字母、数字、特殊字符“@”、“.”、“-”和“_”。
-          pattern: ^[\w.@+-]+$
-          maxLength: 150
-        email:
+          description: 角色代码
+          maxLength: 50
+        name:
           type: string
-          format: email
-          title: 电子邮件地址
-          maxLength: 254
-        first_name:
+          description: 角色名称
+          maxLength: 100
+        description:
           type: string
-          title: 名字
-          maxLength: 150
-        last_name:
-          type: string
-          title: 姓氏
-          maxLength: 150
-        phone:
-          type: string
-          title: 电话号码
-          maxLength: 15
-        nickname:
-          type: string
-          title: 昵称
-          maxLength: 7
-        avatar:
-          type: string
-          format: uri
-          nullable: true
-          title: 头像
-        role:
-          allOf:
-          - $ref: '#/components/schemas/RoleEnum'
-          title: 用户角色
-        bio:
-          type: string
-          title: 个人简介
-        date_joined:
+          description: 角色描述
+        is_system:
+          type: boolean
+          description: 是否为系统角色
+          readOnly: true
+        created_at:
           type: string
           format: date-time
           readOnly: true
-          title: 加入日期
-        is_active:
-          type: boolean
+        updated_at:
+          type: string
+          format: date-time
           readOnly: true
-          title: 有效
-          description: 指明用户是否被认为是活跃的。以反选代替删除帐号。
-        groups:
+        users_count:
+          type: integer
+          description: 该角色的用户数量
+          readOnly: true
+      required:
+        - id
+        - code
+        - name
+        - is_system
+        - created_at
+        - updated_at
+        - users_count
+
+    RoleCreateRequest:
+      type: object
+      properties:
+        code:
+          type: string
+          description: 角色代码
+          maxLength: 50
+        name:
+          type: string
+          description: 角色名称
+          maxLength: 100
+        description:
+          type: string
+          description: 角色描述
+      required:
+        - code
+        - name
+
+    RoleUpdateRequest:
+      type: object
+      properties:
+        code:
+          type: string
+          description: 角色代码
+          maxLength: 50
+        name:
+          type: string
+          description: 角色名称
+          maxLength: 100
+        description:
+          type: string
+          description: 角色描述
+
+    PaginatedRoleList:
+      type: object
+      properties:
+        count:
+          type: integer
+          description: 总数量
+        next:
+          type: string
+          nullable: true
+          format: uri
+          description: 下一页链接
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          description: 上一页链接
+        results:
           type: array
           items:
-            type: integer
-            title: 用户组
-          title: 用户组
+            $ref: '#/components/schemas/Role'
       required:
-      - date_joined
-      - id
-      - is_active
-      - username
-    UserProfile:
+        - count
+        - results
+
+    # 用户相关模式
+    User:
       type: object
-      description: 用户资料序列化器（简化版）
       properties:
         id:
           type: integer
           readOnly: true
         username:
           type: string
-          title: 用户名
-          description: 必填；长度为150个字符或以下；只能包含字母、数字、特殊字符“@”、“.”、“-”和“_”。
-          pattern: ^[\w.@+-]+$
+          description: 用户名
           maxLength: 150
         email:
           type: string
           format: email
-          title: 电子邮件地址
+          description: 邮箱地址
           maxLength: 254
         first_name:
           type: string
-          title: 名字
+          description: 名字
           maxLength: 150
         last_name:
           type: string
-          title: 姓氏
+          description: 姓氏
           maxLength: 150
         phone:
           type: string
-          title: 电话号码
+          description: 电话号码
           maxLength: 15
-        nickname:
-          type: string
-          title: 昵称
-          maxLength: 7
-        avatar:
-          type: string
-          format: uri
-          nullable: true
-          title: 头像
-        role:
-          allOf:
-          - $ref: '#/components/schemas/RoleEnum'
-          readOnly: true
-          title: 用户角色
-        bio:
-          type: string
-          title: 个人简介
-      required:
-      - id
-      - role
-      - username
-    UserRequest:
-      type: object
-      description: 用户序列化器
-      properties:
-        username:
-          type: string
-          minLength: 1
-          title: 用户名
-          description: 必填；长度为150个字符或以下；只能包含字母、数字、特殊字符“@”、“.”、“-”和“_”。
-          pattern: ^[\w.@+-]+$
-          maxLength: 150
-        email:
-          type: string
-          format: email
-          title: 电子邮件地址
-          maxLength: 254
-        password:
-          type: string
-          writeOnly: true
-          minLength: 1
-        first_name:
-          type: string
-          title: 名字
-          maxLength: 150
-        last_name:
-          type: string
-          title: 姓氏
-          maxLength: 150
-        phone:
-          type: string
-          title: 电话号码
-          maxLength: 15
-        nickname:
-          type: string
-          title: 昵称
-          maxLength: 7
         avatar:
           type: string
           format: binary
           nullable: true
-          title: 头像
-        role:
-          allOf:
-          - $ref: '#/components/schemas/RoleEnum'
-          title: 用户角色
+          description: 头像文件
         bio:
           type: string
-          title: 个人简介
-        groups:
+          description: 个人简介
+        user_role:
+          type: integer
+          description: 用户角色ID
+        is_active:
+          type: boolean
+          description: 是否激活
+
+    PasswordChangeRequest:
+      type: object
+      properties:
+        old_password:
+          type: string
+          writeOnly: true
+          description: 原密码
+        new_password:
+          type: string
+          writeOnly: true
+          description: 新密码
+        new_password_confirm:
+          type: string
+          writeOnly: true
+          description: 确认新密码
+      required:
+        - old_password
+        - new_password
+        - new_password_confirm
+
+    PaginatedUserList:
+      type: object
+      properties:
+        count:
+          type: integer
+          description: 总数量
+        next:
+          type: string
+          nullable: true
+          format: uri
+          description: 下一页链接
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          description: 上一页链接
+        results:
           type: array
           items:
-            type: integer
-            title: 用户组
-          title: 用户组
+            $ref: '#/components/schemas/User'
       required:
-      - password
-      - username
+        - count
+        - results
+
   securitySchemes:
     jwtAuth:
       type: http
       scheme: bearer
       bearerFormat: JWT
+      description: JWT认证，请在请求头中添加 Authorization: Bearer <token>
+
+security:
+  - jwtAuth: []
+
+tags:
+  - name: 认证管理
+    description: 用户认证和授权相关接口
+  - name: 角色管理
+    description: 用户角色管理接口
+  - name: 用户管理
+    description: 用户信息管理接口
+  - name: 聊天管理
+    description: 聊天对话管理接口
+  - name: 日志管理
+    description: 系统日志管理接口
+  - name: 系统监控
+    description: 系统监控和健康检查接口
+        avatar:
+          type: string
+          format: uri
+          nullable: true
+          description: 头像URL
+        bio:
+          type: string
+          description: 个人简介
+        user_role:
+          type: integer
+          description: 用户角色ID
+        user_role_name:
+          type: string
+          description: 用户角色名称
+          readOnly: true
+        is_active:
+          type: boolean
+          description: 是否激活
+          readOnly: true
+        is_staff:
+          type: boolean
+          description: 是否为员工
+          readOnly: true
+        date_joined:
+          type: string
+          format: date-time
+          description: 加入时间
+          readOnly: true
+        last_login:
+          type: string
+          format: date-time
+          nullable: true
+          description: 最后登录时间
+          readOnly: true
+      required:
+        - id
+        - username
+        - is_active
+        - is_staff
+        - date_joined
+        - user_role_name
+
+    UserCreateRequest:
+      type: object
+      properties:
+        username:
+          type: string
+          description: 用户名
+          minLength: 1
+          maxLength: 150
+        email:
+          type: string
+          format: email
+          description: 邮箱地址
+          maxLength: 254
+        first_name:
+          type: string
+          description: 名字
+          maxLength: 150
+        last_name:
+          type: string
+          description: 姓氏
+          maxLength: 150
+        phone:
+          type: string
+          description: 电话号码
+          maxLength: 15
+        user_role:
+          type: integer
+          description: 用户角色ID
+        password:
+          type: string
+          writeOnly: true
+          description: 密码
+          minLength: 1
+        password_confirm:
+          type: string
+          writeOnly: true
+          description: 确认密码
+          minLength: 1
+      required:
+        - username
+        - password
+        - password_confirm
+
+    UserUpdateRequest:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+          description: 邮箱地址
+          maxLength: 254
+        first_name:
+          type: string
+          description: 名字
+          maxLength: 150
+        last_name:
+          type: string
+          description: 姓氏
+          maxLength: 150
+        phone:
+          type: string
+          description: 电话号码
+          maxLength: 15
