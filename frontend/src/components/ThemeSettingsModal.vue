@@ -136,7 +136,8 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
-import { useThemeStore, type ThemeType } from '../stores/theme'
+import { useThemeStore } from '../stores/theme'
+import type { ThemeType } from '../types/theme'
 
 interface Props {
   isOpen: boolean
