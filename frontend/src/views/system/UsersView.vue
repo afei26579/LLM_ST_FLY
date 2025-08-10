@@ -11,7 +11,7 @@
           <tr>
             <th>ID</th>
             <th>用户名</th>
-            <th>邮箱</th>
+            <!--th>邮箱</th-->
             <th>角色</th>
             <th>状态</th>
             <th>创建时间</th>
@@ -22,7 +22,7 @@
           <tr v-for="user in users" :key="user.id">
             <td>{{ user.id }}</td>
             <td>{{ user.username }}</td>
-            <td>{{ user.email }}</td>
+            <!--td>{{ user.email }}</td-->
             <td>{{ user.role?.name || '无角色' }}</td>
             <td>
               <span class="status" :class="{'active': user.is_active, 'inactive': !user.is_active}">
@@ -90,7 +90,7 @@
                 required
               />
             </div>
-            <div class="form-group">
+            <!--div class="form-group">
               <label for="email">邮箱</label>
               <input 
                 id="email" 
@@ -99,7 +99,7 @@
                 placeholder="请输入邮箱地址" 
                 required
               />
-            </div>
+            </div>-->
             <div class="form-group" v-if="!isEditing">
               <label for="password">密码</label>
               <input 
@@ -348,7 +348,7 @@ async function deleteUserConfirm() {
 async function toggleUserStatus(user: UserListItem) {
   try {
     const response = await api.updateUserStatus(user.id, !user.is_active)
-    
+    console.log(response)
     if (response.code === 200 || response.code === 0) {
       // 更新本地状态
       user.is_active = !user.is_active

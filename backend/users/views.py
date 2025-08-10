@@ -10,6 +10,7 @@ from rest_framework.filters import SearchFilter, OrderingFilter
 from django.contrib.auth.models import Group
 from rest_framework_simplejwt.tokens import RefreshToken
 
+from core.response import StandardResponse
 from .models import User, Role
 from .serializers import (
     UserSerializer, UserCreateSerializer, UserUpdateSerializer,
@@ -56,24 +57,37 @@ class RoleViewSet(viewsets.ModelViewSet):
         """删除角色"""
         role = self.get_object()
         if role.is_system:
-            return Response(
-                {'error': '系统角色不能删除'}, 
-                status=status.HTTP_400_BAD_REQUEST
+            return StandardResponse.error(
+                message='系统角色不能删除',
+                code=400,
+                request_id=getattr(request, 'request_id', None)
             )
         if role.users.exists():
-            return Response(
-                {'error': '该角色下还有用户，不能删除'}, 
-                status=status.HTTP_400_BAD_REQUEST
+            return StandardResponse.error(
+                message='该角色下还有用户，不能删除',
+                code=400,
+                request_id=getattr(request, 'request_id', None)
             )
-        return super().destroy(request, *args, **kwargs)
+        
+        # 执行删除操作
+        role.delete()
+        return StandardResponse.success(
+            message='角色删除成功',
+            request_id=getattr(request, 'request_id', None)
+        )
     
     @action(detail=True, methods=['get'])
     def users(self, request, pk=None):
         """获取角色下的用户列表"""
         role = self.get_object()
         users = role.users.all()
-        serializer = UserSerializer(users, many=True)
-        return Response(serializer.data)
+        return StandardResponse.paginated_success(
+            users,
+            UserSerializer,
+            message='获取角色用户列表成功',
+            request_id=getattr(request, 'request_id', None),
+            context={'request': request}
+        )
 
 
 class UserViewSet(viewsets.ModelViewSet):
@@ -111,8 +125,13 @@ class UserViewSet(viewsets.ModelViewSet):
     def me(self, request):
         """获取或更新当前用户信息"""
         if request.method == 'GET':
-            serializer = UserSerializer(request.user)
-            return Response(serializer.data)
+            return StandardResponse.single_success(
+                request.user,
+                UserSerializer,
+                message='获取用户信息成功',
+                request_id=getattr(request, 'request_id', None),
+                context={'request': request}
+            )
         else:
             serializer = UserUpdateSerializer(
                 request.user, 
@@ -121,8 +140,19 @@ class UserViewSet(viewsets.ModelViewSet):
             )
             if serializer.is_valid():
                 serializer.save()
-                return Response(UserSerializer(request.user).data)
-            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+                return StandardResponse.single_success(
+                    request.user,
+                    UserSerializer,
+                    message='用户信息更新成功',
+                    request_id=getattr(request, 'request_id', None),
+                    context={'request': request}
+                )
+            return StandardResponse.error(
+                message='数据验证失败',
+                code=400,
+                data=serializer.errors,
+                request_id=getattr(request, 'request_id', None)
+            )
     
     @action(detail=False, methods=['post'])
     def change_password(self, request):
@@ -135,8 +165,16 @@ class UserViewSet(viewsets.ModelViewSet):
             user = request.user
             user.set_password(serializer.validated_data['new_password'])
             user.save()
-            return Response({'message': '密码修改成功'})
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            return StandardResponse.success(
+                message='密码修改成功',
+                request_id=getattr(request, 'request_id', None)
+            )
+        return StandardResponse.error(
+            message='密码修改失败',
+            code=400,
+            data=serializer.errors,
+            request_id=getattr(request, 'request_id', None)
+        )
     
     @action(detail=True, methods=['post'])
     def reset_password(self, request, pk=None):
@@ -144,14 +182,18 @@ class UserViewSet(viewsets.ModelViewSet):
         user = self.get_object()
         new_password = request.data.get('new_password')
         if not new_password:
-            return Response(
-                {'error': '请提供新密码'}, 
-                status=status.HTTP_400_BAD_REQUEST
+            return StandardResponse.error(
+                message='请提供新密码',
+                code=400,
+                request_id=getattr(request, 'request_id', None)
             )
         
         user.set_password(new_password)
         user.save()
-        return Response({'message': '密码重置成功'})
+        return StandardResponse.success(
+            message='密码重置成功',
+            request_id=getattr(request, 'request_id', None)
+        )
     
     @action(detail=True, methods=['post'])
     def toggle_active(self, request, pk=None):
@@ -159,10 +201,13 @@ class UserViewSet(viewsets.ModelViewSet):
         user = self.get_object()
         user.is_active = not user.is_active
         user.save()
-        return Response({
-            'message': f'用户已{"激活" if user.is_active else "禁用"}',
-            'is_active': user.is_active
-        })
+        
+        serializer = self.get_serializer(user)
+        return StandardResponse.success(
+            data=serializer.data,
+            message=f'用户已{"激活" if user.is_active else "禁用"}',
+            request_id=getattr(request, 'request_id', None)
+        )
 
 
 class AuthViewSet(viewsets.ViewSet):
@@ -180,12 +225,20 @@ class AuthViewSet(viewsets.ViewSet):
             # 创建或获取token
             token, created = Token.objects.get_or_create(user=user)
             
-            return Response({
-                'token': token.key,
-                'user': UserSerializer(user).data,
-                'message': '登录成功'
-            })
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            return StandardResponse.success(
+                data={
+                    'token': token.key,
+                    'user': UserSerializer(user).data
+                },
+                message='登录成功',
+                request_id=getattr(request, 'request_id', None)
+            )
+        return StandardResponse.error(
+            message='登录失败',
+            code=400,
+            data=serializer.errors,
+            request_id=getattr(request, 'request_id', None)
+        )
     
     @action(detail=False, methods=['post'])
     def logout(self, request):
@@ -199,18 +252,33 @@ class AuthViewSet(viewsets.ViewSet):
                 pass
             
             logout(request)
-            return Response({'message': '登出成功'})
-        return Response({'error': '用户未登录'}, status=status.HTTP_400_BAD_REQUEST)
+            return StandardResponse.success(
+                message='登出成功',
+                request_id=getattr(request, 'request_id', None)
+            )
+        return StandardResponse.error(
+            message='用户未登录',
+            code=400,
+            request_id=getattr(request, 'request_id', None)
+        )
     
     @action(detail=False, methods=['get'])
     def check(self, request):
         """检查登录状态"""
         if request.user.is_authenticated:
-            return Response({
-                'authenticated': True,
-                'user': UserSerializer(request.user).data
-            })
-        return Response({'authenticated': False})
+            return StandardResponse.success(
+                data={
+                    'authenticated': True,
+                    'user': UserSerializer(request.user).data
+                },
+                message='用户已登录',
+                request_id=getattr(request, 'request_id', None)
+            )
+        return StandardResponse.success(
+            data={'authenticated': False},
+            message='用户未登录',
+            request_id=getattr(request, 'request_id', None)
+        )
 
 
 class LoginView(APIView):
@@ -226,14 +294,23 @@ class LoginView(APIView):
             # 创建JWT令牌
             refresh = RefreshToken.for_user(user)
             
-            return Response({
-                'user': UserSerializer(user).data,
-                'token': {
-                    'refresh': str(refresh),
-                    'access': str(refresh.access_token),
-                }
-            })
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            return StandardResponse.success(
+                data={
+                    'user': UserSerializer(user).data,
+                    'token': {
+                        'refresh': str(refresh),
+                        'access': str(refresh.access_token),
+                    }
+                },
+                message='登录成功',
+                request_id=getattr(request, 'request_id', None)
+            )
+        return StandardResponse.error(
+            message='登录失败',
+            code=400,
+            data=serializer.errors,
+            request_id=getattr(request, 'request_id', None)
+        )
 
 
 class RegisterView(generics.CreateAPIView):
@@ -244,19 +321,30 @@ class RegisterView(generics.CreateAPIView):
     
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        user = serializer.save()
-        
-        # 创建JWT令牌
-        refresh = RefreshToken.for_user(user)
-        
-        return Response({
-            'user': UserSerializer(user).data,
-            'token': {
-                'refresh': str(refresh),
-                'access': str(refresh.access_token),
-            }
-        }, status=status.HTTP_201_CREATED)
+        if serializer.is_valid():
+            user = serializer.save()
+            
+            # 创建JWT令牌
+            refresh = RefreshToken.for_user(user)
+            
+            return StandardResponse.success(
+                data={
+                    'user': UserSerializer(user).data,
+                    'token': {
+                        'refresh': str(refresh),
+                        'access': str(refresh.access_token),
+                    }
+                },
+                message='注册成功',
+                code=201,
+                request_id=getattr(request, 'request_id', None)
+            )
+        return StandardResponse.error(
+            message='注册失败',
+            code=400,
+            data=serializer.errors,
+            request_id=getattr(request, 'request_id', None)
+        )
 
 
 class UserManagementViewSet(viewsets.ModelViewSet):
@@ -278,16 +366,21 @@ class UserManagementViewSet(viewsets.ModelViewSet):
         is_active = request.data.get('is_active')
         
         if is_active is None:
-            return Response(
-                {'error': '请提供is_active字段'},
-                status=status.HTTP_400_BAD_REQUEST
+            return StandardResponse.error(
+                message='请提供is_active字段',
+                code=400,
+                request_id=getattr(request, 'request_id', None)
             )
         
         user.is_active = is_active
         user.save()
         
         serializer = self.get_serializer(user)
-        return Response(serializer.data)
+        return StandardResponse.success(
+            data=serializer.data,
+            message=f'用户已{"激活" if user.is_active else "禁用"}',
+            request_id=getattr(request, 'request_id', None)
+        )
 
 
 class GroupViewSet(viewsets.ReadOnlyModelViewSet):
