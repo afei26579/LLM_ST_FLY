@@ -105,7 +105,7 @@ const displayColors = computed(() => ({
 
 <style scoped>
 .theme-preview {
-  width: 280px;
+  width: 100%;
   height: 200px;
   border-radius: 12px;
   overflow: hidden;
@@ -113,6 +113,8 @@ const displayColors = computed(() => ({
   transition: all 0.3s ease;
   cursor: pointer;
   position: relative;
+  max-width: 320px;
+  margin: 0 auto;
 }
 
 .theme-preview:hover {

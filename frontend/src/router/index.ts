@@ -76,6 +76,13 @@ const router = createRouter({
       component: () => import('../views/ThemeShowcaseView.vue'),
       meta: { requiresAuth: true }
     },
+    // 按钮展示页面
+    {
+      path: '/button-showcase',
+      name: 'button-showcase',
+      component: () => import('../views/ButtonShowcaseView.vue'),
+      meta: { requiresAuth: true }
+    },
     {
       path: '/logs/system',
       name: 'system-logs',

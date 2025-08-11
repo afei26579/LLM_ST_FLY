@@ -281,6 +281,7 @@ class ApiService {
   async getUserInfo(): Promise<ApiResponse<LoginResponse['user']>> {
     try {
       const response = await this.instance.get<ApiResponse<LoginResponse['user']>>('auth/users/me/');
+      console.log(response.data,"~~~~~~~~~~~~~~~~~");
       return response.data;
     } catch (error: any) {
       console.error('获取用户信息失败:', error);
@@ -381,42 +382,7 @@ class ApiService {
     }
   }
   
-  // 调试API支持的方法
-  async testApiMethods(): Promise<void> {
-    const testEndpoint = 'auth/users/me/';
-    
-    try {
-      console.log(`Testing GET method on ${testEndpoint}`);
-      const getResponse = await this.instance.get(testEndpoint);
-      console.log(`GET method succeeded:`, getResponse.data);
-    } catch (error: any) {
-      console.error(`GET method failed:`, error.response?.data || error.message);
-    }
-    
-    try {
-      console.log(`Testing POST method on ${testEndpoint}`);
-      const postResponse = await this.instance.post(testEndpoint, { test: true });
-      console.log(`POST method succeeded:`, postResponse.data);
-    } catch (error: any) {
-      console.error(`POST method failed:`, error.response?.data || error.message);
-    }
-    
-    try {
-      console.log(`Testing PUT method on ${testEndpoint}`);
-      const putResponse = await this.instance.put(testEndpoint, { test: true });
-      console.log(`PUT method succeeded:`, putResponse.data);
-    } catch (error: any) {
-      console.error(`PUT method failed:`, error.response?.data || error.message);
-    }
-    
-    try {
-      console.log(`Testing PATCH method on ${testEndpoint}`);
-      const patchResponse = await this.instance.patch(testEndpoint, { test: true });
-      console.log(`PATCH method succeeded:`, patchResponse.data);
-    } catch (error: any) {
-      console.error(`PATCH method failed:`, error.response?.data || error.message);
-    }
-  }
+ 
   
   // 更新用户信息API
   async updateUserProfile(profileData: UserProfileUpdate): Promise<ApiResponse<LoginResponse['user']>> {

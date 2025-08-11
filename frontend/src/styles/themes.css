@@ -46,11 +46,58 @@
   --card-border: #334155;
   --card-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3), 0 4px 6px -2px rgba(0, 0, 0, 0.2);
 
-  /* 按钮 */
+  /* 按钮系统 */
   --button-primary: #5e9bff;
   --button-primaryHover: #4f8aff;
+  --button-primaryActive: #3d7eff;
+  --button-primaryDisabled: #475569;
+  
   --button-secondary: #64748b;
   --button-secondaryHover: #475569;
+  --button-secondaryActive: #334155;
+  --button-secondaryDisabled: #1e293b;
+  
+  --button-success: #22c55e;
+  --button-successHover: #16a34a;
+  --button-successActive: #15803d;
+  --button-successDisabled: #374151;
+  
+  --button-warning: #fbbf24;
+  --button-warningHover: #f59e0b;
+  --button-warningActive: #d97706;
+  --button-warningDisabled: #374151;
+  
+  --button-error: #f87171;
+  --button-errorHover: #ef4444;
+  --button-errorActive: #dc2626;
+  --button-errorDisabled: #374151;
+  
+  --button-info: #38bdf8;
+  --button-infoHover: #0ea5e9;
+  --button-infoActive: #0284c7;
+  --button-infoDisabled: #374151;
+  
+  --button-ghost: transparent;
+  --button-ghostHover: rgba(94, 155, 255, 0.1);
+  --button-ghostActive: rgba(94, 155, 255, 0.2);
+  --button-ghostBorder: #334155;
+  
+  --button-outline: transparent;
+  --button-outlineHover: #5e9bff;
+  --button-outlineActive: #4f8aff;
+  --button-outlineBorder: #5e9bff;
+  
+  /* 按钮文字颜色 */
+  --button-primaryText: #ffffff;
+  --button-secondaryText: #e1e6f5;
+  --button-successText: #ffffff;
+  --button-warningText: #0f172a;
+  --button-errorText: #ffffff;
+  --button-infoText: #ffffff;
+  --button-ghostText: #e1e6f5;
+  --button-outlineText: #5e9bff;
+  --button-outlineHoverText: #ffffff;
+  --button-disabledText: #64748b;
 }
 
 /* 浅色主题 */
@@ -895,10 +942,7 @@ body {
   background-color: var(--color-background) !important;
 }
 
-.login-content {
-  background-color: var(--color-surface) !important;
-  color: var(--color-text) !important;
-}
+
 
 .logo-container {
   color: var(--color-text) !important;
@@ -1051,11 +1095,58 @@ body {
   --card-border: #334155;
   --card-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3), 0 4px 6px -2px rgba(0, 0, 0, 0.2);
 
-  /* 按钮 */
+  /* 按钮系统 */
   --button-primary: #5e9bff;
   --button-primaryHover: #4f8aff;
+  --button-primaryActive: #3d7eff;
+  --button-primaryDisabled: #475569;
+  
   --button-secondary: #64748b;
   --button-secondaryHover: #475569;
+  --button-secondaryActive: #334155;
+  --button-secondaryDisabled: #1e293b;
+  
+  --button-success: #22c55e;
+  --button-successHover: #16a34a;
+  --button-successActive: #15803d;
+  --button-successDisabled: #374151;
+  
+  --button-warning: #fbbf24;
+  --button-warningHover: #f59e0b;
+  --button-warningActive: #d97706;
+  --button-warningDisabled: #374151;
+  
+  --button-error: #f87171;
+  --button-errorHover: #ef4444;
+  --button-errorActive: #dc2626;
+  --button-errorDisabled: #374151;
+  
+  --button-info: #38bdf8;
+  --button-infoHover: #0ea5e9;
+  --button-infoActive: #0284c7;
+  --button-infoDisabled: #374151;
+  
+  --button-ghost: transparent;
+  --button-ghostHover: rgba(94, 155, 255, 0.1);
+  --button-ghostActive: rgba(94, 155, 255, 0.2);
+  --button-ghostBorder: #334155;
+  
+  --button-outline: transparent;
+  --button-outlineHover: #5e9bff;
+  --button-outlineActive: #4f8aff;
+  --button-outlineBorder: #5e9bff;
+  
+  /* 按钮文字颜色 */
+  --button-primaryText: #ffffff;
+  --button-secondaryText: #e1e6f5;
+  --button-successText: #ffffff;
+  --button-warningText: #0f172a;
+  --button-errorText: #ffffff;
+  --button-infoText: #ffffff;
+  --button-ghostText: #e1e6f5;
+  --button-outlineText: #5e9bff;
+  --button-outlineHoverText: #ffffff;
+  --button-disabledText: #64748b;
 }
 
 /* 未来科技主题 */
@@ -1092,11 +1183,58 @@ body {
   --card-border: #3730a3;
   --card-shadow: 0 0 20px rgba(0, 212, 255, 0.1), 0 0 40px rgba(255, 0, 110, 0.05);
 
-  /* 按钮 */
+  /* 按钮系统 - 未来科技风格 */
   --button-primary: linear-gradient(90deg, #00d4ff 0%, #7c3aed 100%);
   --button-primaryHover: linear-gradient(90deg, #00b8e6 0%, #6d28d9 100%);
-  --button-secondary: #7c3aed;
-  --button-secondaryHover: #6d28d9;
+  --button-primaryActive: linear-gradient(90deg, #009cc7 0%, #5b21b6 100%);
+  --button-primaryDisabled: #374151;
+  
+  --button-secondary: linear-gradient(90deg, #7c3aed 0%, #3730a3 100%);
+  --button-secondaryHover: linear-gradient(90deg, #6d28d9 0%, #312e81 100%);
+  --button-secondaryActive: linear-gradient(90deg, #5b21b6 0%, #1e1b4b 100%);
+  --button-secondaryDisabled: #1a1a2e;
+  
+  --button-success: linear-gradient(90deg, #00ff88 0%, #00d4aa 100%);
+  --button-successHover: linear-gradient(90deg, #00e67a 0%, #00b894 100%);
+  --button-successActive: linear-gradient(90deg, #00cc6c 0%, #009c7e 100%);
+  --button-successDisabled: #374151;
+  
+  --button-warning: linear-gradient(90deg, #ffaa00 0%, #ff8800 100%);
+  --button-warningHover: linear-gradient(90deg, #e69900 0%, #e67700 100%);
+  --button-warningActive: linear-gradient(90deg, #cc8800 0%, #cc6600 100%);
+  --button-warningDisabled: #374151;
+  
+  --button-error: linear-gradient(90deg, #ff0055 0%, #ff006e 100%);
+  --button-errorHover: linear-gradient(90deg, #e6004d 0%, #e60062 100%);
+  --button-errorActive: linear-gradient(90deg, #cc0044 0%, #cc0057 100%);
+  --button-errorDisabled: #374151;
+  
+  --button-info: linear-gradient(90deg, #00aaff 0%, #0088cc 100%);
+  --button-infoHover: linear-gradient(90deg, #0099e6 0%, #0077b3 100%);
+  --button-infoActive: linear-gradient(90deg, #0088cc 0%, #006699 100%);
+  --button-infoDisabled: #374151;
+  
+  --button-ghost: transparent;
+  --button-ghostHover: rgba(0, 212, 255, 0.15);
+  --button-ghostActive: rgba(0, 212, 255, 0.25);
+  --button-ghostBorder: #3730a3;
+  
+  --button-outline: transparent;
+  --button-outlineHover: linear-gradient(90deg, #00d4ff 0%, #7c3aed 100%);
+  --button-outlineActive: linear-gradient(90deg, #00b8e6 0%, #6d28d9 100%);
+  --button-outlineBorder: linear-gradient(90deg, #00d4ff 0%, #7c3aed 100%);
+  
+  /* 按钮文字颜色 */
+  --button-primaryText: #ffffff;
+  --button-secondaryText: #e0e7ff;
+  --button-successText: #0a0a0f;
+  --button-warningText: #0a0a0f;
+  --button-errorText: #ffffff;
+  --button-infoText: #ffffff;
+  --button-ghostText: #e0e7ff;
+  --button-outlineText: #00d4ff;
+  --button-outlineHoverText: #ffffff;
+  --button-disabledText: #64748b;
 }
 
 

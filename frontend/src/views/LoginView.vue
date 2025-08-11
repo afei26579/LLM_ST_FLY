@@ -407,6 +407,7 @@ const initParticles = () => {
   max-width: 1200px;
   z-index: 5;
   position: relative;
+
 }
 
 .logo-container {

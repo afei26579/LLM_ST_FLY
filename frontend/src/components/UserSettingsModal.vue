@@ -10,7 +10,7 @@
       <div class="tab-content">
         <div v-if="isLoading" class="loading-container">
           <div class="loading-spinner"></div>
-          <p>正在加载用户信息...</p>
+          <p>正在从服务器获取最新用户信息...</p>
         </div>
         
         <form v-else @submit.prevent="saveSettings">
@@ -259,16 +259,27 @@ const showNotification = (message: string, type: 'success' | 'error') => {
 // 加载用户信息
 const loadUserInfo = async () => {
   isLoading.value = true;
+  
+  // 清空错误信息
+  Object.keys(errors).forEach(key => {
+    errors[key as keyof typeof errors] = '';
+  });
+  
   try {
+    console.log('开始获取用户信息...');
+    
     // 从后端获取最新的用户信息
     const response = await apiService.getUserInfo();
+    console.log('用户信息API响应:', response);
    
     // 使用API返回的数据
     if (response.code >= 200 && response.code < 300 && response.data) {
+      console.log('成功获取用户信息:', response.data);
+      
       // 更新authStore中的用户信息
       authStore.updateUserInfo(response.data);
       
-      // 更新表单数据
+      // 更新表单数据 - 只获取表单需要的非敏感信息
       userInfo.username = response.data.username || '';
       userInfo.nickname = response.data.nickname || '';
       userInfo.email = response.data.email || '';
@@ -276,7 +287,7 @@ const loadUserInfo = async () => {
       userInfo.bio = response.data.bio || '';
       userInfo.avatar = response.data.avatar || '';
       
-      // 新增字段
+      // 个人信息字段
       userInfo.gender = response.data.gender || 'male';
       userInfo.birthday = response.data.birthday || '';
       
@@ -310,14 +321,29 @@ const loadUserInfo = async () => {
       } else {
         previewImage.value = null;
       }
+      
+      console.log('表单数据已更新:', {
+        username: userInfo.username,
+        nickname: userInfo.nickname,
+        gender: userInfo.gender,
+        birthday: userInfo.birthday,
+        province: userInfo.province,
+        city: userInfo.city,
+        district: userInfo.district,
+        qq: userInfo.qq
+      });
+      
     } else {
+      console.warn('API返回失败，使用本地数据:', response.message);
       // 如果获取失败，使用authStore中的数据
       fallbackToStoredUserInfo();
+      showNotification(`获取用户信息失败: ${response.message}`, 'error');
     }
   } catch (error) {
     console.error('获取用户信息失败', error);
     // 如果出错，使用authStore中的数据
     fallbackToStoredUserInfo();
+    showNotification('获取用户信息失败，使用本地缓存数据', 'error');
   } finally {
     isLoading.value = false;
   }
@@ -325,14 +351,19 @@ const loadUserInfo = async () => {
 
 // 使用本地存储的用户信息作为后备
 const fallbackToStoredUserInfo = () => {
+  console.log('使用本地存储的用户信息作为后备');
+  
   if (authStore.userInfo) {
+    console.log('本地用户信息:', authStore.userInfo);
+    
+    // 基本信息
     userInfo.username = authStore.userInfo.username || '';
     userInfo.nickname = authStore.userInfo.nickname || '';
     userInfo.email = authStore.userInfo.email || '';
     userInfo.phone = authStore.userInfo.phone || '';
     userInfo.bio = authStore.userInfo.bio || '';
     
-    // 新增字段
+    // 个人信息字段
     userInfo.gender = authStore.userInfo.gender || 'male';
     userInfo.birthday = authStore.userInfo.birthday || '';
     
@@ -366,6 +397,19 @@ const fallbackToStoredUserInfo = () => {
     } else {
       previewImage.value = null;
     }
+    
+    console.log('本地数据已加载到表单:', {
+      username: userInfo.username,
+      nickname: userInfo.nickname,
+      gender: userInfo.gender,
+      birthday: userInfo.birthday,
+      province: userInfo.province,
+      city: userInfo.city,
+      district: userInfo.district,
+      qq: userInfo.qq
+    });
+  } else {
+    console.warn('本地没有用户信息可用');
   }
 }
 
@@ -546,7 +590,7 @@ const closeModal = () => {
 </script>
 
 <style scoped>
-/* 修改全局提示消息样式 */
+/* 修改全局提示消息样式 - 使用主题变量 */
 .notification {
   position: fixed;
   top: 20px;
@@ -559,18 +603,18 @@ const closeModal = () => {
   text-align: center;
   width: auto;
   min-width: 200px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  box-shadow: var(--card-shadow);
   animation: fade-in 0.3s ease-out;
 }
 
 .notification.success {
-  background: linear-gradient(90deg, #4ade80 0%, #34d399 100%);
-  color: #fff;
+  background: var(--color-success);
+  color: white;
 }
 
 .notification.error {
-  background: linear-gradient(90deg, #f87171 0%, #ef4444 100%);
-  color: #fff;
+  background: var(--color-error);
+  color: white;
 }
 
 @keyframes fade-in {
@@ -647,7 +691,7 @@ const closeModal = () => {
   width: 100px;
   flex-shrink: 0;
   padding-top: 0.75rem;
-  color: #e1e6f5;
+  color: var(--color-text);
   font-size: 0.875rem;
   font-weight: 500;
 }
@@ -665,16 +709,16 @@ const closeModal = () => {
   text-align: center;
 }
 
-/* 表单控件样式 */
+/* 表单控件样式 - 使用主题变量 */
 .form-field input, 
 .form-field textarea,
 .form-field select {
   width: 100%;
   padding: 0.75rem 1rem;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
   border-radius: 8px;
-  color: #e1e6f5;
+  color: var(--color-text);
   transition: all 0.2s;
 }
 
@@ -682,13 +726,13 @@ const closeModal = () => {
 .form-field textarea:focus,
 .form-field select:focus {
   outline: none;
-  border-color: #5e9bff;
-  box-shadow: 0 0 0 3px rgba(94, 155, 255, 0.2);
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px rgba(var(--color-primary-rgb), 0.2);
 }
 
 .form-field input::placeholder,
 .form-field textarea::placeholder {
-  color: rgba(255, 255, 255, 0.3);
+  color: var(--color-textSecondary);
 }
 
 /* 头像上传 */
@@ -703,17 +747,17 @@ const closeModal = () => {
   width: 100px;
   height: 100px;
   border-radius: 50%;
-  background-color: rgba(94, 155, 255, 0.2);
+  background-color: rgba(var(--color-primary-rgb), 0.2);
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 2.5rem;
   font-weight: 600;
-  color: #5e9bff;
+  color: var(--color-primary);
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
-  border: 2px solid rgba(255, 255, 255, 0.1);
+  border: 2px solid var(--color-border);
   position: relative;
   cursor: pointer;
   overflow: hidden;
@@ -742,7 +786,7 @@ const closeModal = () => {
 }
 
 .avatar-preview:hover {
-  border-color: #5e9bff;
+  border-color: var(--color-primary);
 }
 
 .avatar-preview img {
@@ -783,15 +827,16 @@ textarea {
   width: 1.25rem;
   height: 1.25rem;
   border-radius: 50%;
-  border: 2px solid rgba(255, 255, 255, 0.3);
-  background: rgba(255, 255, 255, 0.05);
+  border: 2px solid var(--color-border);
+  background: var(--color-surface);
   position: relative;
   margin: 0;
   cursor: pointer;
+  transition: all 0.2s ease;
 }
 
 .radio-label input[type="radio"]:checked {
-  border-color: #5e9bff;
+  border-color: var(--color-primary);
 }
 
 .radio-label input[type="radio"]:checked::after {
@@ -803,11 +848,11 @@ textarea {
   width: 0.625rem;
   height: 0.625rem;
   border-radius: 50%;
-  background: #5e9bff;
+  background: var(--color-primary);
 }
 
 .radio-label span {
-  color: #e1e6f5;
+  color: var(--color-text);
   font-size: 0.875rem;
 }
 
@@ -830,22 +875,22 @@ input[type="date"]::-webkit-calendar-picker-indicator {
 
 .location-selector select {
   appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23e1e6f5' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: right 1rem center;
   padding-right: 2.5rem;
-  background-color: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(94, 155, 255, 0.3);
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
 }
 
 .location-selector select:focus {
-  border-color: #5e9bff;
-  box-shadow: 0 0 0 2px rgba(94, 155, 255, 0.2);
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 2px rgba(var(--color-primary-rgb), 0.2);
 }
 
 .location-selector select option {
-  background-color: #1e293b;
-  color: #e1e6f5;
+  background-color: var(--color-surface);
+  color: var(--color-text);
 }
 
 /* 自定义滚动条样式 */
@@ -854,16 +899,16 @@ input[type="date"]::-webkit-calendar-picker-indicator {
 }
 
 .location-selector select::-webkit-scrollbar-track {
-  background-color: #0f172a;
+  background-color: var(--color-background);
 }
 
 .location-selector select::-webkit-scrollbar-thumb {
-  background-color: #334155;
+  background-color: var(--color-border);
   border-radius: 4px;
 }
 
 .location-selector select::-webkit-scrollbar-thumb:hover {
-  background-color: #475569;
+  background-color: var(--color-primary);
 }
 
 .location-selector select:disabled {
@@ -879,8 +924,8 @@ input[type="date"]::-webkit-calendar-picker-indicator {
 }
 
 .primary-btn {
-  background: linear-gradient(90deg, #5e9bff 0%, #a569ff 100%);
-  color: white;
+  background: var(--button-primary);
+  color: var(--button-primaryText);
   border: none;
   border-radius: 8px;
   padding: 0.75rem 1.5rem;
@@ -890,19 +935,20 @@ input[type="date"]::-webkit-calendar-picker-indicator {
 }
 
 .primary-btn:hover:not(:disabled) {
-  opacity: 0.9;
+  background: var(--button-primaryHover);
   transform: translateY(-1px);
 }
 
 .primary-btn:disabled {
-  opacity: 0.6;
+  background: var(--button-primaryDisabled);
+  color: var(--button-primaryDisabledText);
   cursor: not-allowed;
 }
 
 .cancel-btn {
-  background: transparent;
-  color: #94a3b8;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: var(--button-ghost);
+  color: var(--button-ghostText);
+  border: 1px solid var(--color-border);
   border-radius: 8px;
   padding: 0.75rem 1.5rem;
   font-weight: 500;
@@ -911,8 +957,9 @@ input[type="date"]::-webkit-calendar-picker-indicator {
 }
 
 .cancel-btn:hover {
-  background: rgba(255, 255, 255, 0.05);
-  color: #e1e6f5;
+  background: var(--button-ghostHover);
+  color: var(--button-ghostHoverText);
+  border-color: var(--color-primary);
 }
 
 /* 新增垂直居中的样式 */
@@ -923,6 +970,41 @@ input[type="date"]::-webkit-calendar-picker-indicator {
 /* 修改单选框组在垂直居中时不需要额外的顶部内边距 */
 .radio-group.no-padding {
   padding-top: 0;
+}
+
+/* 未来科技主题特殊效果 */
+.theme-future .form-field input,
+.theme-future .form-field textarea,
+.theme-future .form-field select {
+  box-shadow: 0 0 10px rgba(0, 212, 255, 0.1);
+}
+
+.theme-future .form-field input:focus,
+.theme-future .form-field textarea:focus,
+.theme-future .form-field select:focus {
+  box-shadow: 0 0 20px rgba(0, 212, 255, 0.3);
+}
+
+.theme-future .avatar-preview {
+  box-shadow: 0 0 20px rgba(0, 212, 255, 0.2);
+}
+
+.theme-future .avatar-preview:hover {
+  box-shadow: 0 0 30px rgba(0, 212, 255, 0.4);
+}
+
+.theme-future .primary-btn {
+  box-shadow: 0 0 15px rgba(0, 212, 255, 0.3);
+}
+
+.theme-future .primary-btn:hover:not(:disabled) {
+  box-shadow: 0 0 25px rgba(0, 212, 255, 0.5);
+}
+
+.theme-future .notification {
+  box-shadow: 
+    var(--card-shadow),
+    0 0 20px rgba(0, 212, 255, 0.3);
 }
 
 @media (max-width: 768px) {

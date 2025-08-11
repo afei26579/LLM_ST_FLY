@@ -706,11 +706,11 @@ const scrollToQuestion = (questionIndex: number) => {
       <!-- 居中布局内容包装器 -->
       <div v-if="isCenterLayout" class="center-content">
         <!-- 欢迎信息 -->
-        <div class="welcome-container">
+        
           <div class="welcome-card">
             <h2>{{ greeting }}，{{ userDisplayName }}，欢迎使用AI助手</h2>
           </div>
-        </div>
+    
         
         <!-- 输入区域 -->
         <div class="chat-input-container" :class="{ 'centered-input': isCenterLayout }">
@@ -1179,11 +1179,13 @@ const scrollToQuestion = (questionIndex: number) => {
 .welcome-card {
   text-align: center;
   padding: 2rem;
+  margin-bottom: 2rem;
   background-color: transparent;
   border-radius: 0.75rem;
   max-width: 80%;
   animation: fade-in 0.5s ease-out;
   box-shadow: none;
+  
 }
 
 .welcome-card h2 {
