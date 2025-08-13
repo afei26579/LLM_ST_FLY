@@ -1,4 +1,19 @@
 <template>
+  <!-- 全局提示框 -->
+  <div v-if="notification.show" class="notification" :class="notification.type">
+    <div class="notification-content">
+      <svg v-if="notification.type === 'success'" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="20,6 9,17 4,12"></polyline>
+      </svg>
+      <svg v-else xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="10"></circle>
+        <line x1="15" y1="9" x2="9" y2="15"></line>
+        <line x1="9" y1="9" x2="15" y2="15"></line>
+      </svg>
+      <span>{{ notification.message }}</span>
+    </div>
+  </div>
+
   <ModalStyle :is-open="isOpen" title="安全设置" @close="closeModal">
     <div class="tabs">
       <div 
@@ -185,6 +200,13 @@ const emailSent = ref(false);
 const phoneCountdown = ref(0);
 const emailCountdown = ref(0);
 
+// 通知提示框状态
+const notification = ref({
+  show: false,
+  type: 'success' as 'success' | 'error',
+  message: ''
+});
+
 // 用户绑定的手机号和邮箱
 // 在实际应用中，这些数据应该从 authStore 中获取
 const userPhone = ref(authStore.userInfo?.phone || '');
@@ -227,11 +249,37 @@ watch(activeTab, (newVal) => {
   }
 });
 
+// 显示通知提示框
+const showNotification = (type: 'success' | 'error', message: string) => {
+  notification.value = {
+    show: true,
+    type,
+    message
+  };
+  
+  // 根据类型设置不同的显示时间
+  const duration = type === 'success' ? 2000 : 5000;
+  
+  setTimeout(() => {
+    // 先添加淡出效果
+    const notificationEl = document.querySelector('.notification');
+    if (notificationEl) {
+      notificationEl.classList.add('fade-out');
+    }
+    
+    // 等待淡出动画完成后隐藏元素
+    setTimeout(() => {
+      notification.value.show = false;
+    }, 300); // 等待CSS transition完成
+  }, duration);
+};
+
 // 重置所有表单状态
 const resetForms = () => {
   showPhoneForm.value = false;
   showEmailForm.value = false;
   emailSent.value = false;
+  notification.value.show = false;
   phoneForm.value = {
     phone: '',
     code: '',
@@ -316,6 +364,12 @@ const validatePhone = () => {
 
 // 发送手机验证码
 const sendPhoneCode = async () => {
+  // 检查手机号是否为空
+  if (!phoneForm.value.phone) {
+    phoneForm.value.errors.phone = '请先输入手机号码';
+    return;
+  }
+  
   // 验证手机号格式
   validatePhone();
   if (phoneForm.value.errors.phone) {
@@ -399,11 +453,15 @@ const handlePhoneSubmit = async () => {
         authStore.userInfo.phone = phoneForm.value.phone;
       }
       
+      // 显示成功提示
+      showNotification('success', '手机号绑定成功');
+      
       // 通知父组件绑定成功
       emit('binding-updated', 'phone');
     } else {
       // 处理API错误
       phoneForm.value.errors.code = response.message || '验证失败，请检查验证码是否正确';
+      showNotification('error', response.message || '手机号绑定失败');
     }
   } catch (error) {
     console.error('手机绑定失败', error);
@@ -458,6 +516,9 @@ const handleEmailSubmit = async () => {
       showEmailForm.value = false;
       emailSent.value = true;
       
+      // 显示成功提示
+      showNotification('success', '验证邮件发送成功');
+      
       // 开始邮件重发倒计时
       emailCountdown.value = 60;
       const timer = setInterval(() => {
@@ -469,10 +530,12 @@ const handleEmailSubmit = async () => {
     } else {
       // 处理API错误
       emailForm.value.errors.email = response.message || '邮件发送失败';
+      showNotification('error', response.message || '邮件发送失败');
     }
   } catch (error) {
     console.error('邮件发送失败', error);
     emailForm.value.errors.email = '邮件发送失败，请稍后重试';
+    showNotification('error', '邮件发送失败，请稍后重试');
   } finally {
     emailForm.value.submitting = false;
   }
@@ -759,4 +822,62 @@ const handlePasswordModalClose = () => {
   opacity: 0.6;
   cursor: not-allowed;
 }
-</style> 
+
+/* 通知提示框样式 */
+.notification {
+  position: fixed;
+  top: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 9999;
+  padding: 12px 20px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  animation: slideInDown 0.3s ease-out;
+  opacity: 1;
+  transition: opacity 0.3s ease-out, transform 0.3s ease-out;
+}
+
+.notification.success {
+  background: rgba(34, 197, 94, 0.9);
+  color: white;
+  border: 1px solid rgba(34, 197, 94, 0.3);
+}
+
+.notification.error {
+  background: rgba(239, 68, 68, 0.9);
+  color: white;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+.notification.fade-out {
+  opacity: 0;
+  transform: translateX(-50%) translateY(-10px);
+}
+
+.notification-content {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.notification svg {
+  flex-shrink: 0;
+}
+
+@keyframes slideInDown {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+</style>

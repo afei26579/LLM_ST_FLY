@@ -471,6 +471,8 @@ const validateNewPassword = () => {
   } else if (newPassword.value.length < 6) {
     errors.newPassword = '密码长度至少为6位'
     return false
+  } else if (!validatePasswordDifference()) {
+    return false
   }
   errors.newPassword = ''
   return true
@@ -489,6 +491,17 @@ const validateConfirmPassword = () => {
   return true
 }
 
+// 验证新密码与旧密码是否相同
+const validatePasswordDifference = () => {
+  if (mode.value === 'change' && oldPassword.value && newPassword.value) {
+    if (oldPassword.value === newPassword.value) {
+      errors.newPassword = '新密码不能与当前密码相同'
+      return false
+    }
+  }
+  return true
+}
+
 // 实时验证旧密码
 const validateOldPassword = () => {
   if (!oldPassword.value.trim()) {
@@ -496,6 +509,12 @@ const validateOldPassword = () => {
     return false
   }
   errors.oldPassword = ''
+  
+  // 如果新密码已经输入，检查是否与旧密码相同
+  if (newPassword.value) {
+    validateNewPassword()
+  }
+  
   return true
 }
 
@@ -695,8 +714,9 @@ const submitPasswordChange = async () => {
   isSubmitting.value = true
   try {
     const requestData: ChangePasswordRequest = {
-      oldPassword: oldPassword.value,
-      newPassword: newPassword.value
+      old_password: oldPassword.value,
+      new_password: newPassword.value,
+      new_password_confirm: newPassword.value
     }
     
     const response = await apiService.changePassword(requestData)

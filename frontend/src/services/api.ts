@@ -24,6 +24,13 @@ export interface Conversation {
   last_message?: ChatMessage;
 }
 
+export interface ConversationList {
+  list?: Conversation[];
+  total?: number; 
+  page?: number;
+  pagesize?: number;
+}
+
 // 用户列表接口
 export interface UserListItem {
   id: number;
@@ -167,8 +174,9 @@ export interface UserProfileUpdate {
 
 // 密码修改请求接口
 export interface ChangePasswordRequest {
-  oldPassword: string;
-  newPassword: string;
+  old_password: string;
+  new_password: string;
+  new_password_confirm: string;
 }
 
 // 手机号重置密码请求接口
@@ -292,7 +300,14 @@ class ApiService {
   // 修改密码API
   async changePassword(data: ChangePasswordRequest): Promise<ApiResponse<any>> {
     try {
-      const response = await this.instance.post<ApiResponse<any>>('auth/users/change-password/', data);
+      // 转换字段名格式以匹配后端期望
+      const requestData = {
+        old_password: data.old_password,
+        new_password: data.new_password,
+        new_password_confirm: data.new_password_confirm
+      };
+      
+      const response = await this.instance.post<ApiResponse<any>>('auth/users/change_password/', requestData);
       return response.data;
     } catch (error: any) {
       console.error('修改密码失败:', error);
@@ -413,6 +428,7 @@ class ApiService {
       });
       
       // 使用FormData发送请求，统一使用multipart/form-data格式
+      console.log(formData, "formData")
       const response = await this.instance.put<ApiResponse<LoginResponse['user']>>('auth/users/me/', formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
@@ -559,10 +575,10 @@ class ApiService {
   }
 
   // 获取对话列表
-  async getConversations(): Promise<ApiResponse<Conversation[]>> {
+  async getConversations(): Promise<ApiResponse<ConversationList>> {
     try {
       console.log("获取对话列表")
-      const response = await this.instance.get<ApiResponse<Conversation[]>>('chat/conversations/');
+      const response = await this.instance.get<ApiResponse<ConversationList>>('chat/conversations/');
       console.log("获取对话列表原始响应:", response)
       
       // 后端已经返回标准格式 { code, message, data }，直接返回即可
@@ -577,7 +593,7 @@ class ApiService {
         return {
           code: error.response.status,
           message: error.response.data?.message || '获取对话列表失败，服务器返回错误',
-          data: []
+          data: {}
         };
       }
       
@@ -586,14 +602,14 @@ class ApiService {
         return {
           code: 500,
           message: '请求超时，未收到服务器响应',
-          data: []
+          data: {}
         };
       }
       
       return {
         code: 500,
         message: error.message || '网络错误，请检查网络连接',
-        data: []
+        data: {}
       };
     }
   }

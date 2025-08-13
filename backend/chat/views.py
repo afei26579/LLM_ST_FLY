@@ -46,14 +46,69 @@ class ConversationViewSet(StandardModelViewSet):
             return ConversationListSerializer
         return ConversationSerializer
     
+    def create(self, request, *args, **kwargs):
+        """
+        创建新对话 - 添加详细调试日志
+        """
+        print("=" * 50)
+        print("POST /api/v1/chat/conversations/ - 开始处理请求")
+        print(f"请求用户: {request.user}")
+        print(f"请求用户ID: {request.user.id}")
+        print(f"请求数据: {request.data}")
+        print(f"请求方法: {request.method}")
+        print(f"请求头: {dict(request.headers)}")
+        
+        try:
+            # 手动实现create逻辑，确保用户关联
+            serializer = self.get_serializer(data=request.data)
+            print(f"序列化器验证开始...")
+            serializer.is_valid(raise_exception=True)
+            print(f"序列化器验证成功: {serializer.validated_data}")
+            
+            # 直接在这里保存，确保用户关联
+            print(f"开始保存对话，用户: {request.user}")
+            instance = serializer.save(user=request.user)
+            print(f"对话保存成功: id={instance.id}, title={instance.title}, user_id={instance.user_id}")
+            
+            # 构建响应
+            response_data = self.get_serializer(instance).data
+            print(f"对话创建成功 - 响应数据: {response_data}")
+            print("POST /api/v1/chat/conversations/ - 请求处理完成")
+            print("=" * 50)
+            
+            return StandardResponse.success(
+                data=response_data,
+                message="创建成功",
+                code=201,
+                request_id=getattr(request, 'request_id', None)
+            )
+        except Exception as e:
+            print(f"对话创建失败 - 错误: {str(e)}")
+            print(f"错误类型: {type(e).__name__}")
+            import traceback
+            print(f"错误堆栈: {traceback.format_exc()}")
+            print("POST /api/v1/chat/conversations/ - 请求处理失败")
+            print("=" * 50)
+            
+            # 返回错误响应而不是抛出异常
+            return StandardResponse.error(
+                message=f'创建对话失败: {str(e)}',
+                code=500,
+                request_id=getattr(request, 'request_id', None)
+            )
+
     def perform_create(self, serializer):
         # 创建对话时自动关联当前用户
         try:
-            print(f"创建新对话: {serializer.validated_data}")
+            print(f"perform_create - 验证数据: {serializer.validated_data}")
+            print(f"perform_create - 当前用户: {self.request.user}")
+            print(f"perform_create - 当前用户ID: {self.request.user.id}")
             instance = serializer.save(user=self.request.user)
-            print(f"对话创建成功: id={instance.id}, title={instance.title}")
+            print(f"perform_create - 对话创建成功: id={instance.id}, title={instance.title}, user={instance.user}")
         except Exception as e:
-            print(f"创建对话失败: {str(e)}")
+            print(f"perform_create - 创建对话失败: {str(e)}")
+            import traceback
+            print(f"perform_create - 错误堆栈: {traceback.format_exc()}")
             raise
     
     @action(detail=True, methods=['post'])
@@ -70,23 +125,25 @@ class ConversationViewSet(StandardModelViewSet):
                 print(f"消息数据有效: {serializer.validated_data}")
                 instance = serializer.save()
                 print(f"消息添加成功: id={instance.id}")
-                return ApiResponse.success(
-                    serializer.data,
+                return StandardResponse.success(
+                    data=serializer.data,
                     message="消息添加成功",
-                    status_code=200
+                    request_id=getattr(request, 'request_id', None)
                 )
             else:
                 print(f"消息数据无效: {serializer.errors}")
-                return ApiResponse.error(
+                return StandardResponse.error(
                     message="请求参数错误",
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    data=serializer.errors
+                    code=400,
+                    data=serializer.errors,
+                    request_id=getattr(request, 'request_id', None)
                 )
         except Exception as e:
             print(f"添加消息失败: {str(e)}")
-            return ApiResponse.error(
+            return StandardResponse.error(
                 message=f'添加消息失败: {str(e)}',
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
+                code=500,
+                request_id=getattr(request, 'request_id', None)
             )
     
     @action(detail=True, methods=['delete'])
@@ -147,9 +204,10 @@ class ChatCompletionView(APIView):
                         print(f"找到现有对话: id={conversation.id}, title={conversation.title}")
                     except Conversation.DoesNotExist:
                         print(f"错误: 对话不存在, id={conversation_id}")
-                        return ApiResponse.error(
+                        return StandardResponse.error(
                             message=f'对话不存在 (ID: {conversation_id})',
-                            status_code=status.HTTP_404_NOT_FOUND
+                            code=404,
+                            request_id=getattr(request, 'request_id', None)
                         )
                 else:
                     # 创建新对话，使用第一条用户消息作为标题
@@ -178,9 +236,10 @@ class ChatCompletionView(APIView):
                     print(f"API调用成功, 响应长度: {len(api_response.get('content', ''))}")
                 except Exception as api_error:
                     print(f"API调用失败: {str(api_error)}")
-                    return ApiResponse.error(
+                    return StandardResponse.error(
                         message=f'AI服务调用失败: {str(api_error)}',
-                        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
+                        code=500,
+                        request_id=getattr(request, 'request_id', None)
                     )
                 
                 # 保存AI回复到数据库
@@ -213,10 +272,10 @@ class ChatCompletionView(APIView):
                 }
                 
                 print(f"请求处理成功, 返回响应: conversation_id={conversation.id}")
-                return ApiResponse.success(
-                    response_data,
+                return StandardResponse.success(
+                    data=response_data,
                     message="成功",
-                    status_code=200
+                    request_id=getattr(request, 'request_id', None)
                 )
             
         except Exception as e:
@@ -233,6 +292,7 @@ class ChatCompletionView(APIView):
         """
         调用DashScope API进行对话
         """
+        print("准备调用DashScope API")
         if not DASHSCOPE_API_KEY:
             print("错误: DashScope API密钥未配置")
             raise ValueError("DashScope API密钥未配置")
@@ -301,4 +361,4 @@ class ChatCompletionView(APIView):
             raise Exception(f"网络请求失败: {str(e)}")
         except json.JSONDecodeError as e:
             print(f"JSON解析错误: {str(e)}")
-            raise Exception(f"响应解析失败: {str(e)}") 
+            raise Exception(f"响应解析失败: {str(e)}")

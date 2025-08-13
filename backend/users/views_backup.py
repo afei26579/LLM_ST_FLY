@@ -604,7 +604,7 @@ class UserViewSet(viewsets.ModelViewSet):
             400: OpenApiResponse(description="发送失败，提供的信息无效")
         }
     )
-    @action(detail=False, methods=['post'], url_path='send-email-bind')
+    @action(detail=False, methods=['post'], url_path='send-email-bind', permission_classes=[permissions.AllowAny])
     def send_email_bind(self, request):
         """
         发送邮箱绑定激活链接

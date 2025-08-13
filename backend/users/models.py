@@ -75,6 +75,7 @@ class User(AbstractUser):
         default=Gender.UNKNOWN
     )
     qq = models.CharField(_('QQ'), max_length=20, blank=True)
+    theme = models.CharField(_('主题'), max_length=20, blank=True)
     
     # 地址相关字段
     country = models.CharField(_('国家'), max_length=50, blank=True, default='中国')

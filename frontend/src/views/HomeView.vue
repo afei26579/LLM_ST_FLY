@@ -472,7 +472,7 @@ const deleteConversation = async (id: number) => {
           switchConversation(conversations[0].id)
         } else {
           // 如果没有对话了，创建一个新对话
-          await createNewDefaultConversation()
+          await createNewConversation()
         }
       }
     } else {
@@ -526,8 +526,13 @@ const loadConversationsFromServer = async () => {
     console.log("获取对话列表响应:", response)
     
     if (response.code === 200 && response.data) {
+      // 根据后端标准化响应格式获取数据
+      const conversationsData = response.data?.list || [];
+      console.log('获取到的对话数据:', conversationsData);
+      console.log('总数:', response.data?.total);
+      
       // 转换API返回的对话格式为UI需要的格式
-      const serverConversations = response.data.map(conv => {
+      const serverConversations = conversationsData.map((conv: any) => {
         console.log("处理对话:", conv)
         return {
           id: conv.id,
@@ -562,50 +567,6 @@ const loadConversationsFromServer = async () => {
   } finally {
     isLoadingConversations.value = false
     console.log("对话加载完成，当前活动对话ID:", activeConversationId.value, "对话列表:", conversations)
-  }
-}
-
-// 创建默认对话
-const createNewDefaultConversation = async (userMessage?: string) => {
-  try {
-    console.log("开始创建默认对话")
-    
-    // 确定对话标题 - 如果提供了用户消息，使用它作为标题
-    const title = userMessage ? 
-      (userMessage.length > 50 ? userMessage.substring(0, 50) + '...' : userMessage) : 
-      '新对话'
-      
-    console.log("创建默认对话，标题:", title)
-    
-    const response = await apiService.createConversation(title)
-    console.log("创建对话API响应:", response)
-    
-    if (response.code === 200 && response.data && response.data.id) {
-      const newConversation = {
-        id: response.data.id,
-        title: response.data.title || title,
-        messages: [],
-        lastUpdated: new Date(),
-        preview: '开始一个新的对话',
-        message_count: 0,
-        last_message: undefined
-      }
-      
-      console.log("创建新对话成功:", newConversation)
-      conversations.push(newConversation)
-      
-      // 设置为活动对话
-      activeConversationId.value = response.data.id
-      console.log("设置活动对话ID:", activeConversationId.value)
-      
-      return newConversation
-    } else {
-      console.error('创建默认对话失败:', response.message, response)
-      return null
-    }
-  } catch (error) {
-    console.error('创建默认对话出现异常:', error)
-    return null
   }
 }
 
@@ -706,11 +667,9 @@ const scrollToQuestion = (questionIndex: number) => {
       <!-- 居中布局内容包装器 -->
       <div v-if="isCenterLayout" class="center-content">
         <!-- 欢迎信息 -->
-        
-          <div class="welcome-card">
-            <h2>{{ greeting }}，{{ userDisplayName }}，欢迎使用AI助手</h2>
-          </div>
-    
+        <div class="welcome-card">
+          <h2>{{ greeting }}，{{ userDisplayName }}，欢迎使用AI助手</h2>
+        </div>
         
         <!-- 输入区域 -->
         <div class="chat-input-container" :class="{ 'centered-input': isCenterLayout }">
@@ -1148,7 +1107,7 @@ const scrollToQuestion = (questionIndex: number) => {
   height: 100%;
   padding: 1rem;
   overflow: hidden;
-  margin-right: 300px; /* 为右侧边栏留出空间 */
+  margin-right: 300px;
   transition: all 0.3s ease;
 }
 
@@ -1168,14 +1127,6 @@ const scrollToQuestion = (questionIndex: number) => {
   height: auto;
 }
 
-.welcome-container {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  width: 100%;
-  margin-bottom: 3rem;
-}
-
 .welcome-card {
   text-align: center;
   padding: 2rem;
@@ -1185,17 +1136,12 @@ const scrollToQuestion = (questionIndex: number) => {
   max-width: 80%;
   animation: fade-in 0.5s ease-out;
   box-shadow: none;
-  
 }
 
 .welcome-card h2 {
   margin-bottom: 0;
   color: #334155;
   font-size: 2rem;
-}
-
-.welcome-card p {
-  color: #64748b;
 }
 
 .message-wrapper {
@@ -1321,7 +1267,6 @@ const scrollToQuestion = (questionIndex: number) => {
   text-align: right;
 }
 
-/* 加载动画修改 */
 .loading {
   min-width: 80px;
 }
@@ -1433,7 +1378,6 @@ const scrollToQuestion = (questionIndex: number) => {
   cursor: not-allowed;
 }
 
-/* 响应式布局 */
 @media (max-width: 768px) {
   .sidebar-right {
     width: 100%;
@@ -1456,7 +1400,6 @@ const scrollToQuestion = (questionIndex: number) => {
   }
 }
 
-/* 新增样式用于整体内容的垂直居中 */
 .chat-container.center-layout .center-content {
   display: flex;
   flex-direction: column;
@@ -1465,17 +1408,15 @@ const scrollToQuestion = (questionIndex: number) => {
   height: 100%;
   width: 100%;
   padding: 0 1rem;
-  margin-top: -25vh; /* 进一步向上移动整体内容 */
+  margin-top: -25vh;
 }
 
-/* 调整居中布局时的输入框容器 */
 .chat-container.center-layout .chat-input-container {
   position: relative;
   margin-top: 0;
   width: 100%;
 }
 
-/* 添加聊天消息样式 */
 .chat-messages {
   flex-grow: 1;
   overflow-y: auto;

@@ -886,9 +886,7 @@ body {
   color: var(--color-text) !important;
 }
 
-.user-message-wrapper {
-  background-color: var(--color-surface) !important;
-}
+
 
 .ai-message-wrapper {
   background-color: var(--color-background) !important;
