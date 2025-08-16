@@ -1,138 +1,130 @@
 <script setup lang="ts">
-import { ref, reactive, onMounted, nextTick, watch, computed } from 'vue'
-import { apiService } from '../services/api'
-import type { ChatMessage as ApiChatMessage } from '../services/api'
+import { ref, onMounted, nextTick, watch, computed } from 'vue'
 import { useAuthStore } from '../stores/auth'
+import { useConversations } from '../composables/useConversations'
+import { useChat } from '../composables/useChat'
+import { getGreeting, formatDate } from '../utils/dateUtils'
+import { formatMessage, autoResizeTextarea, scrollToBottom, focusInput } from '../utils/messageUtils'
 
 // 导入AI头像
 import aiAvatar from '../assets/static/ai_touxiang.png'
 
-const userInput = ref('')
-const isLoading = ref(false)
+// 状态管理
+const authStore = useAuthStore()
+
+// 组合式函数
+const {
+  conversations,
+  isLoadingConversations,
+  getFilteredConversations,
+  createNewConversation,
+  loadConversationDetail,
+  loadConversationsFromServer,
+  deleteConversation,
+  clearConversationMessages,
+  toggleConversationExpand,
+  isConversationExpanded,
+  isHistoryLoading,
+  getUserQuestions
+} = useConversations()
+
+const {
+  userInput,
+  isLoading,
+  activeConversationId,
+  isCenterLayout,
+  sendMessage,
+  handleKeyDown,
+  switchConversation,
+  jumpToQuestion
+} = useChat()
+
+// 本地状态
 const messagesContainer = ref<HTMLElement | null>(null)
 const inputElement = ref<HTMLTextAreaElement | null>(null)
 const searchQuery = ref('')
-const activeConversationId = ref<number | null>(null)
-const authStore = useAuthStore()
-const isCenterLayout = ref(false)
-// 跟踪哪些对话展开了历史记录
-const expandedConversations = ref<Set<number>>(new Set())
-// 跟踪哪些对话正在加载历史记录
-const loadingHistoryConversations = ref<Set<number>>(new Set())
 
-// 根据当前时间获取问候语
-const getGreeting = () => {
-  const hour = new Date().getHours()
-  if (hour >= 5 && hour < 12) {
-    return '上午好'
-  } else if (hour >= 12 && hour < 14) {
-    return '中午好'
-  } else if (hour >= 14 && hour < 18) {
-    return '下午好'
-  } else {
-    return '晚上好'
-  }
-}
+// 功能开关状态
+const deepThinkingEnabled = ref(false)
+const webSearchEnabled = ref(false)
 
-// 计算用户显示名称
+// 计算属性
 const userDisplayName = computed(() => {
   return authStore.userInfo?.nickname || authStore.userInfo?.username || '用户'
 })
 
-// 计算问候语
 const greeting = computed(() => {
   return getGreeting()
 })
 
-// 聊天消息（扩展API的ChatMessage类型）
-interface ChatMessage extends ApiChatMessage {
-  // 保持与API的ChatMessage兼容，同时可以添加UI特定的属性
-}
-
-// 对话类型（使用API中定义的类型）
-import type { Conversation as ApiConversation } from '../services/api'
-
-// 扩展API的Conversation类型，添加UI特定的属性
-interface Conversation {
-  id: number
-  title: string
-  messages: ChatMessage[]
-  lastUpdated: Date
-  preview: string
-  message_count: number
-  last_message?: ChatMessage
-  isTemporary?: boolean // 是否为临时对话
-}
-
-// 历史对话列表
-const conversations = reactive<Conversation[]>([])
-
-// 加载状态
-const isLoadingConversations = ref(false)
-
-// 当前对话的消息
 const messages = computed(() => {
   const conversation = conversations.find(c => c.id === activeConversationId.value)
   return conversation ? conversation.messages : []
 })
 
-// 过滤后的对话列表（用于搜索）
 const filteredConversations = computed(() => {
-  if (!searchQuery.value.trim()) {
-    return conversations.slice().sort((a, b) => b.lastUpdated.getTime() - a.lastUpdated.getTime())
-  }
-  
-  const query = searchQuery.value.toLowerCase()
-  return conversations
-    .filter(conversation => {
-      // 搜索标题
-      if (conversation.title.toLowerCase().includes(query)) return true
-      
-      // 搜索消息内容
-      return conversation.messages.some(message => 
-        message.content.toLowerCase().includes(query)
-      )
-    })
-    .sort((a, b) => b.lastUpdated.getTime() - a.lastUpdated.getTime())
+  return getFilteredConversations(searchQuery.value)
 })
 
-// 创建新对话 - 仅在前端创建临时对话
-const createNewConversation = async () => {
-  try {
-    // 如果当前对话是个空对话且是临时对话，就直接使用它
-    if (activeConversationId.value !== null) {
-      const activeConv = conversations.find(c => c.id === activeConversationId.value)
-      if (activeConv && activeConv.messages.length === 0 && activeConv.isTemporary) {
-        console.log("当前已有临时空对话，不创建新对话")
-        isCenterLayout.value = true
-        return activeConv
+// 方法
+const handleSendMessage = async () => {
+  await sendMessage(conversations, (conversation) => {
+    // 对话更新后的回调
+    nextTick(() => {
+      scrollToBottomContainer()
+      focusInputElement()
+    })
+  }, {
+    deepThinking: deepThinkingEnabled.value,
+    webSearch: webSearchEnabled.value
+  })
+}
+
+const handleKeyDownEvent = (e: KeyboardEvent) => {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault()
+    handleSendMessage()
+  }
+}
+
+const handleSwitchConversation = async (id: number) => {
+  await switchConversation(id, conversations, loadConversationDetail)
+  nextTick(() => {
+    scrollToBottomContainer()
+    focusInputElement()
+  })
+}
+
+const handleDeleteConversation = async (id: number) => {
+  const success = await deleteConversation(id)
+  if (success) {
+    // 如果删除的是当前对话，切换到其他对话
+    if (activeConversationId.value === id) {
+      if (conversations.length > 0) {
+        await handleSwitchConversation(conversations[0].id)
+      } else {
+        // 如果没有对话了，创建一个新对话
+        await handleCreateNewConversation()
       }
     }
-    
-    console.log("开始创建新对话（仅前端）")
-    
-    // 生成临时ID（负数，避免与后端ID冲突）
-    const tempId = -Date.now()
-    
-    // 创建新对话（仅前端）
-    const newConversation: Conversation = {
-      id: tempId,
-      title: '新对话',
-      messages: [],
-      lastUpdated: new Date(),
-      preview: '开始一个新的对话',
-      message_count: 0,
-      last_message: undefined,
-      isTemporary: true // 标记为临时对话
+  }
+}
+
+const handleCreateNewConversation = async () => {
+  // 如果当前对话是个空对话且是临时对话，就直接使用它
+  if (activeConversationId.value !== null) {
+    const activeConv = conversations.find(c => c.id === activeConversationId.value)
+    if (activeConv && activeConv.messages.length === 0 && activeConv.isTemporary) {
+      console.log("当前已有临时空对话，不创建新对话")
+      isCenterLayout.value = true
+      return activeConv
     }
-    
-    console.log("创建临时对话成功:", newConversation)
-    
-    // 添加到对话列表
-    conversations.push(newConversation)
-    
+  }
+
+  const newConversation = await createNewConversation()
+  if (newConversation) {
     // 切换到新对话
-    activeConversationId.value = tempId
+    activeConversationId.value = newConversation.id
     
     // 设置居中布局
     isCenterLayout.value = true
@@ -142,485 +134,25 @@ const createNewConversation = async () => {
     
     // 聚焦输入框
     nextTick(() => {
-      focusInput()
-    })
-    
-    return newConversation
-  } catch (error) {
-    console.error('创建对话出现异常:', error)
-    return null
-  }
-}
-
-// 切换对话
-const switchConversation = async (id: number) => {
-  try {
-    console.log("切换到对话:", id)
-    
-    if (!id) {
-      console.error("无效的对话ID:", id)
-      return
-    }
-    
-    activeConversationId.value = id
-    
-    // 重置加载状态
-    isLoading.value = false
-    
-    // 加载对话详情
-    await loadConversationDetail(id)
-    
-    // 检查对话是否有消息，决定布局
-    const conversation = conversations.find(c => c.id === id)
-    isCenterLayout.value = conversation?.messages.length === 0
-    
-    // 滚动到底部
-    nextTick(() => {
-      scrollToBottom()
-      focusInput()
-    })
-    
-    console.log("对话切换完成:", id)
-  } catch (error) {
-    console.error("切换对话出错:", error)
-  }
-}
-
-// 加载对话详情
-const loadConversationDetail = async (conversationId: number) => {
-  try {
-    if (!conversationId) {
-      console.error("无效的对话ID:", conversationId)
-      return
-    }
-    
-    console.log("开始加载对话详情:", conversationId)
-    const response = await apiService.getConversation(conversationId)
-    console.log("获取对话详情响应:", response)
-    
-    if (response.code === 200 && response.data) {
-      const conv = response.data
-      
-      // 查找并更新本地对话
-      const localConv = conversations.find(c => c.id === conv.id)
-      if (localConv) {
-        // 确保messages是数组
-        if (Array.isArray(conv.messages)) {
-          localConv.messages = conv.messages.map(msg => {
-            // 确保每条消息都有timestamp属性
-            return {
-              ...msg,
-              timestamp: msg.timestamp ? new Date(msg.timestamp) : new Date()
-            }
-          })
-        } else {
-          localConv.messages = []
-          console.warn("返回的messages不是数组:", conv.messages)
-        }
-        
-        localConv.title = conv.title || '未命名对话'
-        localConv.message_count = conv.message_count || 0
-        console.log("更新本地对话成功:", conv.id, "消息数量:", localConv.messages.length)
-      } else {
-        console.error("找不到对应的本地对话:", conv.id, "当前对话列表:", conversations)
-        
-        // 如果找不到对话，添加到本地列表
-        const newConv = {
-          id: conv.id,
-          title: conv.title || '未命名对话',
-          messages: Array.isArray(conv.messages) ? conv.messages.map(msg => ({
-            ...msg,
-            timestamp: msg.timestamp ? new Date(msg.timestamp) : new Date()
-          })) : [],
-          lastUpdated: new Date(conv.updated_at || new Date()),
-          preview: conv.last_message?.content || '空对话',
-          message_count: conv.message_count || 0,
-          last_message: conv.last_message
-        }
-        
-        conversations.push(newConv)
-        console.log("添加新对话到本地列表:", newConv)
-      }
-    } else {
-      console.error('加载对话详情失败:', response.message, response)
-    }
-  } catch (error) {
-    console.error('加载对话详情失败:', error)
-  }
-}
-
-// 发送消息
-const sendMessage = async () => {
-  const content = userInput.value.trim()
-  if (!content || isLoading.value) return
-  
-  try {
-    const timestamp = new Date()
-    
-    // 查找当前对话
-    const conversation = conversations.find(c => c.id === activeConversationId.value)
-    
-    if (!conversation) {
-      console.error('无法找到活动对话，ID:', activeConversationId.value)
-      return
-    }
-    
-    // 发送第一条消息时，切换布局
-    if (conversation.messages.length === 0) {
-      isCenterLayout.value = false
-    }
-    
-    // 如果是临时对话，需要先创建真实对话
-    if (conversation.isTemporary) {
-      console.log("当前是临时对话，需要先创建真实对话")
-      
-      // 使用用户输入的消息作为对话标题
-      const title = content.length > 50 ? content.substring(0, 50) + '...' : content
-      console.log("使用消息作为对话标题:", title)
-      
-      // 创建真实对话，使用消息内容作为标题
-      const response = await apiService.createConversation(title)
-      console.log("~~~~~~~~~~~~~~~:", response)
-      if (response.code === 201 && response.data && response.data.id) {
-        // 更新临时对话为真实对话
-        const realId = response.data.id
-        conversation.id = realId
-        conversation.isTemporary = false
-        
-        // 更新对话标题
-        conversation.title = title
-        
-        // 更新活动对话ID
-        activeConversationId.value = realId
-        
-        console.log("临时对话已转换为真实对话:", realId, "标题:", title)
-      } else {
-        console.error('创建真实对话失败:', response.message)
-        return
-      }
-    }
-    
-    // 发送消息到对话
-    sendMessageToConversation(conversation, content, timestamp)
-  } catch (err) {
-    console.error("发送消息过程中出错:", err)
-    isLoading.value = false
-  }
-}
-
-// 向指定对话发送消息
-const sendMessageToConversation = async (conversation: Conversation, content: string, timestamp: Date) => {
-  // 确保消息数组已初始化
-  if (!conversation.messages) {
-    conversation.messages = []
-  }
-  
-  // 添加用户消息到本地UI
-  conversation.messages.push({
-    role: 'user',
-    content,
-    timestamp
-  })
-  
-  // 更新预览和最后更新时间
-  conversation.preview = content
-  conversation.lastUpdated = timestamp
-  conversation.message_count = (conversation.message_count || 0) + 1
-  
-  userInput.value = ''
-  
-  // 自动滚动到底部
-  await nextTick()
-  scrollToBottom()
-  
-  // 调用实际的AI API
-  isLoading.value = true
-  
-  try {
-    // 准备发送到API的消息历史
-    const apiMessages = conversation.messages.map(msg => ({
-      role: msg.role,
-      content: msg.content
-    }))
-    
-    console.log("发送聊天请求:", {
-      messages: apiMessages,
-      conversation_id: conversation.id
-    })
-    
-    // 调用聊天API（包含对话ID）
-    const response = await apiService.chatCompletion(apiMessages, conversation.id)
-    console.log("聊天API响应:", response)
-    
-    if (response.code === 200 && response.data && response.data.content) {
-      const responseContent = response.data.content
-      const responseTimestamp = new Date()
-      
-      // 添加AI回复到本地UI
-      conversation.messages.push({
-        role: 'assistant',
-        content: responseContent,
-        timestamp: responseTimestamp
-      })
-      
-      // 更新预览和最后更新时间
-      conversation.preview = responseContent
-      conversation.lastUpdated = responseTimestamp
-      conversation.message_count = (conversation.message_count || 0) + 1
-      
-      // 如果是新对话，可能需要更新对话ID（如果后端创建了新对话）
-      if (response.data.conversation_id && response.data.conversation_id !== conversation.id) {
-        console.log("更新对话ID:", conversation.id, "->", response.data.conversation_id)
-        conversation.id = response.data.conversation_id
-        activeConversationId.value = response.data.conversation_id
-      }
-    } else {
-      // API调用失败，显示错误消息
-      conversation.messages.push({
-        role: 'assistant',
-        content: `抱歉，我遇到了一些问题。${response.message || '请稍后再试。'}`,
-        timestamp: new Date()
-      })
-      conversation.message_count = (conversation.message_count || 0) + 1
-    }
-  } catch (error) {
-    console.error('聊天API调用失败:', error)
-    // 显示错误消息
-    conversation.messages.push({
-      role: 'assistant',
-      content: '抱歉，我遇到了网络问题。请检查您的网络连接并稍后再试。',
-      timestamp: new Date()
-    })
-    conversation.message_count = (conversation.message_count || 0) + 1
-  } finally {
-    isLoading.value = false
-    
-    // 自动滚动到底部
-    nextTick(() => {
-      scrollToBottom()
-      focusInput()
+      focusInputElement()
     })
   }
 }
 
-// 处理键盘事件
-const handleKeyDown = (e: KeyboardEvent) => {
-  if (e.key === 'Enter' && !e.shiftKey) {
-    e.preventDefault()
-    sendMessage()
-  }
+const handleJumpToQuestion = (conversationId: number, questionIndex: number) => {
+  jumpToQuestion(conversationId, questionIndex, conversations, loadConversationDetail, scrollToQuestion)
 }
 
 // 滚动到底部
-const scrollToBottom = () => {
+const scrollToBottomContainer = () => {
   if (messagesContainer.value) {
-    messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight
+    scrollToBottom(messagesContainer.value)
   }
 }
 
 // 聚焦输入框
-const focusInput = () => {
-  inputElement.value?.focus()
-}
-
-// 简单格式化消息（支持换行）
-const formatMessage = (text: string) => {
-  return text.replace(/\n/g, '<br>')
-}
-
-// 格式化日期
-const formatDate = (date: Date | undefined) => {
-  if (!date) return ''
-  
-  const now = new Date()
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-  const yesterday = new Date(today)
-  yesterday.setDate(yesterday.getDate() - 1)
-  
-  if (date >= today) {
-    return `今天 ${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`
-  } else if (date >= yesterday) {
-    return `昨天 ${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`
-  } else {
-    return `${date.getMonth() + 1}月${date.getDate()}日`
-  }
-}
-
-// 自动调整输入框高度
-watch(userInput, () => {
-  if (inputElement.value) {
-    inputElement.value.style.height = 'auto'
-    inputElement.value.style.height = `${inputElement.value.scrollHeight}px`
-  }
-})
-
-// 删除对话
-const deleteConversation = async (id: number) => {
-  try {
-    const response = await apiService.deleteConversation(id)
-    
-    if (response.code === 200) {
-      // 从本地列表中删除
-      const index = conversations.findIndex(c => c.id === id)
-      if (index !== -1) {
-        conversations.splice(index, 1)
-      }
-      
-      // 如果删除的是当前对话，切换到其他对话
-      if (activeConversationId.value === id) {
-        if (conversations.length > 0) {
-          switchConversation(conversations[0].id)
-        } else {
-          // 如果没有对话了，创建一个新对话
-          await createNewConversation()
-        }
-      }
-    } else {
-      console.error('删除对话失败:', response.message)
-    }
-  } catch (error) {
-    console.error('删除对话失败:', error)
-  }
-}
-
-// 清空对话消息
-const clearConversationMessages = async (id: number) => {
-  try {
-    const response = await apiService.clearConversationMessages(id)
-    
-    if (response.code === 200) {
-      // 清空本地消息
-      const conversation = conversations.find(c => c.id === id)
-      if (conversation) {
-        conversation.messages = []
-        conversation.message_count = 0
-        conversation.preview = '对话已清空'
-      }
-    } else {
-      console.error('清空对话消息失败:', response.message)
-    }
-  } catch (error) {
-    console.error('清空对话消息失败:', error)
-  }
-}
-
-// 组件挂载后，从后端加载对话历史并聚焦输入框
-onMounted(async () => {
-  await loadConversationsFromServer()
-  
-  // 无论是否有活动对话，都创建一个新的临时对话
-  console.log("首次打开组件，创建新临时对话")
-  await createNewConversation()
-  
-  focusInput()
-  scrollToBottom()
-})
-
-// 从服务器加载对话历史
-const loadConversationsFromServer = async () => {
-  isLoadingConversations.value = true
-  
-  try {
-    console.log("开始从服务器加载对话历史")
-    const response = await apiService.getConversations()
-    console.log("获取对话列表响应:", response)
-    
-    if (response.code === 200 && response.data) {
-      // 根据后端标准化响应格式获取数据
-      const conversationsData = response.data?.list || [];
-      console.log('获取到的对话数据:', conversationsData);
-      console.log('总数:', response.data?.total);
-      
-      // 转换API返回的对话格式为UI需要的格式
-      const serverConversations = conversationsData.map((conv: any) => {
-        console.log("处理对话:", conv)
-        return {
-          id: conv.id,
-          title: conv.title || '未命名对话',
-          messages: conv.messages || [],
-          lastUpdated: new Date(conv.updated_at || new Date()),
-          preview: conv.last_message?.content || '空对话',
-          message_count: conv.message_count || 0,
-          last_message: conv.last_message
-        }
-      })
-      
-      console.log("转换后的对话列表:", serverConversations)
-      
-      // 清空并添加新的对话
-      conversations.splice(0, conversations.length, ...serverConversations)
-      
-      console.log("对话列表更新完成，当前对话数量:", conversations.length)
-      
-      // 不设置任何活动对话，等待后面创建新对话
-      activeConversationId.value = null
-      console.log("加载完成，活动对话ID设为null，准备创建新对话")
-    } else {
-      console.error('加载对话失败:', response.message, response)
-      // 设置活动对话ID为null，等待后面创建新对话
-      activeConversationId.value = null
-    }
-  } catch (error) {
-    console.error('加载对话出错:', error)
-    // 设置活动对话ID为null，等待后面创建新对话
-    activeConversationId.value = null
-  } finally {
-    isLoadingConversations.value = false
-    console.log("对话加载完成，当前活动对话ID:", activeConversationId.value, "对话列表:", conversations)
-  }
-}
-
-// Toggle conversation expansion
-const toggleConversationExpand = async (id: number) => {
-  if (expandedConversations.value.has(id)) {
-    expandedConversations.value.delete(id)
-  } else {
-    expandedConversations.value.add(id)
-    
-    // 查找当前对话
-    const conversation = conversations.find(c => c.id === id)
-    if (conversation && (!conversation.messages || conversation.messages.length === 0) && conversation.message_count > 0) {
-      // 需要加载对话历史
-      loadingHistoryConversations.value.add(id)
-      await loadConversationDetail(id)
-      loadingHistoryConversations.value.delete(id)
-    }
-  }
-}
-
-// Check if a conversation is expanded
-const isConversationExpanded = (id: number) => {
-  return expandedConversations.value.has(id)
-}
-
-// Check if a conversation history is loading
-const isHistoryLoading = (id: number) => {
-  return loadingHistoryConversations.value.has(id)
-}
-
-// Get user questions from a conversation
-const getUserQuestions = (conversation: Conversation) => {
-  if (!conversation.messages || conversation.messages.length === 0) return []
-  
-  return conversation.messages
-    .filter(message => message.role === 'user')
-    .map((message, index) => ({
-      content: message.content,
-      timestamp: message.timestamp,
-      index: index // 保存消息在对话中的位置，用于后续定位
-    }))
-}
-
-// 跳转到特定问题
-const jumpToQuestion = (conversationId: number, questionIndex: number) => {
-  // 如果不是当前对话，先切换到该对话
-  if (activeConversationId.value !== conversationId) {
-    switchConversation(conversationId).then(() => {
-      scrollToQuestion(questionIndex)
-    })
-  } else {
-    scrollToQuestion(questionIndex)
-  }
+const focusInputElement = () => {
+  focusInput(inputElement.value)
 }
 
 // 滚动到特定问题
@@ -658,6 +190,25 @@ const scrollToQuestion = (questionIndex: number) => {
     }
   })
 }
+
+// 自动调整输入框高度
+watch(userInput, () => {
+  if (inputElement.value) {
+    autoResizeTextarea(inputElement.value)
+  }
+})
+
+// 组件挂载后，从后端加载对话历史并聚焦输入框
+onMounted(async () => {
+  await loadConversationsFromServer()
+  
+  // 无论是否有活动对话，都创建一个新的临时对话
+  console.log("首次打开组件，创建新临时对话")
+  await handleCreateNewConversation()
+  
+  focusInputElement()
+  scrollToBottomContainer()
+})
 </script>
 
 <template>
@@ -674,24 +225,60 @@ const scrollToQuestion = (questionIndex: number) => {
         <!-- 输入区域 -->
         <div class="chat-input-container" :class="{ 'centered-input': isCenterLayout }">
           <div class="input-wrapper">
-            <textarea 
-              v-model="userInput" 
-              @keydown.enter="handleKeyDown"
-              placeholder="请输入问题..."
-              rows="3"
-              ref="inputElement"
-              class="chat-input"
-            ></textarea>
-            <button 
-              class="send-button" 
-              @click="sendMessage"
-              :disabled="isLoading || !userInput.trim()"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <line x1="22" y1="2" x2="11" y2="13"></line>
-                <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
-              </svg>
-            </button>
+            <!-- 功能开关区域 -->
+            <div class="feature-toggles">
+              <button 
+                class="toggle-btn" 
+                :class="{ active: deepThinkingEnabled }"
+                @click="deepThinkingEnabled = !deepThinkingEnabled"
+                title="深度思考模式"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M9 12l2 2 4-4"></path>
+                  <path d="M21 12c.552 0 1-.448 1-1s-.448-1-1-1-1 .448-1 1 .448 1 1 1z"></path>
+                  <path d="M3 12c.552 0 1-.448 1-1s-.448-1-1-1-1 .448-1 1 .448 1 1 1z"></path>
+                  <path d="M12 21c.552 0 1-.448 1-1s-.448-1-1-1-1 .448-1 1 .448 1 1 1z"></path>
+                  <path d="M12 3c.552 0 1-.448 1-1s-.448-1-1-1-1 .448-1 1 .448 1 1 1z"></path>
+                </svg>
+                <span>深度思考</span>
+              </button>
+              
+              <button 
+                class="toggle-btn" 
+                :class="{ active: webSearchEnabled }"
+                @click="webSearchEnabled = !webSearchEnabled"
+                title="联网搜索"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <circle cx="12" cy="12" r="10"></circle>
+                  <line x1="2" y1="12" x2="22" y2="12"></line>
+                  <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
+                </svg>
+                <span>联网搜索</span>
+              </button>
+            </div>
+            
+            <!-- 输入区域 -->
+            <div class="input-area">
+              <textarea 
+                v-model="userInput" 
+                @keydown.enter="handleKeyDownEvent"
+                placeholder="请输入问题..."
+                rows="3"
+                ref="inputElement"
+                class="chat-input"
+              ></textarea>
+              <button 
+                class="send-button" 
+                @click="handleSendMessage"
+                :disabled="isLoading || !userInput.trim()"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <line x1="22" y1="2" x2="11" y2="13"></line>
+                  <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                </svg>
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -753,24 +340,60 @@ const scrollToQuestion = (questionIndex: number) => {
         <!-- 输入区域 -->
         <div class="chat-input-container" :class="{ 'centered-input': isCenterLayout }">
           <div class="input-wrapper">
-            <textarea 
-              v-model="userInput" 
-              @keydown.enter="handleKeyDown"
-              placeholder="请输入问题..."
-              rows="3"
-              ref="inputElement"
-              class="chat-input"
-            ></textarea>
-            <button 
-              class="send-button" 
-              @click="sendMessage"
-              :disabled="isLoading || !userInput.trim()"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <line x1="22" y1="2" x2="11" y2="13"></line>
-                <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
-              </svg>
-            </button>
+            <!-- 功能开关区域 -->
+            <div class="feature-toggles">
+              <button 
+                class="toggle-btn" 
+                :class="{ active: deepThinkingEnabled }"
+                @click="deepThinkingEnabled = !deepThinkingEnabled"
+                title="深度思考模式"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M9 12l2 2 4-4"></path>
+                  <path d="M21 12c.552 0 1-.448 1-1s-.448-1-1-1-1 .448-1 1 .448 1 1 1z"></path>
+                  <path d="M3 12c.552 0 1-.448 1-1s-.448-1-1-1-1 .448-1 1 .448 1 1 1z"></path>
+                  <path d="M12 21c.552 0 1-.448 1-1s-.448-1-1-1-1 .448-1 1 .448 1 1 1z"></path>
+                  <path d="M12 3c.552 0 1-.448 1-1s-.448-1-1-1-1 .448-1 1 .448 1 1 1z"></path>
+                </svg>
+                <span>深度思考</span>
+              </button>
+              
+              <button 
+                class="toggle-btn" 
+                :class="{ active: webSearchEnabled }"
+                @click="webSearchEnabled = !webSearchEnabled"
+                title="联网搜索"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <circle cx="12" cy="12" r="10"></circle>
+                  <line x1="2" y1="12" x2="22" y2="12"></line>
+                  <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
+                </svg>
+                <span>联网搜索</span>
+              </button>
+            </div>
+            
+            <!-- 输入区域 -->
+            <div class="input-area">
+              <textarea 
+                v-model="userInput" 
+                @keydown.enter="handleKeyDownEvent"
+                placeholder="请输入问题..."
+                rows="3"
+                ref="inputElement"
+                class="chat-input"
+              ></textarea>
+              <button 
+                class="send-button" 
+                @click="handleSendMessage"
+                :disabled="isLoading || !userInput.trim()"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <line x1="22" y1="2" x2="11" y2="13"></line>
+                  <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                </svg>
+              </button>
+            </div>
           </div>
         </div>
       </template>
@@ -779,7 +402,7 @@ const scrollToQuestion = (questionIndex: number) => {
     <!-- 右侧功能区 -->
     <div class="sidebar-right">
       <div class="sidebar-header">
-        <button class="new-chat-button" @click="createNewConversation">
+        <button class="new-chat-button" @click="handleCreateNewConversation">
           <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <line x1="12" y1="5" x2="12" y2="19"></line>
             <line x1="5" y1="12" x2="19" y2="12"></line>
@@ -817,7 +440,7 @@ const scrollToQuestion = (questionIndex: number) => {
           :class="{ 'active': conversation.id === activeConversationId }"
         >
           <div class="conversation-main">
-            <div class="conversation-content" @click="switchConversation(conversation.id)">
+            <div class="conversation-content" @click="handleSwitchConversation(conversation.id)">
               <div class="conversation-title">{{ conversation.title }}</div>
               <div class="conversation-preview">{{ conversation.preview }}</div>
               <div class="conversation-date">{{ formatDate(conversation.lastUpdated) }}</div>
@@ -837,7 +460,7 @@ const scrollToQuestion = (questionIndex: number) => {
               <button 
                 class="action-btn delete-btn" 
                 title="删除对话"
-                @click.stop="deleteConversation(conversation.id)"
+                @click.stop="handleDeleteConversation(conversation.id)"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                   <polyline points="3 6 5 6 21 6"></polyline>
@@ -861,7 +484,7 @@ const scrollToQuestion = (questionIndex: number) => {
               v-for="(question, index) in getUserQuestions(conversation)" 
               :key="index" 
               class="history-question"
-              @click.stop="jumpToQuestion(conversation.id, question.index)"
+              @click.stop="handleJumpToQuestion(conversation.id, question.index)"
             >
               <div class="question-content">{{ question.content }}</div>
               <div class="question-time">{{ formatDate(question.timestamp) }}</div>
@@ -889,7 +512,7 @@ const scrollToQuestion = (questionIndex: number) => {
 .sidebar-right {
   width: 300px;
   height: 100%;
-  background-color: #f8fafc;
+  background-color: var(--color-background-soft, #f8fafc);
   border-left: none;
   display: flex;
   flex-direction: column;
@@ -911,7 +534,7 @@ const scrollToQuestion = (questionIndex: number) => {
   justify-content: center;
   width: 100%;
   padding: 0.75rem;
-  background: linear-gradient(90deg, #4f74e3 0%, #5e60ce 100%);
+  background: var(--color-primary, linear-gradient(90deg, #4f74e3 0%, #5e60ce 100%));
   color: white;
   border: none;
   border-radius: 6px;
@@ -941,7 +564,8 @@ const scrollToQuestion = (questionIndex: number) => {
   border: none;
   border-radius: 6px;
   font-size: 0.875rem;
-  background-color: #f1f3f4;
+  background-color: var(--color-background-mute, #f1f3f4);
+  color: var(--color-text, #333);
 }
 
 .search-input:focus {
@@ -955,7 +579,7 @@ const scrollToQuestion = (questionIndex: number) => {
   left: 0.75rem;
   top: 50%;
   transform: translateY(-50%);
-  color: #94a3b8;
+  color: var(--color-text-soft, #94a3b8);
 }
 
 .conversations-list {
@@ -967,7 +591,7 @@ const scrollToQuestion = (questionIndex: number) => {
 .list-title {
   font-size: 0.875rem;
   font-weight: 600;
-  color: #64748b;
+  color: var(--color-text-soft, #64748b);
   margin-bottom: 0.75rem;
   text-transform: uppercase;
   letter-spacing: 0.5px;
@@ -984,11 +608,11 @@ const scrollToQuestion = (questionIndex: number) => {
 }
 
 .conversation-item:hover {
-  background-color: #f1f5f9;
+  background-color: var(--color-background-mute, #f1f5f9);
 }
 
 .conversation-item.active {
-  background-color: #e2e8f0;
+  background-color: var(--color-background-soft, #e2e8f0);
 }
 
 .conversation-main {
@@ -1011,11 +635,12 @@ const scrollToQuestion = (questionIndex: number) => {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  color: var(--color-text, #333);
 }
 
 .conversation-preview {
   font-size: 0.875rem;
-  color: #64748b;
+  color: var(--color-text-soft, #64748b);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1023,7 +648,7 @@ const scrollToQuestion = (questionIndex: number) => {
 
 .conversation-date {
   font-size: 0.75rem;
-  color: #94a3b8;
+  color: var(--color-text-soft, #94a3b8);
   margin-top: 0.25rem;
 }
 
@@ -1041,7 +666,7 @@ const scrollToQuestion = (questionIndex: number) => {
 .action-btn {
   background: transparent;
   border: none;
-  color: #64748b;
+  color: var(--color-text-soft, #64748b);
   padding: 0.25rem;
   border-radius: 4px;
   cursor: pointer;
@@ -1053,7 +678,7 @@ const scrollToQuestion = (questionIndex: number) => {
 
 .action-btn:hover {
   background-color: rgba(0, 0, 0, 0.05);
-  color: #334155;
+  color: var(--color-text, #334155);
 }
 
 .action-btn.delete-btn:hover {
@@ -1071,7 +696,7 @@ const scrollToQuestion = (questionIndex: number) => {
 
 .loading-state p {
   margin-top: 1rem;
-  color: #64748b;
+  color: var(--color-text-soft, #64748b);
   font-size: 0.875rem;
 }
 
@@ -1079,7 +704,7 @@ const scrollToQuestion = (questionIndex: number) => {
   width: 30px;
   height: 30px;
   border: 3px solid rgba(79, 116, 227, 0.2);
-  border-top-color: #4f74e3;
+  border-top-color: var(--color-primary, #4f74e3);
   border-radius: 50%;
   animation: spin 1s linear infinite;
 }
@@ -1096,7 +721,7 @@ const scrollToQuestion = (questionIndex: number) => {
 .no-results {
   padding: 2rem 0;
   text-align: center;
-  color: #64748b;
+  color: var(--color-text-soft, #64748b);
   font-size: 0.875rem;
 }
 
@@ -1140,7 +765,7 @@ const scrollToQuestion = (questionIndex: number) => {
 
 .welcome-card h2 {
   margin-bottom: 0;
-  color: #334155;
+  color: var(--color-text, #334155);
   font-size: 2rem;
 }
 
@@ -1192,7 +817,7 @@ const scrollToQuestion = (questionIndex: number) => {
 
 .avatar-name {
   font-size: 12px;
-  color: #666;
+  color: var(--color-text-soft, #666);
   margin-bottom: 4px;
   padding-left: 8px;
 }
@@ -1262,7 +887,7 @@ const scrollToQuestion = (questionIndex: number) => {
 
 .message-time {
   font-size: 12px;
-  color: #999;
+  color: var(--color-text-soft, #999);
   margin-top: 5px;
   text-align: right;
 }
@@ -1281,7 +906,7 @@ const scrollToQuestion = (questionIndex: number) => {
 .typing-indicator span {
   width: 8px;
   height: 8px;
-  background-color: #bbb;
+  background-color: var(--color-text-soft, #bbb);
   border-radius: 50%;
   display: inline-block;
   margin: 0 2px;
@@ -1323,14 +948,57 @@ const scrollToQuestion = (questionIndex: number) => {
 
 .input-wrapper {
   display: flex;
-  align-items: flex-end;
+  flex-direction: column;
   border: none;
   border-radius: 0.75rem;
   overflow: hidden;
-  background-color: #f1f3f4;
+  background-color: var(--color-background-mute, #f1f3f4);
   padding: 0.75rem;
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
   min-height: 60px;
+}
+
+.feature-toggles {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+  align-items: center;
+}
+
+.toggle-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.375rem 0.75rem;
+  background-color: var(--color-background, #ffffff);
+  border: 1px solid var(--color-border, #e2e8f0);
+  border-radius: 1rem;
+  font-size: 0.75rem;
+  color: var(--color-text-soft, #64748b);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.toggle-btn:hover {
+  background-color: var(--color-background-soft, #f8fafc);
+  border-color: var(--color-primary, #4f74e3);
+}
+
+.toggle-btn.active {
+  background-color: var(--color-primary, #4f74e3);
+  border-color: var(--color-primary, #4f74e3);
+  color: white;
+}
+
+.toggle-btn svg {
+  flex-shrink: 0;
+}
+
+.input-area {
+  display: flex;
+  align-items: flex-end;
+  width: 100%;
 }
 
 .chat-input {
@@ -1345,6 +1013,7 @@ const scrollToQuestion = (questionIndex: number) => {
   background: transparent;
   width: 100%;
   line-height: 1.5;
+  color: var(--color-text, #333);
 }
 
 .chat-input-container.centered-input .input-wrapper {
@@ -1365,39 +1034,17 @@ const scrollToQuestion = (questionIndex: number) => {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #1a73e8;
+  color: var(--color-primary, #1a73e8);
 }
 
 .send-button:hover {
-  background-color: #f5f5f5;
+  background-color: var(--color-background-mute, #f5f5f5);
   border-radius: 50%;
 }
 
 .send-button:disabled {
-  color: #ccc;
+  color: var(--color-text-soft, #ccc);
   cursor: not-allowed;
-}
-
-@media (max-width: 768px) {
-  .sidebar-right {
-    width: 100%;
-    height: 100%;
-    position: fixed;
-    transform: translateX(100%);
-    transition: transform 0.3s ease;
-  }
-  
-  .sidebar-right.show {
-    transform: translateX(0);
-  }
-  
-  .chat-container {
-    margin-right: 0;
-  }
-  
-  .chat-input-container.centered-input {
-    max-width: 90%;
-  }
 }
 
 .chat-container.center-layout .center-content {
@@ -1424,13 +1071,13 @@ const scrollToQuestion = (questionIndex: number) => {
   display: flex;
   flex-direction: column;
   width: 100%;
-  background-color: #f5f5f5;
+  background-color: var(--color-background-soft, #f5f5f5);
 }
 
 .expand-btn {
   background: transparent;
   border: none;
-  color: #64748b;
+  color: var(--color-text-soft, #64748b);
   padding: 0.25rem;
   border-radius: 4px;
   cursor: pointer;
@@ -1442,14 +1089,14 @@ const scrollToQuestion = (questionIndex: number) => {
 
 .expand-btn:hover {
   background-color: rgba(0, 0, 0, 0.05);
-  color: #334155;
+  color: var(--color-text, #334155);
 }
 
 .conversation-history {
   width: 100%;
   padding: 0.5rem;
   margin-top: 0.5rem;
-  background-color: #edf2f7;
+  background-color: var(--color-background-mute, #edf2f7);
   border-radius: 4px;
   max-height: 200px;
   overflow-y: auto;
@@ -1462,13 +1109,13 @@ const scrollToQuestion = (questionIndex: number) => {
   border-radius: 6px;
   cursor: pointer;
   transition: all 0.2s ease;
-  background-color: #ffffff;
-  border-left: 3px solid #4f74e3;
+  background-color: var(--color-background, #ffffff);
+  border-left: 3px solid var(--color-primary, #4f74e3);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
 }
 
 .history-question:hover {
-  background-color: #f8fafc;
+  background-color: var(--color-background-soft, #f8fafc);
   transform: translateY(-1px);
   box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
 }
@@ -1479,7 +1126,7 @@ const scrollToQuestion = (questionIndex: number) => {
 
 .question-content {
   font-size: 14px;
-  color: #334155;
+  color: var(--color-text, #334155);
   margin-bottom: 8px;
   word-break: break-word;
   display: -webkit-box;
@@ -1491,7 +1138,7 @@ const scrollToQuestion = (questionIndex: number) => {
 
 .question-time {
   font-size: 12px;
-  color: #94a3b8;
+  color: var(--color-text-soft, #94a3b8);
   display: flex;
   align-items: center;
 }
@@ -1513,7 +1160,7 @@ const scrollToQuestion = (questionIndex: number) => {
   justify-content: center;
   gap: 8px;
   padding: 1rem;
-  color: #64748b;
+  color: var(--color-text-soft, #64748b);
   font-size: 0.875rem;
   background-color: rgba(255, 255, 255, 0.7);
   border-radius: 6px;
@@ -1524,7 +1171,7 @@ const scrollToQuestion = (questionIndex: number) => {
   width: 18px;
   height: 18px;
   border: 2px solid rgba(79, 116, 227, 0.2);
-  border-top-color: #4f74e3;
+  border-top-color: var(--color-primary, #4f74e3);
   border-radius: 50%;
   animation: spin 1s linear infinite;
 }
@@ -1532,11 +1179,11 @@ const scrollToQuestion = (questionIndex: number) => {
 .history-empty {
   text-align: center;
   padding: 1rem;
-  color: #64748b;
+  color: var(--color-text-soft, #64748b);
   font-size: 0.875rem;
-  background-color: #ffffff;
+  background-color: var(--color-background, #ffffff);
   border-radius: 6px;
-  border-left: 3px solid #cbd5e1;
+  border-left: 3px solid var(--color-border, #cbd5e1);
   margin: 0.5rem 0;
 }
 
@@ -1548,5 +1195,27 @@ const scrollToQuestion = (questionIndex: number) => {
   0% { background-color: rgba(79, 116, 227, 0.1); }
   50% { background-color: rgba(79, 116, 227, 0.2); }
   100% { background-color: transparent; }
+}
+
+@media (max-width: 768px) {
+  .sidebar-right {
+    width: 100%;
+    height: 100%;
+    position: fixed;
+    transform: translateX(100%);
+    transition: transform 0.3s ease;
+  }
+  
+  .sidebar-right.show {
+    transform: translateX(0);
+  }
+  
+  .chat-container {
+    margin-right: 0;
+  }
+  
+  .chat-input-container.centered-input {
+    max-width: 90%;
+  }
 }
 </style>

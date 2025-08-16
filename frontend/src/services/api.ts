@@ -574,6 +574,66 @@ class ApiService {
     }
   }
 
+  // 发送消息（支持深度思考和联网搜索）
+  async sendMessage(data: {
+    conversation_id?: number
+    message: string
+    role: string
+    deep_thinking?: boolean
+    web_search?: boolean
+  }): Promise<ApiResponse<any>> {
+    try {
+      console.log("发送消息请求:", data)
+      const response = await this.instance.post<ApiResponse<any>>('chat/send/', data);
+      console.log("发送消息响应:", response)
+      
+      return response.data;
+    } catch (error: any) {
+      console.error('发送消息失败:', error);
+      
+      if (error.response) {
+        console.error('错误响应数据:', error.response.data);
+        console.error('错误状态码:', error.response.status);
+        
+        return {
+          code: error.response.status,
+          message: error.response.data?.message || '发送消息失败，服务器返回错误',
+          data: {
+            ai_message: {
+              content: "抱歉，服务器处理请求时出错，请稍后再试。"
+            },
+            conversation_id: data.conversation_id
+          }
+        };
+      }
+      
+      if (error.request) {
+        console.error('请求已发送但未收到响应');
+        return {
+          code: 500,
+          message: '发送消息超时，未收到服务器响应',
+          data: {
+            ai_message: {
+              content: "抱歉，服务器响应超时，请检查网络连接并稍后再试。"
+            },
+            conversation_id: data.conversation_id
+          }
+        };
+      }
+      
+      return {
+        code: 500,
+        message: error.message || '网络错误，请检查网络连接',
+        data: {
+          ai_message: {
+            content: "抱歉，发生网络错误，请检查网络连接并稍后再试。"
+          },
+          conversation_id: data.conversation_id
+        }
+      };
+    }
+  }
+
   // 获取对话列表
   async getConversations(): Promise<ApiResponse<ConversationList>> {
     try {

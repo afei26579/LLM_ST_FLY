@@ -4,23 +4,28 @@ from rest_framework.response import Response
 from rest_framework import status, viewsets, mixins
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.decorators import action
-import requests
-import json
 import os
 from django.conf import settings
 from django.db import transaction
 from django.utils.translation import gettext_lazy as _
+import dashscope
+from dashscope import Generation
 
 from .models import Conversation, Message
 from .serializers import (
     ConversationSerializer, ConversationListSerializer,
     MessageSerializer, MessageCreateSerializer
 )
+from .ai_service import AIService
 from core.response import StandardResponse
 from core.views import StandardModelViewSet
 
 # 从环境变量或设置中获取DashScope API密钥
 DASHSCOPE_API_KEY = getattr(settings, 'DASHSCOPE_API_KEY', os.environ.get('DASHSCOPE_API_KEY', ''))
+
+# 设置DashScope API密钥
+if DASHSCOPE_API_KEY:
+    dashscope.api_key = DASHSCOPE_API_KEY
 
 class ConversationViewSet(StandardModelViewSet):
     """
@@ -48,34 +53,21 @@ class ConversationViewSet(StandardModelViewSet):
     
     def create(self, request, *args, **kwargs):
         """
-        创建新对话 - 添加详细调试日志
+        创建新对话
         """
-        print("=" * 50)
-        print("POST /api/v1/chat/conversations/ - 开始处理请求")
-        print(f"请求用户: {request.user}")
-        print(f"请求用户ID: {request.user.id}")
-        print(f"请求数据: {request.data}")
-        print(f"请求方法: {request.method}")
-        print(f"请求头: {dict(request.headers)}")
         
         try:
             # 手动实现create逻辑，确保用户关联
-            serializer = self.get_serializer(data=request.data)
-            print(f"序列化器验证开始...")
+            serializer = self.get_serializer(data=request.data)           
             serializer.is_valid(raise_exception=True)
-            print(f"序列化器验证成功: {serializer.validated_data}")
-            
+                      
             # 直接在这里保存，确保用户关联
-            print(f"开始保存对话，用户: {request.user}")
+           
             instance = serializer.save(user=request.user)
-            print(f"对话保存成功: id={instance.id}, title={instance.title}, user_id={instance.user_id}")
-            
+
             # 构建响应
             response_data = self.get_serializer(instance).data
-            print(f"对话创建成功 - 响应数据: {response_data}")
-            print("POST /api/v1/chat/conversations/ - 请求处理完成")
-            print("=" * 50)
-            
+
             return StandardResponse.success(
                 data=response_data,
                 message="创建成功",
@@ -83,13 +75,7 @@ class ConversationViewSet(StandardModelViewSet):
                 request_id=getattr(request, 'request_id', None)
             )
         except Exception as e:
-            print(f"对话创建失败 - 错误: {str(e)}")
-            print(f"错误类型: {type(e).__name__}")
-            import traceback
-            print(f"错误堆栈: {traceback.format_exc()}")
-            print("POST /api/v1/chat/conversations/ - 请求处理失败")
-            print("=" * 50)
-            
+
             # 返回错误响应而不是抛出异常
             return StandardResponse.error(
                 message=f'创建对话失败: {str(e)}',
@@ -100,15 +86,9 @@ class ConversationViewSet(StandardModelViewSet):
     def perform_create(self, serializer):
         # 创建对话时自动关联当前用户
         try:
-            print(f"perform_create - 验证数据: {serializer.validated_data}")
-            print(f"perform_create - 当前用户: {self.request.user}")
-            print(f"perform_create - 当前用户ID: {self.request.user.id}")
-            instance = serializer.save(user=self.request.user)
-            print(f"perform_create - 对话创建成功: id={instance.id}, title={instance.title}, user={instance.user}")
+            
+            instance = serializer.save(user=self.request.user)      
         except Exception as e:
-            print(f"perform_create - 创建对话失败: {str(e)}")
-            import traceback
-            print(f"perform_create - 错误堆栈: {traceback.format_exc()}")
             raise
     
     @action(detail=True, methods=['post'])
@@ -122,16 +102,16 @@ class ConversationViewSet(StandardModelViewSet):
             serializer = MessageCreateSerializer(data=request.data)
             
             if serializer.is_valid():
-                print(f"消息数据有效: {serializer.validated_data}")
+                
                 instance = serializer.save()
-                print(f"消息添加成功: id={instance.id}")
+                
                 return StandardResponse.success(
                     data=serializer.data,
                     message="消息添加成功",
                     request_id=getattr(request, 'request_id', None)
                 )
             else:
-                print(f"消息数据无效: {serializer.errors}")
+                
                 return StandardResponse.error(
                     message="请求参数错误",
                     code=400,
@@ -139,7 +119,7 @@ class ConversationViewSet(StandardModelViewSet):
                     request_id=getattr(request, 'request_id', None)
                 )
         except Exception as e:
-            print(f"添加消息失败: {str(e)}")
+           
             return StandardResponse.error(
                 message=f'添加消息失败: {str(e)}',
                 code=500,
@@ -290,21 +270,14 @@ class ChatCompletionView(APIView):
     
     def call_dashscope_api(self, messages):
         """
-        调用DashScope API进行对话
+        使用DashScope SDK调用API进行对话
         """
-        print("准备调用DashScope API")
+        print("准备调用DashScope API (使用SDK)")
         if not DASHSCOPE_API_KEY:
             print("错误: DashScope API密钥未配置")
             raise ValueError("DashScope API密钥未配置")
         
-        url = "https://dashscope.aliyuncs.com/api/v1/services/aigc/text-generation/generation"
-        
-        headers = {
-            "Content-Type": "application/json",
-            "Authorization": f"Bearer {DASHSCOPE_API_KEY}"
-        }
-        
-        # 转换消息格式以适应DashScope API
+        # 转换消息格式以适应DashScope SDK
         formatted_messages = []
         for msg in messages:
             role = msg.get('role')
@@ -319,35 +292,34 @@ class ChatCompletionView(APIView):
         
         print(f"格式化后的消息数量: {len(formatted_messages)}")
         
-        # 构建请求体
-        payload = {
-            "model": "qwen-max",  # 使用通义千问Max模型
-            "input": {
-                "messages": formatted_messages
-            },
-            "parameters": {
-                "temperature": 0.7,
-                "top_p": 0.8,
-                "result_format": "message"
-            }
-        }
-        
         try:
-            # 发送请求
-            print(f"发送请求到DashScope API: {url}")
-            response = requests.post(url, headers=headers, json=payload)
+            # 使用SDK调用API
+            print("使用DashScope SDK发送请求")
+
+            response = Generation.call(
+                model="qwen-plus-latest",  # 使用通义千问模型
+                messages=formatted_messages,
+                temperature=0.7,
+                top_p=0.8,
+                result_format='message',
+                enable_search=True
+            )
             
+            print("SDK调用成功，解析响应")
+            
+            # 检查响应状态
             if response.status_code != 200:
-                error_message = f"API调用失败: 状态码={response.status_code}, 响应={response.text}"
+                error_message = f"API调用失败: 状态码={response.status_code}, 消息={response.message}"
                 print(error_message)
                 raise Exception(error_message)
             
-            result = response.json()
-            print("API调用成功，解析响应")
-            
             # 提取并返回回复内容
-            content = result.get("output", {}).get("choices", [{}])[0].get("message", {}).get("content", "")
-            usage = result.get("usage", {})
+            content = response.output.choices[0].message.content if response.output.choices else ""
+            usage = {
+                "input_tokens": response.usage.input_tokens if hasattr(response.usage, 'input_tokens') else 0,
+                "output_tokens": response.usage.output_tokens if hasattr(response.usage, 'output_tokens') else 0,
+                "total_tokens": response.usage.total_tokens if hasattr(response.usage, 'total_tokens') else 0
+            }
             
             if not content:
                 print("警告: API响应中没有找到内容")
@@ -356,9 +328,6 @@ class ChatCompletionView(APIView):
                 "content": content,
                 "usage": usage
             }
-        except requests.RequestException as e:
-            print(f"请求异常: {str(e)}")
-            raise Exception(f"网络请求失败: {str(e)}")
-        except json.JSONDecodeError as e:
-            print(f"JSON解析错误: {str(e)}")
-            raise Exception(f"响应解析失败: {str(e)}")
+        except Exception as e:
+            print(f"SDK调用异常: {str(e)}")
+            raise Exception(f"DashScope SDK调用失败: {str(e)}")

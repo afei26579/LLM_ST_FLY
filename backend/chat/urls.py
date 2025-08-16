@@ -9,4 +9,5 @@ router.register(r'conversations', ConversationViewSet, basename='conversation')
 urlpatterns = [
     path('', include(router.urls)),
     path('completion/', ChatCompletionView.as_view(), name='chat_completion'),
-] 
+    path('send/', ConversationViewSet.as_view({'post': 'send_message'}), name='send-message'),
+]
