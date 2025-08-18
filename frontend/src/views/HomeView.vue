@@ -48,6 +48,10 @@ const searchQuery = ref('')
 const deepThinkingEnabled = ref(false)
 const webSearchEnabled = ref(false)
 
+// 附件上传相关状态
+const fileInputRef = ref<HTMLInputElement | null>(null)
+const selectedFiles = ref<File[]>([])
+
 // 计算属性
 const userDisplayName = computed(() => {
   return authStore.userInfo?.nickname || authStore.userInfo?.username || '用户'
@@ -141,6 +145,31 @@ const handleCreateNewConversation = async () => {
 
 const handleJumpToQuestion = (conversationId: number, questionIndex: number) => {
   jumpToQuestion(conversationId, questionIndex, conversations, loadConversationDetail, scrollToQuestion)
+}
+
+// 处理文件选择
+const handleFileSelect = (event: Event) => {
+  const target = event.target as HTMLInputElement
+  if (target.files) {
+    const files = Array.from(target.files)
+    selectedFiles.value = [...selectedFiles.value, ...files]
+    console.log('选择的文件:', files)
+  }
+}
+
+// 触发文件选择
+const triggerFileSelect = () => {
+  fileInputRef.value?.click()
+}
+
+// 移除选中的文件
+const removeFile = (index: number) => {
+  selectedFiles.value.splice(index, 1)
+}
+
+// 清空所有文件
+const clearFiles = () => {
+  selectedFiles.value = []
 }
 
 // 滚动到底部
@@ -258,6 +287,26 @@ onMounted(async () => {
               </button>
             </div>
             
+            <!-- 选中文件显示区域 -->
+            <div v-if="selectedFiles.length > 0" class="selected-files">
+              <div v-for="(file, index) in selectedFiles" :key="index" class="file-item">
+                <div class="file-info">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                    <polyline points="14 2 14 8 20 8"></polyline>
+                  </svg>
+                  <span class="file-name">{{ file.name }}</span>
+                  <span class="file-size">({{ (file.size / 1024).toFixed(1) }}KB)</span>
+                </div>
+                <button class="remove-file-btn" @click="removeFile(index)" title="移除文件">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                  </svg>
+                </button>
+              </div>
+            </div>
+
             <!-- 输入区域 -->
             <div class="input-area">
               <textarea 
@@ -268,6 +317,28 @@ onMounted(async () => {
                 ref="inputElement"
                 class="chat-input"
               ></textarea>
+              
+              <!-- 隐藏的文件输入 -->
+              <input 
+                type="file" 
+                ref="fileInputRef"
+                @change="handleFileSelect"
+                multiple
+                accept="image/*,.pdf,.doc,.docx,.txt,.md"
+                style="display: none;"
+              />
+              
+              <!-- 上传附件按钮 -->
+              <button 
+                class="attachment-button" 
+                @click="triggerFileSelect"
+                title="上传附件"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66L9.64 16.2a2 2 0 0 1-2.83-2.83l8.49-8.49"></path>
+                </svg>
+              </button>
+              
               <button 
                 class="send-button" 
                 @click="handleSendMessage"
@@ -373,6 +444,26 @@ onMounted(async () => {
               </button>
             </div>
             
+            <!-- 选中文件显示区域 -->
+            <div v-if="selectedFiles.length > 0" class="selected-files">
+              <div v-for="(file, index) in selectedFiles" :key="index" class="file-item">
+                <div class="file-info">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                    <polyline points="14 2 14 8 20 8"></polyline>
+                  </svg>
+                  <span class="file-name">{{ file.name }}</span>
+                  <span class="file-size">({{ (file.size / 1024).toFixed(1) }}KB)</span>
+                </div>
+                <button class="remove-file-btn" @click="removeFile(index)" title="移除文件">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                  </svg>
+                </button>
+              </div>
+            </div>
+
             <!-- 输入区域 -->
             <div class="input-area">
               <textarea 
@@ -383,6 +474,28 @@ onMounted(async () => {
                 ref="inputElement"
                 class="chat-input"
               ></textarea>
+              
+              <!-- 隐藏的文件输入 -->
+              <input 
+                type="file" 
+                ref="fileInputRef"
+                @change="handleFileSelect"
+                multiple
+                accept="image/*,.pdf,.doc,.docx,.txt,.md"
+                style="display: none;"
+              />
+              
+              <!-- 上传附件按钮 -->
+              <button 
+                class="attachment-button" 
+                @click="triggerFileSelect"
+                title="上传附件"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66L9.64 16.2a2 2 0 0 1-2.83-2.83l8.49-8.49"></path>
+                </svg>
+              </button>
+              
               <button 
                 class="send-button" 
                 @click="handleSendMessage"
@@ -995,6 +1108,67 @@ onMounted(async () => {
   flex-shrink: 0;
 }
 
+.selected-files {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+  padding: 0.5rem;
+  background-color: var(--color-background, #ffffff);
+  border-radius: 0.5rem;
+  border: 1px solid var(--color-border, #e2e8f0);
+}
+
+.file-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.5rem;
+  background-color: var(--color-background-soft, #f8fafc);
+  border-radius: 0.375rem;
+  border: 1px solid var(--color-border, #e2e8f0);
+}
+
+.file-info {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex: 1;
+  min-width: 0;
+}
+
+.file-name {
+  font-size: 0.875rem;
+  color: var(--color-text, #334155);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.file-size {
+  font-size: 0.75rem;
+  color: var(--color-text-soft, #64748b);
+  white-space: nowrap;
+}
+
+.remove-file-btn {
+  background: transparent;
+  border: none;
+  color: var(--color-text-soft, #64748b);
+  padding: 0.25rem;
+  border-radius: 0.25rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+.remove-file-btn:hover {
+  background-color: rgba(239, 68, 68, 0.1);
+  color: #ef4444;
+}
+
 .input-area {
   display: flex;
   align-items: flex-end;
@@ -1024,6 +1198,25 @@ onMounted(async () => {
 
 .chat-input-container.centered-input .chat-input {
   font-size: 1.1rem;
+}
+
+.attachment-button {
+  background-color: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 0.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-soft, #64748b);
+  margin-right: 0.25rem;
+  border-radius: 50%;
+  transition: all 0.2s;
+}
+
+.attachment-button:hover {
+  background-color: var(--color-background-mute, #f5f5f5);
+  color: var(--color-primary, #1a73e8);
 }
 
 .send-button {

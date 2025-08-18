@@ -11,6 +11,7 @@ from django.utils.translation import gettext_lazy as _
 import dashscope
 from dashscope import Generation
 
+from openai import OpenAI
 from .models import Conversation, Message
 from .serializers import (
     ConversationSerializer, ConversationListSerializer,
@@ -22,7 +23,7 @@ from core.views import StandardModelViewSet
 
 # 从环境变量或设置中获取DashScope API密钥
 DASHSCOPE_API_KEY = getattr(settings, 'DASHSCOPE_API_KEY', os.environ.get('DASHSCOPE_API_KEY', ''))
-
+BASE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1"
 # 设置DashScope API密钥
 if DASHSCOPE_API_KEY:
     dashscope.api_key = DASHSCOPE_API_KEY
@@ -83,13 +84,13 @@ class ConversationViewSet(StandardModelViewSet):
                 request_id=getattr(request, 'request_id', None)
             )
 
-    def perform_create(self, serializer):
-        # 创建对话时自动关联当前用户
-        try:
+    # def perform_create(self, serializer):
+    #     # 创建对话时自动关联当前用户
+    #     try:
             
-            instance = serializer.save(user=self.request.user)      
-        except Exception as e:
-            raise
+    #         instance = serializer.save(user=self.request.user)      
+    #     except Exception as e:
+    #         raise
     
     @action(detail=True, methods=['post'])
     def add_message(self, request, pk=None):
