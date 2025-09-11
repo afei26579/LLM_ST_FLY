@@ -1,7 +1,8 @@
 /**
  * 前端错误处理工具
  */
-import { ResponseHelper, ErrorInfo } from './responseHelper'
+import { ResponseHelper } from './responseHelper'
+import type { ErrorInfo } from './responseHelper'
 
 /**
  * 错误处理配置

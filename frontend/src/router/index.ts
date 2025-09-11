@@ -34,6 +34,37 @@ const router = createRouter({
       component: VerifyEmailView,
       meta: { requiresAuth: false }
     },
+    // AI功能页面
+    {
+      path: '/ai-text',
+      name: 'ai-text',
+      component: () => import('../views/ai-text/AITextView.vue'),
+      meta: { requiresAuth: true }
+    },
+    {
+      path: '/ai-reading',
+      name: 'ai-reading',
+      component: () => import('../views/ai-reading/AIReadingView.vue'),
+      meta: { requiresAuth: true }
+    },
+    {
+      path: '/ai-image',
+      name: 'ai-image',
+      component: () => import('../views/ai-image/AIImageView.vue'),
+      meta: { requiresAuth: true }
+    },
+    {
+      path: '/ai-audio',
+      name: 'ai-audio',
+      component: () => import('../views/ai-audio/AIAudioView.vue'),
+      meta: { requiresAuth: true }
+    },
+    {
+      path: '/ai-video',
+      name: 'ai-video',
+      component: () => import('../views/ai-video/AIVideoView.vue'),
+      meta: { requiresAuth: true }
+    },
     // 系统管理 - 用户管理
     {
       path: '/users',

@@ -62,8 +62,24 @@ MIDDLEWARE = [
 
 # CORS 设置
 CORS_ALLOW_ALL_ORIGINS = DEBUG  # 仅开发环境允许所有来源
-CSRF_TRUSTED_ORIGINS = ['https://www.ylongf.cn']
+CSRF_TRUSTED_ORIGINS = [
+    'https://www.ylongf.cn',
+    'http://localhost:5173',
+    'http://localhost:5174',
+    'http://127.0.0.1:5173',
+    'http://127.0.0.1:5174',
+    'http://[::1]:5173',
+    'http://[::1]:5174'
+]
 CORS_ALLOW_CREDENTIALS = True
+CORS_ALLOWED_ORIGINS = [
+    'http://localhost:5173',
+    'http://localhost:5174',
+    'http://127.0.0.1:5173',
+    'http://127.0.0.1:5174',
+    'http://[::1]:5173',
+    'http://[::1]:5174'
+]
 CORS_ALLOW_METHODS = [
     'DELETE', 'GET', 'OPTIONS', 'PATCH', 'POST', 'PUT'
 ]
@@ -77,6 +93,7 @@ CORS_ALLOW_HEADERS = [
     'user-agent',
     'x-csrftoken',
     'x-requested-with',
+    'cache-control',
 ]
 
 ROOT_URLCONF = "core.urls"

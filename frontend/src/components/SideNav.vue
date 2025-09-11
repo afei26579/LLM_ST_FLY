@@ -16,15 +16,82 @@
     <div class="sidebar-content">
       <div class="nav-section">
         <nav class="main-nav">
-          <router-link to="/" class="nav-item" title="主页">
-            <div class="nav-icon">
-              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
-                <polyline points="9 22 9 12 15 12 15 22"></polyline>
-              </svg>
+          <!-- AI助手菜单项 -->
+          <div class="nav-item-group">
+            <div class="nav-item has-submenu" @click="toggleAIMenu">
+              <div class="nav-header">
+                <div class="nav-icon">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+                    <polyline points="9 22 9 12 15 12 15 22"></polyline>
+                  </svg>
+                </div>
+                <span class="nav-text">AI助手</span>
+                <div class="submenu-icon" :class="{ 'rotated': isAIMenuOpen }">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="6 9 12 15 18 9"></polyline>
+                  </svg>
+                </div>
+              </div>
             </div>
-            <span class="nav-text">主页</span>
-          </router-link>
+
+            <!-- AI助手二级菜单 -->
+            <div class="submenu" v-show="!isCollapsed && isAIMenuOpen">
+              <router-link to="/ai-text" class="submenu-item" @click="handleSubMenuClick">
+                <div class="submenu-icon">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                    <polyline points="14 2 14 8 20 8"></polyline>
+                    <line x1="16" y1="13" x2="8" y2="13"></line>
+                    <line x1="16" y1="17" x2="8" y2="17"></line>
+                    <polyline points="10 9 9 9 8 9"></polyline>
+                  </svg>
+                </div>
+                <span>AI 文本</span>
+              </router-link>
+              
+              <router-link to="/ai-reading" class="submenu-item" @click="handleSubMenuClick">
+                <div class="submenu-icon">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path>
+                    <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path>
+                  </svg>
+                </div>
+                <span>AI 阅读</span>
+              </router-link>
+
+              <router-link to="/ai-image" class="submenu-item" @click="handleSubMenuClick">
+                <div class="submenu-icon">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                    <circle cx="8.5" cy="8.5" r="1.5"></circle>
+                    <polyline points="21 15 16 10 5 21"></polyline>
+                  </svg>
+                </div>
+                <span>AI 图片</span>
+              </router-link>
+
+              <router-link to="/ai-audio" class="submenu-item" @click="handleSubMenuClick">
+                <div class="submenu-icon">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+                    <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+                  </svg>
+                </div>
+                <span>AI 声音</span>
+              </router-link>
+
+              <router-link to="/ai-video" class="submenu-item" @click="handleSubMenuClick">
+                <div class="submenu-icon">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <polygon points="23 7 16 12 23 17 23 7"></polygon>
+                    <rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect>
+                  </svg>
+                </div>
+                <span>AI 视频</span>
+              </router-link>
+            </div>
+          </div>
 
           <!-- 系统管理菜单项 -->
           <div class="nav-item-group">
@@ -224,6 +291,7 @@ const themeStore = useThemeStore()
 
 const isCollapsed = ref(false)
 const isSystemMenuOpen = ref(true)
+const isAIMenuOpen = ref(true)
 const isUserDropdownOpen = ref(false)
 const isSettingsModalOpen = ref(false)
 const isPasswordModalOpen = ref(false)
@@ -246,6 +314,16 @@ const toggleSystemMenu = () => {
     // 如果侧边栏折叠，点击展开侧边栏
     isCollapsed.value = false
     isSystemMenuOpen.value = true
+  }
+}
+
+const toggleAIMenu = () => {
+  if (!isCollapsed.value) {
+    isAIMenuOpen.value = !isAIMenuOpen.value
+  } else {
+    // 如果侧边栏折叠，点击展开侧边栏
+    isCollapsed.value = false
+    isAIMenuOpen.value = true
   }
 }
 

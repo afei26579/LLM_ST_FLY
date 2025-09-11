@@ -21,20 +21,26 @@ export const getGreeting = (): string => {
 /**
  * 格式化日期显示
  */
-export const formatDate = (date: Date | undefined): string => {
+export const formatDate = (date: Date | string | undefined): string => {
   if (!date) return ''
+  
+  // 将字符串转换为Date对象
+  const dateObj = typeof date === 'string' ? new Date(date) : date
+  
+  // 检查日期是否有效
+  if (isNaN(dateObj.getTime())) return ''
   
   const now = new Date()
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
   const yesterday = new Date(today)
   yesterday.setDate(yesterday.getDate() - 1)
   
-  if (date >= today) {
-    return `今天 ${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`
-  } else if (date >= yesterday) {
-    return `昨天 ${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`
+  if (dateObj >= today) {
+    return `今天 ${dateObj.getHours().toString().padStart(2, '0')}:${dateObj.getMinutes().toString().padStart(2, '0')}`
+  } else if (dateObj >= yesterday) {
+    return `昨天 ${dateObj.getHours().toString().padStart(2, '0')}:${dateObj.getMinutes().toString().padStart(2, '0')}`
   } else {
-    return `${date.getMonth() + 1}月${date.getDate()}日`
+    return `${dateObj.getMonth() + 1}月${dateObj.getDate()}日`
   }
 }
 

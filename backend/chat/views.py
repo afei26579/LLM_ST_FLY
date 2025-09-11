@@ -1,32 +1,25 @@
 from django.shortcuts import render, get_object_or_404
+from django.views import View
+from django.views.decorators.csrf import csrf_exempt
+from django.utils.decorators import method_decorator
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status, viewsets, mixins
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.decorators import action
-import os
-from django.conf import settings
+from django.http import StreamingHttpResponse, JsonResponse
+import json
 from django.db import transaction
-from django.utils.translation import gettext_lazy as _
-import dashscope
-from dashscope import Generation
 
-from openai import OpenAI
 from .models import Conversation, Message
 from .serializers import (
     ConversationSerializer, ConversationListSerializer,
     MessageSerializer, MessageCreateSerializer
 )
-from .ai_service import AIService
+from .services import ChatService, ConversationService, MessageService
 from core.response import StandardResponse
 from core.views import StandardModelViewSet
 
-# 从环境变量或设置中获取DashScope API密钥
-DASHSCOPE_API_KEY = getattr(settings, 'DASHSCOPE_API_KEY', os.environ.get('DASHSCOPE_API_KEY', ''))
-BASE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1"
-# 设置DashScope API密钥
-if DASHSCOPE_API_KEY:
-    dashscope.api_key = DASHSCOPE_API_KEY
 
 class ConversationViewSet(StandardModelViewSet):
     """
@@ -56,18 +49,15 @@ class ConversationViewSet(StandardModelViewSet):
         """
         创建新对话
         """
-        
         try:
-            # 手动实现create逻辑，确保用户关联
-            serializer = self.get_serializer(data=request.data)           
-            serializer.is_valid(raise_exception=True)
-                      
-            # 直接在这里保存，确保用户关联
-           
-            instance = serializer.save(user=request.user)
+            # 使用服务类创建对话
+            conversation = ConversationService.create_conversation(
+                user=request.user,
+                title=request.data.get('title', '新对话')
+            )
 
             # 构建响应
-            response_data = self.get_serializer(instance).data
+            response_data = self.get_serializer(conversation).data
 
             return StandardResponse.success(
                 data=response_data,
@@ -76,21 +66,12 @@ class ConversationViewSet(StandardModelViewSet):
                 request_id=getattr(request, 'request_id', None)
             )
         except Exception as e:
-
             # 返回错误响应而不是抛出异常
             return StandardResponse.error(
                 message=f'创建对话失败: {str(e)}',
                 code=500,
                 request_id=getattr(request, 'request_id', None)
             )
-
-    # def perform_create(self, serializer):
-    #     # 创建对话时自动关联当前用户
-    #     try:
-            
-    #         instance = serializer.save(user=self.request.user)      
-    #     except Exception as e:
-    #         raise
     
     @action(detail=True, methods=['post'])
     def add_message(self, request, pk=None):
@@ -103,7 +84,6 @@ class ConversationViewSet(StandardModelViewSet):
             serializer = MessageCreateSerializer(data=request.data)
             
             if serializer.is_valid():
-                
                 instance = serializer.save()
                 
                 return StandardResponse.success(
@@ -112,7 +92,6 @@ class ConversationViewSet(StandardModelViewSet):
                     request_id=getattr(request, 'request_id', None)
                 )
             else:
-                
                 return StandardResponse.error(
                     message="请求参数错误",
                     code=400,
@@ -120,7 +99,6 @@ class ConversationViewSet(StandardModelViewSet):
                     request_id=getattr(request, 'request_id', None)
                 )
         except Exception as e:
-           
             return StandardResponse.error(
                 message=f'添加消息失败: {str(e)}',
                 code=500,
@@ -134,10 +112,7 @@ class ConversationViewSet(StandardModelViewSet):
         """
         try:
             conversation = self.get_object()
-            print(f"清空对话消息: conversation_id={conversation.id}")
-            count = conversation.messages.count()
-            conversation.messages.all().delete()
-            print(f"已删除 {count} 条消息")
+            count = ConversationService.clear_conversation_messages(conversation)
             
             return StandardResponse.success(
                 data=None,
@@ -153,19 +128,68 @@ class ConversationViewSet(StandardModelViewSet):
             )
 
 
-class ChatCompletionView(APIView):
+@method_decorator(csrf_exempt, name='dispatch')
+class ChatCompletionView(View):
     """
     使用阿里云DashScope大模型进行对话
+    支持流式和非流式响应
     """
-    permission_classes = [IsAuthenticated]
+    
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.chat_service = ChatService()
+    
+    def dispatch(self, request, *args, **kwargs):
+        # JWT token认证
+        from rest_framework_simplejwt.authentication import JWTAuthentication
+        from rest_framework_simplejwt.exceptions import InvalidToken, TokenError
+        
+        auth_header = request.headers.get('Authorization', '')
+        if not auth_header.startswith('Bearer '):
+            return JsonResponse({'error': '未授权访问'}, status=401)
+        
+        try:
+            # 使用JWT认证
+            jwt_auth = JWTAuthentication()
+            validated_token = jwt_auth.get_validated_token(auth_header.split(' ')[1])
+            user = jwt_auth.get_user(validated_token)
+            request.user = user
+        except (InvalidToken, TokenError) as e:
+            return JsonResponse({'error': '无效的认证令牌'}, status=401)
+        except Exception as e:
+            return JsonResponse({'error': f'认证失败: {str(e)}'}, status=401)
+        
+        return super().dispatch(request, *args, **kwargs)
     
     def post(self, request):
         try:
-            # 获取用户输入的消息和历史消息
-            messages = request.data.get('messages', [])
-            conversation_id = request.data.get('conversation_id')
+            # 解析JSON请求体
+            data = json.loads(request.body)
             
-            print(f"收到聊天请求: messages={len(messages)}条, conversation_id={conversation_id}")
+            # 检查是否请求流式响应
+            stream = data.get('stream', False)
+            accept_header = request.headers.get('Accept', '')
+            
+            # 如果是流式请求，直接返回流式响应
+            if stream or 'text/event-stream' in accept_header:
+                return self.stream_response(request, data)
+            else:
+                return self.regular_response(request, data)
+                
+        except json.JSONDecodeError:
+            return JsonResponse({'error': '无效的JSON数据'}, status=400)
+        except Exception as e:
+            return JsonResponse({'error': f'服务器错误: {str(e)}'}, status=500)
+    
+    def regular_response(self, request, data):
+        try:
+            # 获取用户输入的消息和历史消息
+            messages = data.get('messages', [])
+            conversation_id = data.get('conversation_id')
+            deep_thinking = data.get('deep_thinking', False)
+            web_search = data.get('web_search', False)
+            
+            print(f"收到聊天请求: messages={len(messages)}条, conversation_id={conversation_id}, deep_thinking={deep_thinking}, web_search={web_search}")
             
             if not messages:
                 print("错误: 消息为空")
@@ -178,42 +202,31 @@ class ChatCompletionView(APIView):
             # 处理对话
             with transaction.atomic():
                 # 获取或创建对话
-                conversation = None
-                if conversation_id:
-                    try:
-                        conversation = Conversation.objects.get(id=conversation_id, user=request.user)
-                        print(f"找到现有对话: id={conversation.id}, title={conversation.title}")
-                    except Conversation.DoesNotExist:
-                        print(f"错误: 对话不存在, id={conversation_id}")
-                        return StandardResponse.error(
-                            message=f'对话不存在 (ID: {conversation_id})',
-                            code=404,
-                            request_id=getattr(request, 'request_id', None)
-                        )
-                else:
-                    # 创建新对话，使用第一条用户消息作为标题
-                    user_message = next((m for m in messages if m.get('role') == 'user'), None)
-                    title = user_message.get('content', '新对话')[:50] if user_message else '新对话'
-                    conversation = Conversation.objects.create(
+                try:
+                    conversation = self.chat_service.get_or_create_conversation(
                         user=request.user,
-                        title=title
+                        conversation_id=conversation_id,
+                        messages=messages
                     )
-                    print(f"创建新对话: id={conversation.id}, title={conversation.title}")
+                except ValueError as e:
+                    return StandardResponse.error(
+                        message=str(e),
+                        code=404,
+                        request_id=getattr(request, 'request_id', None)
+                    )
                 
-                # 保存当前消息到数据库
+                # 保存当前用户消息到数据库
                 latest_message = messages[-1]
                 if latest_message.get('role') == 'user':
-                    user_message = Message.objects.create(
+                    self.chat_service.save_user_message(
                         conversation=conversation,
-                        role=latest_message.get('role'),
                         content=latest_message.get('content')
                     )
-                    print(f"保存用户消息: id={user_message.id}, content={user_message.content[:50]}...")
                 
                 # 调用DashScope API
                 try:
                     print("调用DashScope API...")
-                    api_response = self.call_dashscope_api(messages)
+                    api_response = self.chat_service.call_dashscope_api(messages, deep_thinking, web_search)
                     print(f"API调用成功, 响应长度: {len(api_response.get('content', ''))}")
                 except Exception as api_error:
                     print(f"API调用失败: {str(api_error)}")
@@ -226,31 +239,33 @@ class ChatCompletionView(APIView):
                 # 保存AI回复到数据库
                 if 'content' in api_response:
                     tokens = api_response.get('usage', {}).get('total_tokens', 0)
-                    ai_message = Message.objects.create(
+                    self.chat_service.save_ai_message(
                         conversation=conversation,
-                        role='assistant',
                         content=api_response['content'],
                         tokens_used=tokens
                     )
-                    print(f"保存AI回复: id={ai_message.id}, tokens={tokens}")
                 else:
                     print("警告: API响应中没有content字段")
                 
                 # 更新对话标题（如果是新对话）
-                if conversation and conversation.title == '新对话':
-                    user_message = next((m for m in messages if m.get('role') == 'user'), None)
-                    if user_message:
-                        title = user_message.get('content', '新对话')[:50]
-                        conversation.title = title
-                        conversation.save(update_fields=['title'])
-                        print(f"更新对话标题: {title}")
+                self.chat_service.update_conversation_title(conversation, messages)
                 
                 # 构建响应
                 response_data = {
                     'content': api_response.get('content', ''),
                     'usage': api_response.get('usage', {}),
-                    'conversation_id': conversation.id
+                    'conversation_id': conversation.id,
+                    'deep_thinking': deep_thinking,
+                    'web_search': web_search
                 }
+                
+                # 如果启用了深度思考，添加思考过程相关字段
+                if deep_thinking:
+                    response_data.update({
+                        'thinking_process': api_response.get('thinking_process', ''),
+                        'final_answer': api_response.get('final_answer', api_response.get('content', '')),
+                        'has_structured_response': api_response.get('has_structured_response', False)
+                    })
                 
                 print(f"请求处理成功, 返回响应: conversation_id={conversation.id}")
                 return StandardResponse.success(
@@ -269,66 +284,131 @@ class ChatCompletionView(APIView):
                 request_id=getattr(request, 'request_id', None)
             )
     
-    def call_dashscope_api(self, messages):
-        """
-        使用DashScope SDK调用API进行对话
-        """
-        print("准备调用DashScope API (使用SDK)")
-        if not DASHSCOPE_API_KEY:
-            print("错误: DashScope API密钥未配置")
-            raise ValueError("DashScope API密钥未配置")
-        
-        # 转换消息格式以适应DashScope SDK
-        formatted_messages = []
-        for msg in messages:
-            role = msg.get('role')
-            content = msg.get('content')
-            
-            # DashScope使用system/user/assistant角色
-            if role in ['system', 'user', 'assistant']:
-                formatted_messages.append({
-                    "role": role,
-                    "content": content
-                })
-        
-        print(f"格式化后的消息数量: {len(formatted_messages)}")
-        
+    def stream_response(self, request, data):
+        """处理流式响应请求"""
         try:
-            # 使用SDK调用API
-            print("使用DashScope SDK发送请求")
-
-            response = Generation.call(
-                model="qwen-plus-latest",  # 使用通义千问模型
-                messages=formatted_messages,
-                temperature=0.7,
-                top_p=0.8,
-                result_format='message',
-                enable_search=True
+            # 获取用户输入的消息和历史消息
+            messages = data.get('messages', [])
+            conversation_id = data.get('conversation_id')
+            deep_thinking = data.get('deep_thinking', False)
+            web_search = data.get('web_search', False)
+            
+            print(f"收到流式聊天请求: messages={len(messages)}条, conversation_id={conversation_id}, deep_thinking={deep_thinking}, web_search={web_search}")
+            
+            if not messages:
+                # 对于流式响应，直接返回错误的SSE格式
+                def error_stream():
+                    yield f"data: {json.dumps({'error': '消息不能为空'})}\n\n"
+                
+                response = StreamingHttpResponse(
+                    error_stream(),
+                    content_type='text/event-stream'
+                )
+                response['Cache-Control'] = 'no-cache'
+                response['Access-Control-Allow-Origin'] = '*'
+                response['Access-Control-Allow-Headers'] = 'Cache-Control'
+                return response
+            
+            # 创建流式响应生成器
+            def generate_stream():
+                try:
+                    # 处理对话
+                    with transaction.atomic():
+                        # 获取或创建对话
+                        try:
+                            conversation = self.chat_service.get_or_create_conversation(
+                                user=request.user,
+                                conversation_id=conversation_id,
+                                messages=messages
+                            )
+                        except ValueError as e:
+                            yield f"data: {json.dumps({'error': str(e)})}\n\n"
+                            return
+                        
+                        # 保存当前用户消息到数据库
+                        latest_message = messages[-1]
+                        if latest_message.get('role') == 'user':
+                            self.chat_service.save_user_message(
+                                conversation=conversation,
+                                content=latest_message.get('content')
+                            )
+                        
+                        # 发送对话ID
+                        yield f"data: {json.dumps({'conversation_id': conversation.id, 'type': 'conversation_id'})}\n\n"
+                        
+                        # 调用流式API并收集完整回复
+                        full_content = ""
+                        thinking_process = ""
+                        usage_info = {}
+                        
+                        try:
+                            for chunk_data in self.chat_service.call_dashscope_api_stream(messages, deep_thinking, web_search):
+                                # 发送流式数据给前端
+                                yield f"data: {json.dumps(chunk_data)}\n\n"
+                                
+                                # 收集完整内容用于保存到数据库
+                                if chunk_data.get('type') == 'content':
+                                    full_content = chunk_data.get('full_content', '')
+                                elif chunk_data.get('type') == 'thinking':
+                                    thinking_process = chunk_data.get('full_thinking', '')
+                                elif chunk_data.get('type') == 'final':
+                                    full_content = chunk_data.get('content', '')
+                                    thinking_process = chunk_data.get('thinking_process', '')
+                                    usage_info = chunk_data.get('usage', {})
+                                    
+                        except Exception as api_error:
+                            print(f"API调用失败: {str(api_error)}")
+                            yield f"data: {json.dumps({'error': f'AI服务调用失败: {str(api_error)}'})}\n\n"
+                            return
+                        
+                        # 保存AI回复到数据库
+                        if full_content:
+                            try:
+                                tokens_used = usage_info.get('total_tokens', 0)
+                                self.chat_service.save_ai_message(
+                                    conversation=conversation,
+                                    content=full_content,
+                                    tokens_used=tokens_used
+                                )
+                                
+                                # 如果有思考过程，也可以保存（可选）
+                                if thinking_process and deep_thinking:
+                                    print(f"思考过程长度: {len(thinking_process)}")
+                                    
+                            except Exception as save_error:
+                                print(f"保存AI回复到数据库失败: {str(save_error)}")
+                        else:
+                            print("警告: 没有收集到完整的AI回复内容")
+                        
+                        # 发送完成信号
+                        yield f"data: {json.dumps({'type': 'done'})}\n\n"
+                        
+                except Exception as e:
+                    print(f"流式响应处理错误: {str(e)}")
+                    yield f"data: {json.dumps({'error': f'服务器错误: {str(e)}'})}\n\n"
+            
+            # 返回流式响应
+            response = StreamingHttpResponse(
+                generate_stream(),
+                content_type='text/event-stream'
             )
+            response['Cache-Control'] = 'no-cache'
+            response['Access-Control-Allow-Origin'] = '*'
+            response['Access-Control-Allow-Headers'] = 'Cache-Control'
             
-            print("SDK调用成功，解析响应")
+            return response
             
-            # 检查响应状态
-            if response.status_code != 200:
-                error_message = f"API调用失败: 状态码={response.status_code}, 消息={response.message}"
-                print(error_message)
-                raise Exception(error_message)
-            
-            # 提取并返回回复内容
-            content = response.output.choices[0].message.content if response.output.choices else ""
-            usage = {
-                "input_tokens": response.usage.input_tokens if hasattr(response.usage, 'input_tokens') else 0,
-                "output_tokens": response.usage.output_tokens if hasattr(response.usage, 'output_tokens') else 0,
-                "total_tokens": response.usage.total_tokens if hasattr(response.usage, 'total_tokens') else 0
-            }
-            
-            if not content:
-                print("警告: API响应中没有找到内容")
-            
-            return {
-                "content": content,
-                "usage": usage
-            }
         except Exception as e:
-            print(f"SDK调用异常: {str(e)}")
-            raise Exception(f"DashScope SDK调用失败: {str(e)}")
+            print(f"流式响应初始化错误: {str(e)}")
+            # 对于流式响应，返回SSE格式的错误
+            def error_stream():
+                yield f"data: {json.dumps({'error': f'服务器错误: {str(e)}'})}\n\n"
+            
+            response = StreamingHttpResponse(
+                error_stream(),
+                content_type='text/event-stream'
+            )
+            response['Cache-Control'] = 'no-cache'
+            response['Access-Control-Allow-Origin'] = '*'
+            response['Access-Control-Allow-Headers'] = 'Cache-Control'
+            return response

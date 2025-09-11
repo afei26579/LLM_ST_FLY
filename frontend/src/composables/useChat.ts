@@ -12,6 +12,8 @@ export function useChat() {
   const activeConversationId = ref<number | null>(null)
   const isCenterLayout = ref(false)
 
+
+
   // 发送消息
   const sendMessage = async (
     conversations: Conversation[],
@@ -83,7 +85,11 @@ export function useChat() {
     conversation: Conversation,
     content: string,
     timestamp: Date,
-    onConversationUpdate: (conversation: Conversation) => void
+    onConversationUpdate: (conversation: Conversation) => void,
+    options?: {
+      deepThinking?: boolean
+      webSearch?: boolean
+    }
   ) => {
     // 确保消息数组已初始化
     if (!conversation.messages) {
@@ -119,42 +125,72 @@ export function useChat() {
 
       console.log("发送聊天请求:", {
         messages: apiMessages,
-        conversation_id: conversation.id
+        conversation_id: conversation.id,
+        deep_thinking: options?.deepThinking || false,
+        web_search: options?.webSearch || false
       })
 
-      // 调用聊天API（包含对话ID）
-      const response = await apiService.chatCompletion(apiMessages, conversation.id)
+      // 创建AI消息占位符用于流式更新
+      const aiMessage: any = {
+        role: 'assistant',
+        content: '',
+        timestamp: new Date(),
+        thinking_process: '',
+        has_thinking: false
+      }
+
+      // 添加AI消息到对话中（用于实时更新）
+      conversation.messages.push(aiMessage)
+
+      // 调用聊天API（包含对话ID和功能选项）
+      const response = await apiService.chatCompletion(
+        apiMessages, 
+        conversation.id, 
+        {
+          deepThinking: options?.deepThinking || false,
+          webSearch: options?.webSearch || false,
+          onChunk: (chunk) => {
+            if (chunk.type === 'thinking') {
+              // 更新思考过程 - 思考过程可以直接显示
+              aiMessage.thinking_process = chunk.fullThinking;
+              aiMessage.has_thinking = true;
+            } else if (chunk.type === 'content') {
+              // 服务器端控制打字效果 - 直接使用服务器推送的完整内容
+              aiMessage.content = chunk.fullContent;
+            }
+          }
+        }
+      )
       console.log("聊天API响应:", response)
 
-      if (response.code === 200 && response.data && response.data.content) {
-        const responseContent = response.data.content
-        const responseTimestamp = new Date()
-
-        // 添加AI回复到本地UI
-        conversation.messages.push({
-          role: 'assistant',
-          content: responseContent,
-          timestamp: responseTimestamp
-        })
+      // 流式响应完成后，更新消息的最终状态
+      if (response.code === 200) {
+        // 确保使用流式响应中收集的内容，而不是API返回的完整内容
+        if (!aiMessage.content && response.data?.message) {
+          // 如果流式响应没有收集到内容，使用API返回的内容作为备用
+          aiMessage.content = response.data.message
+        }
+        
+        // 如果有思考过程数据，更新相关字段
+        if (response.data?.thinking_process) {
+          aiMessage.thinking_process = response.data.thinking_process
+          aiMessage.has_thinking = true
+        }
 
         // 更新预览和最后更新时间
-        conversation.preview = responseContent
-        conversation.lastUpdated = responseTimestamp
+        conversation.preview = aiMessage.content
+        conversation.lastUpdated = new Date()
         conversation.message_count = (conversation.message_count || 0) + 1
 
         // 如果是新对话，可能需要更新对话ID（如果后端创建了新对话）
-        if (response.data.conversation_id && response.data.conversation_id !== conversation.id) {
+        if (response.data?.conversation_id && response.data.conversation_id !== conversation.id) {
           console.log("更新对话ID:", conversation.id, "->", response.data.conversation_id)
           conversation.id = response.data.conversation_id
           activeConversationId.value = response.data.conversation_id
         }
       } else {
-        // API调用失败，显示错误消息
-        conversation.messages.push({
-          role: 'assistant',
-          content: `抱歉，我遇到了一些问题。${response.message || '请稍后再试。'}`,
-          timestamp: new Date()
-        })
+        // 流式响应失败，更新消息内容为错误信息
+        aiMessage.content = `抱歉，我遇到了一些问题。${response.message || '请稍后再试。'}`
         conversation.message_count = (conversation.message_count || 0) + 1
       }
     } catch (error) {

@@ -520,23 +520,182 @@ class ApiService {
     }
   }
 
-  // 聊天完成API - 使用DashScope大模型
-  async chatCompletion(messages: ChatMessage[], conversationId?: number): Promise<ApiResponse<any>> {
+  // 聊天完成API - 使用DashScope大模型（支持流式响应）
+  async chatCompletion(
+    messages: ChatMessage[], 
+    conversationId?: number, 
+    options?: {
+      deepThinking?: boolean
+      webSearch?: boolean
+      onChunk?: (chunk: any) => void
+    }
+  ): Promise<ApiResponse<any>> {
     try {
-      console.log("发送聊天请求:", { messages, conversation_id: conversationId })
+      const requestData = {
+        messages,
+        conversation_id: conversationId,
+        deep_thinking: options?.deepThinking || false,
+        web_search: options?.webSearch || false,
+        stream: true // 启用流式响应
+      };
+
+      console.log("发送流式聊天请求:", requestData);
+
+      // 使用fetch API处理流式响应
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${API_CONFIG.BASE_URL}chat/completion/`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': token ? `Bearer ${token}` : '',
+          'Accept': 'text/event-stream'
+        },
+        body: JSON.stringify(requestData)
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`HTTP ${response.status}: ${errorText}`);
+      }
+
+      const reader = response.body?.getReader();
+      const decoder = new TextDecoder();
+
+      if (!reader) {
+        throw new Error('无法获取响应流');
+      }
+
+      let buffer = '';
+      let conversationId_result = conversationId;
+      let fullContent = '';
+      let thinkingProcess = '';
+      let usage = {};
+      let requestId = '';
+
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop() || '';
+
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              try {
+                const jsonStr = line.slice(6).trim();
+                if (!jsonStr) continue;
+                
+                const data = JSON.parse(jsonStr);
+                
+                if (data.error) {
+                  throw new Error(data.error);
+                }
+                
+                if (data.type === 'conversation_id') {
+                  conversationId_result = data.conversation_id;
+                } else if (data.type === 'thinking') {
+                  thinkingProcess = data.full_thinking || '';
+                  if (options?.onChunk) {
+                    options.onChunk({
+                      type: 'thinking',
+                      content: data.content,
+                      fullThinking: thinkingProcess
+                    });
+                  }
+                } else if (data.type === 'content') {
+                  fullContent = data.full_content || '';
+                  if (options?.onChunk) {
+                    options.onChunk({
+                      type: 'content',
+                      content: data.content,
+                      fullContent: fullContent
+                    });
+                  }
+                } else if (data.type === 'final') {
+                  fullContent = data.content;
+                  usage = data.usage || {};
+                  requestId = data.request_id || '';
+                  if (data.thinking_process) {
+                    thinkingProcess = data.thinking_process;
+                  }
+                } else if (data.type === 'done') {
+                  break;
+                }
+              } catch (parseError) {
+                console.warn('解析SSE数据失败:', parseError, 'Line:', line);
+              }
+            }
+          }
+        }
+      } finally {
+        reader.releaseLock();
+      }
+
+      console.log("流式响应完成:", { fullContent, thinkingProcess, usage });
+
+      return {
+        code: 200,
+        data: {
+          conversation_id: conversationId_result,
+          message: fullContent,
+          thinking_process: thinkingProcess,
+          has_thinking: !!thinkingProcess,
+          usage: usage,
+          request_id: requestId
+        },
+        message: '回复成功'
+      };
+
+    } catch (error: any) {
+      console.error('聊天请求失败:', error);
+      
+      return {
+        code: 500,
+        message: error.message || '网络请求失败',
+        data: {
+          content: "抱歉，我遇到了一些问题。",
+          conversation_id: conversationId
+        }
+      };
+    }
+  }
+
+  // 备用的非流式聊天API（用于兼容性）
+  async chatCompletionNonStream(
+    messages: ChatMessage[], 
+    conversationId?: number, 
+    options?: {
+      deepThinking?: boolean
+      webSearch?: boolean
+    }
+  ): Promise<ApiResponse<any>> {
+    try {
+      console.log("发送非流式聊天请求:", { 
+        messages, 
+        conversation_id: conversationId,
+        deep_thinking: options?.deepThinking || false,
+        web_search: options?.webSearch || false
+      })
       const response = await this.instance.post<ApiResponse<any>>('chat/completion/', { 
         messages,
         conversation_id: conversationId,
-        timeout: 60000
-      });
+        deep_thinking: options?.deepThinking || false,
+        web_search: options?.webSearch || false,
+        stream: false
+      },
+      {
+        timeout: 60 * 1000 // 增加超时时间
+      }
+    );
       console.log("聊天请求原始响应:", response)
       
-      // 后端已经返回标准格式 { code, message, data }，直接返回即可
       return response.data;
     } catch (error: any) {
       console.error('聊天请求失败:', error);
       
-      // 详细记录错误信息
       if (error.response) {
         console.error('错误响应数据:', error.response.data);
         console.error('错误状态码:', error.response.status);

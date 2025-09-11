@@ -1,8 +1,10 @@
 /**
  * 统一API客户端
  */
-import axios, { AxiosInstance, AxiosRequestConfig, AxiosResponse } from 'axios'
-import { StandardResponse, ResponseHelper, ErrorInfo } from './responseHelper'
+import axios from 'axios'
+import type { AxiosInstance, AxiosRequestConfig, AxiosResponse } from 'axios'
+import { ResponseHelper } from './responseHelper'
+import type { StandardResponse, ErrorInfo } from './responseHelper'
 
 /**
  * API客户端配置

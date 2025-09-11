@@ -56,11 +56,11 @@
                 <span v-else-if="column.key === 'status_code'" :class="`status-code status-${getStatusClass(log.status_code)}`">
                   {{ log.status_code }}
                 </span>
-                <span v-else-if="column.key === 'message'" class="message" :title="log.message">
-                  {{ truncateText(log.message, 50) }}
+                <span v-else-if="column.key === 'message'" class="message" :title="log.message || ''">
+                  {{ truncateText(log.message || '', 50) }}
                 </span>
-                <span v-else-if="column.key === 'path'" class="path" :title="log.path">
-                  {{ truncateText(log.path, 30) }}
+                <span v-else-if="column.key === 'path'" class="path" :title="log.path || ''">
+                  {{ truncateText(log.path || '', 30) }}
                 </span>
                 <span v-else>
                   {{ log[column.key] || '-' }}
