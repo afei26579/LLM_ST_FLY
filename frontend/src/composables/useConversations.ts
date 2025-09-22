@@ -5,6 +5,7 @@ import type { ChatMessage as ApiChatMessage } from '../services/api'
 // 聊天消息类型
 export interface ChatMessage extends ApiChatMessage {
   timestamp?: Date
+  type?: 'text' | 'image' | 'file' | 'system'
 }
 
 // 对话类型
@@ -17,27 +18,111 @@ export interface Conversation {
   message_count: number
   last_message?: ChatMessage
   isTemporary?: boolean
+  conversationType?: 'default' | 'ai_chat'
+}
+
+// 返回类型定义
+export interface UseConversationsReturn {
+  // 状态
+  conversations: Conversation[]
+  isLoadingConversations: boolean
+  expandedConversations: Set<number>
+  loadingHistoryConversations: Set<number>
+  
+  // 方法
+  getFilteredConversations: (searchQuery: string) => Conversation[]
+  createNewConversation: (conversationType?: 'default' | 'ai_chat') => Promise<Conversation | null>
+  loadConversationDetail: (conversationId: number) => Promise<void>
+  loadConversationsFromServer: () => Promise<void>
+  deleteConversation: (id: number) => Promise<boolean>
+  clearConversationMessages: (id: number) => Promise<boolean>
+  toggleConversationExpand: (id: number) => Promise<void>
+  isConversationExpanded: (id: number) => boolean
+  isHistoryLoading: (id: number) => boolean
+  getUserQuestions: (conversation: Conversation) => Array<{content: string, timestamp?: Date, index: number}>
+  
+  // 缓存管理方法
+  saveTempConversationToCache: (conversation: Conversation) => void
+  loadTempConversationFromCache: () => Conversation | null
+  removeTempConversationFromCache: () => void
 }
 
 /**
  * 对话管理组合式函数
  */
-export function useConversations() {
+export function useConversations(): UseConversationsReturn {
   // 状态
   const conversations = reactive<Conversation[]>([])
   const isLoadingConversations = ref(false)
   const expandedConversations = ref<Set<number>>(new Set())
   const loadingHistoryConversations = ref<Set<number>>(new Set())
 
+  // 临时对话缓存键名
+  const TEMP_CONVERSATION_KEY = 'temp_conversation'
+
+  /**
+   * 保存临时对话到缓存
+   */
+  const saveTempConversationToCache = (conversation: Conversation) => {
+    try {
+      localStorage.setItem(TEMP_CONVERSATION_KEY, JSON.stringify({
+        ...conversation,
+        lastUpdated: conversation.lastUpdated.toISOString()
+      }))
+      console.log('临时对话已保存到缓存:', conversation.id)
+    } catch (error) {
+      console.error('保存临时对话到缓存失败:', error)
+    }
+  }
+
+  /**
+   * 从缓存加载临时对话
+   */
+  const loadTempConversationFromCache = (): Conversation | null => {
+    try {
+      const cached = localStorage.getItem(TEMP_CONVERSATION_KEY)
+      if (!cached) return null
+
+      const data = JSON.parse(cached)
+      const conversation: Conversation = {
+        ...data,
+        lastUpdated: new Date(data.lastUpdated)
+      }
+      console.log('从缓存加载临时对话:', conversation.id)
+      return conversation
+    } catch (error) {
+      console.error('从缓存加载临时对话失败:', error)
+      return null
+    }
+  }
+
+  /**
+   * 删除缓存中的临时对话
+   */
+  const removeTempConversationFromCache = () => {
+    try {
+      localStorage.removeItem(TEMP_CONVERSATION_KEY)
+      console.log('已删除缓存中的临时对话')
+    } catch (error) {
+      console.error('删除缓存中的临时对话失败:', error)
+    }
+  }
+
   // 计算属性
-  const getFilteredConversations = (searchQuery: string) => {
-    if (!searchQuery.trim()) {
+  const getFilteredConversations = (searchQuery: string, conversationType?: 'default' | 'ai_chat') => {
+    // 如果没有搜索词且没有指定对话类型，返回所有对话（按时间倒序）
+    if (!searchQuery.trim() && !conversationType) {
       return conversations.slice().sort((a, b) => b.lastUpdated.getTime() - a.lastUpdated.getTime())
     }
     
     const query = searchQuery.toLowerCase()
     return conversations
       .filter(conversation => {
+        // 如果指定了对话类型，先过滤类型
+        if (conversationType && conversation.conversationType !== conversationType) {
+          return false
+        }
+        
         // 搜索标题
         if (conversation.title.toLowerCase().includes(query)) return true
         
@@ -49,10 +134,27 @@ export function useConversations() {
       .sort((a, b) => b.lastUpdated.getTime() - a.lastUpdated.getTime())
   }
 
-  // 创建新对话
-  const createNewConversation = async (): Promise<Conversation | null> => {
+  /**
+   * 创建新对话
+   * 首先检查缓存中是否有临时对话，如果有则使用缓存的，否则创建新的
+   */
+  const createNewConversation = async (conversationType: 'default' | 'ai_chat' = 'default'): Promise<Conversation | null> => {
     try {
-      console.log("开始创建新对话（仅前端）")
+      console.log(`开始创建新对话（${conversationType}）`)
+      
+      // 首先检查缓存中是否有临时对话
+      const cachedTempConversation = loadTempConversationFromCache()
+      if (cachedTempConversation) {
+        console.log("发现缓存中的临时对话，使用缓存的对话:", cachedTempConversation.id)
+        
+        // 检查是否已经在对话列表中
+        const existingConv = conversations.find(c => c.id === cachedTempConversation.id)
+        if (!existingConv) {
+          conversations.push(cachedTempConversation)
+        }
+        
+        return cachedTempConversation
+      }
       
       // 生成临时ID（负数，避免与后端ID冲突）
       const tempId = -Date.now()
@@ -60,19 +162,23 @@ export function useConversations() {
       // 创建新对话（仅前端）
       const newConversation: Conversation = {
         id: tempId,
-        title: '新对话',
+        title: conversationType === 'ai_chat' ? '新AI对话' : '新对话',
         messages: [],
         lastUpdated: new Date(),
-        preview: '开始一个新的对话',
+        preview: conversationType === 'ai_chat' ? '开始一个新的AI对话' : '开始一个新的对话',
         message_count: 0,
         last_message: undefined,
-        isTemporary: true
+        isTemporary: true,
+        conversationType: conversationType
       }
       
-      console.log("创建临时对话成功:", newConversation)
+      console.log("创建新的临时对话:", newConversation)
       
       // 添加到对话列表
       conversations.push(newConversation)
+      
+      // 保存到缓存
+      saveTempConversationToCache(newConversation)
       
       return newConversation
     } catch (error) {
@@ -142,12 +248,12 @@ export function useConversations() {
   }
 
   // 从服务器加载对话历史
-  const loadConversationsFromServer = async () => {
+  const loadConversationsFromServer = async (conversationType?: 'default' | 'ai_chat') => {
     isLoadingConversations.value = true
     
     try {
-      console.log("开始从服务器加载对话历史")
-      const response = await apiService.getConversations()
+      console.log(`开始从服务器加载${conversationType ? conversationType : '所有'}对话历史`)
+      const response = await apiService.getConversations(conversationType)
       console.log("获取对话列表响应:", response)
       
       if (response.code === 200 && response.data) {
@@ -166,7 +272,8 @@ export function useConversations() {
             lastUpdated: new Date(conv.updated_at || new Date()),
             preview: conv.last_message?.content || '空对话',
             message_count: conv.message_count || 0,
-            last_message: conv.last_message
+            last_message: conv.last_message,
+            conversationType: conv.conversation_type || 'default'
           }
         })
         
@@ -291,6 +398,11 @@ export function useConversations() {
     toggleConversationExpand,
     isConversationExpanded,
     isHistoryLoading,
-    getUserQuestions
+    getUserQuestions,
+    
+    // 缓存管理方法
+    saveTempConversationToCache,
+    loadTempConversationFromCache,
+    removeTempConversationFromCache
   }
 }

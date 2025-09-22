@@ -428,10 +428,10 @@ class UserViewSet(viewsets.ModelViewSet):
                 try:
                     user.set_password(new_password)
                 except Exception as e:
-                    print(e)
+                    print(f"设置密码失败: {str(e)}")
                     return StandardResponse.error(
-                        message="用户不存在",
-                        code=404,
+                        message="密码设置失败",
+                        code=500,
                         request_id=getattr(request, 'request_id', None)
                     )
                 user.save(update_fields=['password'])

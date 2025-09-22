@@ -42,6 +42,7 @@ INSTALLED_APPS = [
     "users",
     "chat",
     "logs",
+    "agent",  # 智能体应用
 ]
 
 MIDDLEWARE = [

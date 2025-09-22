@@ -21,11 +21,13 @@ const {
   loadConversationDetail,
   loadConversationsFromServer,
   deleteConversation,
-  clearConversationMessages,
   toggleConversationExpand,
   isConversationExpanded,
   isHistoryLoading,
-  getUserQuestions
+  getUserQuestions,
+  saveTempConversationToCache,
+  loadTempConversationFromCache,
+  removeTempConversationFromCache
 } = useConversations()
 
 const {
@@ -34,10 +36,9 @@ const {
   activeConversationId,
   isCenterLayout,
   sendMessage,
-  handleKeyDown,
   switchConversation,
   jumpToQuestion
-} = useChat()
+} = useChat(removeTempConversationFromCache)
 
 // 本地状态
 const messagesContainer = ref<HTMLElement | null>(null)
@@ -53,24 +54,46 @@ const fileInputRef = ref<HTMLInputElement | null>(null)
 const selectedFiles = ref<File[]>([])
 
 // 计算属性
+
+/**
+ * 用户显示名称
+ * 获取用户的显示名称，优先使用昵称，其次用户名，最后使用默认值
+ */
 const userDisplayName = computed(() => {
   return authStore.userInfo?.nickname || authStore.userInfo?.username || '用户'
 })
 
+/**
+ * 问候语
+ * 根据当前时间生成相应的问候语（早上好、下午好等）
+ */
 const greeting = computed(() => {
   return getGreeting()
 })
 
+/**
+ * 当前对话的消息列表
+ * 获取当前活动对话的所有消息
+ */
 const messages = computed(() => {
   const conversation = conversations.find(c => c.id === activeConversationId.value)
   return conversation ? conversation.messages : []
 })
 
+/**
+ * 过滤后的对话列表
+ * 根据搜索查询条件过滤对话列表
+ */
 const filteredConversations = computed(() => {
   return getFilteredConversations(searchQuery.value)
 })
 
 // 方法
+
+/**
+ * 处理发送消息
+ * 调用聊天功能发送用户输入的消息，并在完成后滚动到底部和聚焦输入框
+ */
 const handleSendMessage = async () => {
   await sendMessage(conversations, (conversation) => {
     // 对话更新后的回调
@@ -84,6 +107,10 @@ const handleSendMessage = async () => {
   })
 }
 
+/**
+ * 处理键盘按下事件
+ * 当用户按下Enter键（非Shift+Enter）时发送消息
+ */
 const handleKeyDownEvent = (e: KeyboardEvent) => {
   if (e.key === 'Enter' && !e.shiftKey) {
     e.preventDefault()
@@ -91,6 +118,10 @@ const handleKeyDownEvent = (e: KeyboardEvent) => {
   }
 }
 
+/**
+ * 处理切换对话
+ * 切换到指定ID的对话，并在完成后滚动到底部和聚焦输入框
+ */
 const handleSwitchConversation = async (id: number) => {
   await switchConversation(id, conversations, loadConversationDetail)
   nextTick(() => {
@@ -99,6 +130,10 @@ const handleSwitchConversation = async (id: number) => {
   })
 }
 
+/**
+ * 处理删除对话
+ * 删除指定ID的对话，如果删除的是当前对话则创建新对话
+ */
 const handleDeleteConversation = async (id: number) => {
   const success = await deleteConversation(id)
   if (success) {
@@ -115,6 +150,10 @@ const handleDeleteConversation = async (id: number) => {
   }
 }
 
+/**
+ * 处理创建新对话
+ * 创建一个新的对话，如果当前已有空的临时对话则直接使用
+ */
 const handleCreateNewConversation = async () => {
   // 如果当前对话是个空对话且是临时对话，就直接使用它
   if (activeConversationId.value !== null) {
@@ -137,6 +176,11 @@ const handleCreateNewConversation = async () => {
     // 重置输入框
     userInput.value = ''
     
+    // 如果是临时对话，保存到缓存
+    if (newConversation.isTemporary) {
+      saveTempConversationToCache(newConversation)
+    }
+    
     // 聚焦输入框
     nextTick(() => {
       focusInputElement()
@@ -144,11 +188,18 @@ const handleCreateNewConversation = async () => {
   }
 }
 
+/**
+ * 处理跳转到特定问题
+ * 跳转到指定对话中的特定问题位置
+ */
 const handleJumpToQuestion = (conversationId: number, questionIndex: number) => {
   jumpToQuestion(conversationId, questionIndex, conversations, loadConversationDetail, scrollToQuestion)
 }
 
-// 处理文件选择
+/**
+ * 处理文件选择
+ * 当用户选择文件时，将文件添加到选中文件列表中
+ */
 const handleFileSelect = (event: Event) => {
   const target = event.target as HTMLInputElement
   if (target.files) {
@@ -158,34 +209,52 @@ const handleFileSelect = (event: Event) => {
   }
 }
 
-// 触发文件选择
+/**
+ * 触发文件选择
+ * 程序化地触发文件选择对话框
+ */
 const triggerFileSelect = () => {
   fileInputRef.value?.click()
 }
 
-// 移除选中的文件
+/**
+ * 移除选中的文件
+ * 从选中文件列表中移除指定索引的文件
+ */
 const removeFile = (index: number) => {
   selectedFiles.value.splice(index, 1)
 }
 
-// 清空所有文件
+/**
+ * 清空所有文件
+ * 清空选中文件列表中的所有文件
+ */
 const clearFiles = () => {
   selectedFiles.value = []
 }
 
-// 滚动到底部
+/**
+ * 滚动到底部
+ * 将消息容器滚动到最底部，用于显示最新消息
+ */
 const scrollToBottomContainer = () => {
   if (messagesContainer.value) {
     scrollToBottom(messagesContainer.value)
   }
 }
 
-// 聚焦输入框
+/**
+ * 聚焦输入框
+ * 将焦点设置到消息输入框，方便用户输入
+ */
 const focusInputElement = () => {
   focusInput(inputElement.value)
 }
 
-// 滚动到特定问题
+/**
+ * 滚动到特定问题
+ * 滚动到当前对话中指定索引的用户问题位置，并添加高亮效果
+ */
 const scrollToQuestion = (questionIndex: number) => {
   nextTick(() => {
     const conversation = conversations.find(c => c.id === activeConversationId.value)
@@ -221,20 +290,42 @@ const scrollToQuestion = (questionIndex: number) => {
   })
 }
 
-// 自动调整输入框高度
+/**
+ * 监听用户输入变化
+ * 当用户输入内容时自动调整输入框高度
+ */
 watch(userInput, () => {
   if (inputElement.value) {
     autoResizeTextarea(inputElement.value)
   }
 })
 
-// 组件挂载后，从后端加载对话历史并聚焦输入框
+/**
+ * 组件挂载生命周期钩子
+ * 组件挂载后加载对话历史，检查缓存中的临时对话或创建新的临时对话，并初始化UI状态
+ */
 onMounted(async () => {
   await loadConversationsFromServer()
   
-  // 无论是否有活动对话，都创建一个新的临时对话
-  console.log("首次打开组件，创建新临时对话")
-  await handleCreateNewConversation()
+  // 检查缓存中是否有临时对话，如果有则使用，否则创建新的
+  console.log("首次打开组件，检查缓存中的临时对话或创建新临时对话")
+  const cachedTempConversation = loadTempConversationFromCache()
+  
+  if (cachedTempConversation) {
+    console.log("发现缓存中的临时对话，切换到该对话:", cachedTempConversation.id)
+    // 确保临时对话在对话列表中
+    const existingConv = conversations.find(c => c.id === cachedTempConversation.id)
+    if (!existingConv) {
+      conversations.push(cachedTempConversation)
+    }
+    // 切换到缓存的临时对话
+    activeConversationId.value = cachedTempConversation.id
+    isCenterLayout.value = cachedTempConversation.messages.length === 0
+  } else {
+    // 没有缓存的临时对话，创建新的
+    console.log("没有缓存的临时对话，创建新临时对话")
+    await handleCreateNewConversation()
+  }
   
   focusInputElement()
   scrollToBottomContainer()
@@ -393,18 +484,20 @@ onMounted(async () => {
             </template>
           </div>
           
-          <!-- 加载中状态 -->
+          <!-- AI回复中状态 -->
           <div v-if="isLoading" class="message-wrapper ai-message-wrapper">
             <div class="avatar-container">
               <img :src="aiAvatar" alt="AI" class="avatar-img">
             </div>
             <div class="message-with-name">
               <div class="avatar-name">AI助手</div>
-              <div class="message ai-message loading">
-                <div class="typing-indicator">
-                  <span></span>
-                  <span></span>
-                  <span></span>
+              <div class="message ai-message">
+                <div class="ai-status">
+                  <div class="typing-dots">
+                    <span class="dot"></span>
+                    <span class="dot"></span>
+                    <span class="dot"></span>
+                  </div>
                 </div>
               </div>
             </div>
@@ -1008,39 +1101,48 @@ onMounted(async () => {
   text-align: right;
 }
 
-.loading {
-  min-width: 80px;
-}
-
-.typing-indicator {
+/* AI回复状态样式 */
+.ai-status {
   display: flex;
   align-items: center;
-  justify-content: center;
-  padding: 6px 0;
+  padding: 8px 12px;
 }
 
-.typing-indicator span {
-  width: 8px;
-  height: 8px;
-  background-color: var(--color-text-soft, #bbb);
+.typing-dots {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.dot {
+  width: 4px;
+  height: 4px;
+  background-color: #00d4aa;
   border-radius: 50%;
-  display: inline-block;
-  margin: 0 2px;
-  animation: blink 1.4s infinite both;
+  animation: typing 1.4s infinite ease-in-out;
 }
 
-.typing-indicator span:nth-child(2) {
+.dot:nth-child(1) {
+  animation-delay: 0s;
+}
+
+.dot:nth-child(2) {
   animation-delay: 0.2s;
 }
 
-.typing-indicator span:nth-child(3) {
+.dot:nth-child(3) {
   animation-delay: 0.4s;
 }
 
-@keyframes blink {
-  0% { opacity: 0.6; transform: scale(1); }
-  50% { opacity: 1; transform: scale(1.2); }
-  100% { opacity: 0.6; transform: scale(1); }
+@keyframes typing {
+  0%, 80%, 100% {
+    opacity: 0.3;
+    transform: scale(1);
+  }
+  40% {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
 
 .chat-input-container {

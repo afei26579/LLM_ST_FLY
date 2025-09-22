@@ -10,4 +10,10 @@ urlpatterns = [
     path('', include(router.urls)),
     path('completion/', ChatCompletionView.as_view(), name='chat_completion'),
     path('send/', ConversationViewSet.as_view({'post': 'send_message'}), name='send-message'),
+    
+    # AI 音频处理
+    path('ai-audio/', include('chat.ai-audio.urls')),
+    
+    # AI 视频生成  
+    path('ai-video/', include('chat.ai_video.urls')),
 ]

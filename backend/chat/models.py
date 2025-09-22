@@ -4,6 +4,43 @@ from django.utils.translation import gettext_lazy as _
 
 User = get_user_model()
 
+# 导入AI功能模块的模型，确保Django能发现这些模型
+try:
+    import importlib
+    ai_image_models = importlib.import_module('chat.ai-image.models')
+    # 导入AI图像生成模型
+    ImageGenerationTask = ai_image_models.ImageGenerationTask
+    GeneratedImage = ai_image_models.GeneratedImage
+    UserImageStats = ai_image_models.UserImageStats
+    
+    # 导入AI文档阅读模型
+    ai_reading_models = importlib.import_module('chat.ai-reading.models')
+    Document = ai_reading_models.Document
+    DocumentAnalysis = ai_reading_models.DocumentAnalysis
+    QAHistory = ai_reading_models.QAHistory
+    DocumentAccess = ai_reading_models.DocumentAccess
+    
+    # 导入AI音频处理模型
+    ai_audio_models = importlib.import_module('chat.ai-audio.models')
+    AudioTask = ai_audio_models.AudioTask
+    SpeechToTextTask = ai_audio_models.SpeechToTextTask
+    TextToSpeechTask = ai_audio_models.TextToSpeechTask
+    VoiceCloneTask = ai_audio_models.VoiceCloneTask
+    UserAudioStats = ai_audio_models.UserAudioStats
+    
+    # 导入AI视频生成模型
+    ai_video_models = importlib.import_module('chat.ai_video.models')
+    VideoGenerationTask = ai_video_models.VideoGenerationTask
+    GeneratedVideo = ai_video_models.GeneratedVideo
+    UserVideoStats = ai_video_models.UserVideoStats
+    VideoStylePreset = ai_video_models.VideoStylePreset
+    
+except ImportError as e:
+    # 如果导入失败，记录但不影响基础聊天功能
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.warning(f"AI模块模型导入失败: {e}")
+
 class Conversation(models.Model):
     """对话模型"""
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='conversations', verbose_name=_('用户'))

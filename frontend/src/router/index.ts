@@ -35,12 +35,7 @@ const router = createRouter({
       meta: { requiresAuth: false }
     },
     // AI功能页面
-    {
-      path: '/ai-text',
-      name: 'ai-text',
-      component: () => import('../views/ai-text/AITextView.vue'),
-      meta: { requiresAuth: true }
-    },
+    { path: '/ai-text', name: 'ai-text', component: () => import('../views/ai-text/AITextView.vue'), meta: { requiresAuth: true } },
     {
       path: '/ai-reading',
       name: 'ai-reading',
@@ -63,6 +58,25 @@ const router = createRouter({
       path: '/ai-video',
       name: 'ai-video',
       component: () => import('../views/ai-video/AIVideoView.vue'),
+      meta: { requiresAuth: true }
+    },
+    // 智能体路由
+    {
+      path: '/agent/travel-assistant',
+      name: 'travel-assistant',
+      component: () => import('../views/agent/TravelAssistantView.vue'),
+      meta: { requiresAuth: true }
+    },
+    {
+      path: '/agent/poetry-painting',
+      name: 'poetry-painting',
+      component: () => import('../views/agent/PoetryPaintingView.vue'),
+      meta: { requiresAuth: true }
+    },
+    {
+      path: '/agent/customer-service',
+      name: 'customer-service',
+      component: () => import('../views/agent/CustomerServiceView.vue'),
       meta: { requiresAuth: true }
     },
     // 系统管理 - 用户管理

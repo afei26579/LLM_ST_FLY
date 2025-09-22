@@ -19,6 +19,44 @@ class APITimeoutError(Exception):
     pass
 
 
+def is_network_error(error_message: str) -> bool:
+    """
+    检测是否为网络连接错误
+    
+    Args:
+        error_message: 错误消息字符串
+        
+    Returns:
+        bool: 如果是网络连接错误返回True
+    """
+    network_error_keywords = [
+        'SSLError',
+        'SSLEOFError', 
+        'EOF occurred in violation of protocol',
+        'Max retries exceeded',
+        'Connection refused',
+        'Connection timeout',
+        'Connection aborted',
+        'Network is unreachable',
+        'Name or service not known',
+        'Temporary failure in name resolution',
+        'HTTPSConnectionPool',
+        'ConnectionError',
+        'ConnectTimeout',
+        'ReadTimeout',
+        'timeout',
+        'timed out',
+        'connection reset',
+        'connection closed',
+        'unable to connect',
+        'network error',
+        'dns resolution failed'
+    ]
+    
+    error_lower = error_message.lower()
+    return any(keyword.lower() in error_lower for keyword in network_error_keywords)
+
+
 class ChatService:
     """聊天服务类"""
     
@@ -126,11 +164,11 @@ class ChatService:
             str: 模型名称
         """
         if deep_thinking:
-            return 'qwen-plus'  # 深度思考使用plus模型
+            return 'qwen3-max-preview'  # 深度思考使用plus模型
         elif web_search:
-            return 'qwen-plus'  # 联网搜索使用plus模型
+            return 'qwen-plus-latest'  # 联网搜索使用plus模型
         else:
-            return 'qwen-turbo'  # 普通模式使用turbo模型
+            return 'qwen-flash'  # 普通模式使用turbo模型
     
     def build_api_params(self, messages: List[Dict], deep_thinking: bool = False, web_search: bool = False) -> Dict[str, Any]:
         """
@@ -196,157 +234,7 @@ class ChatService:
         
         return api_params
     
-    def call_dashscope_api(self, messages: List[Dict], deep_thinking: bool = False, web_search: bool = False) -> Dict[str, Any]:
-        """
-        使用DashScope SDK调用API进行对话（非流式）
-        
-        Args:
-            messages: 对话历史消息列表
-            deep_thinking: 是否启用深度思考模式
-            web_search: 是否启用联网搜索模式
-            
-        Returns:
-            Dict: API响应结果
-        """
-        print("准备调用DashScope API (使用SDK)")
-        if not self.api_key:
-            print("错误: DashScope API密钥未配置")
-            raise ValueError("DashScope API密钥未配置")
-        
-        # 转换消息格式以适应DashScope SDK
-        formatted_messages = []
-        for msg in messages:
-            role = msg.get('role')
-            content = msg.get('content')
-            
-            # DashScope使用system/user/assistant角色
-            if role in ['system', 'user', 'assistant']:
-                formatted_messages.append({
-                    "role": role,
-                    "content": content
-                })
-        
-        print(f"格式化后的消息数量: {len(formatted_messages)}")
-        
-        try:
-            # 设置超时时间：深度思考模式20秒，普通模式10秒
-            timeout_seconds = 20 if deep_thinking else 10
-            
-            # 构建API调用参数
-            api_params = self.build_api_params(formatted_messages, deep_thinking, web_search)
-            
-            print(f"API调用超时设置: {timeout_seconds}秒 (深度思考: {deep_thinking})")
-
-            # 使用线程和超时控制来调用API
-            completion = None
-            exception_occurred = None
-            
-            def api_call():
-                nonlocal completion, exception_occurred
-                try:
-                    completion = Generation.call(**api_params)
-                except Exception as e:
-                    exception_occurred = e
-            
-            # 启动API调用线程
-            api_thread = threading.Thread(target=api_call)
-            api_thread.daemon = True
-            api_thread.start()
-            
-            # 等待线程完成或超时
-            api_thread.join(timeout=timeout_seconds)
-            
-            if api_thread.is_alive():
-                # 超时了
-                raise APITimeoutError(f"API调用超时（{timeout_seconds}秒）")
-            
-            if exception_occurred:
-                raise exception_occurred
-                
-            if completion is None:
-                raise Exception("API调用失败，未获得响应")
-            
-            print("SDK调用成功，开始处理流式响应")
-            
-            # 定义完整思考过程和回复
-            reasoning_content = ""
-            answer_content = ""
-            is_answering = False
-            start_time = time.time()
-            
-            # 处理流式响应（也需要超时控制）
-            for chunk in completion:
-                # 检查处理时间是否超时
-                if time.time() - start_time > timeout_seconds:
-                    raise APITimeoutError(f"流式响应处理超时（{timeout_seconds}秒）")
-                
-                # 如果思考过程与回复皆为空，则忽略
-                if (hasattr(chunk.output.choices[0].message, 'content') and 
-                    hasattr(chunk.output.choices[0].message, 'reasoning_content') and
-                    chunk.output.choices[0].message.content == "" and
-                    chunk.output.choices[0].message.reasoning_content == ""):
-                    continue
-                
-                # 如果当前为思考过程
-                if (hasattr(chunk.output.choices[0].message, 'reasoning_content') and
-                    chunk.output.choices[0].message.reasoning_content != "" and
-                    chunk.output.choices[0].message.content == ""):
-                    reasoning_content += chunk.output.choices[0].message.reasoning_content
-                    print(f"思考过程片段: {chunk.output.choices[0].message.reasoning_content}")
-                
-                # 如果当前为回复
-                elif (hasattr(chunk.output.choices[0].message, 'content') and
-                      chunk.output.choices[0].message.content != ""):
-                    if not is_answering:
-                        print("开始接收最终回答")
-                        is_answering = True
-                    answer_content += chunk.output.choices[0].message.content
-                    print(f"回答片段: {chunk.output.choices[0].message.content}")
-            
-            # 构建使用统计（流式响应可能没有详细的usage信息）
-            usage = {
-                "input_tokens": 0,
-                "output_tokens": 0,
-                "total_tokens": 0
-            }
-            
-            # 构建返回结果
-            result = {
-                "content": answer_content if answer_content else reasoning_content,
-                "usage": usage
-            }
-            
-            # 如果启用了深度思考且有思考过程，添加相关字段
-            if deep_thinking and reasoning_content:
-                result.update({
-                    "thinking_process": reasoning_content,
-                    "final_answer": answer_content,
-                    "has_structured_response": True
-                })
-                print(f"深度思考完成 - 思考过程长度: {len(reasoning_content)}, 最终回答长度: {len(answer_content)}")
-            
-            return result
-            
-        except APITimeoutError as e:
-            error_message = str(e)
-            print(f"API调用超时: {error_message}")
-            if deep_thinking:
-                error_message += "，深度思考模式需要更多时间处理，请稍后重试"
-            raise Exception(error_message)
-        except Exception as e:
-            error_message = str(e)
-            print(f"SDK调用异常: {error_message}")
-            
-            # 检查是否为其他类型的超时异常
-            if "timeout" in error_message.lower() or "timed out" in error_message.lower():
-                timeout_msg = f"请求超时（超时时间: {timeout_seconds}秒）"
-                if deep_thinking:
-                    timeout_msg += "，深度思考模式需要更多时间处理，请稍后重试"
-                raise Exception(timeout_msg)
-            else:
-                raise Exception(f"DashScope SDK调用失败: {error_message}")
-    
-    def call_dashscope_api_stream(self, messages: List[Dict], deep_thinking: bool = False, web_search: bool = False) -> Generator[Dict[str, Any], None, None]:
+    def call_dashscope_api(self, messages: List[Dict], deep_thinking: bool = False, web_search: bool = False) -> Generator[Dict[str, Any], None, None]:
         """
         使用DashScope SDK进行流式API调用
         
@@ -366,16 +254,16 @@ class ChatService:
             
             # 构建API调用参数
             api_params = self.build_api_params(messages, deep_thinking, web_search)
-            
-            print(f"API调用超时设置: {timeout_seconds}秒 (深度思考: {deep_thinking})")
+            print(f"API调用参数: {api_params}")
+            print(f"API调用参数: 当前模型={api_params.get('model')},深度思考={api_params.get('enable_thinking')},联网搜索={api_params.get('enable_search')}")
             
             # 调用DashScope流式API
             responses = Generation.call(**api_params)
             
-            # 处理流式响应
-            reasoning_content = ""
-            answer_content = ""
-            is_answering = False
+            # 处理流式响应 - 统一处理所有内容
+            full_response_content = ""  # 完整的响应内容（包含思考过程和回答）
+            reasoning_content = ""     # 仅用于记录思考过程
+            is_thinking_phase = True   # 当前是否处于思考阶段
             chunk_count = 0
             start_time = time.time()
             
@@ -385,17 +273,6 @@ class ChatService:
             
             for resp in responses:
                 try:
-                    # 检查超时
-                    if time.time() - start_time > timeout_seconds:
-                        error_msg = f"流式响应处理超时（{timeout_seconds}秒）"
-                        if deep_thinking:
-                            error_msg += "，深度思考模式需要更多时间处理，请稍后重试"
-                        print(f"API调用超时: {error_msg}")
-                        yield {
-                            'type': 'error',
-                            'message': error_msg
-                        }
-                        return
                     chunk_count += 1
                     
                     # 安全地检查响应状态
@@ -415,44 +292,82 @@ class ChatService:
                     
                     message = choice.message
                     
-                    # 只在深度思考模式下才处理思考过程
+                    # 获取思考内容和回答内容
+                    reasoning_text = None
+                    content_text = None
+                    
+                    # 获取思考内容（仅在深度思考模式下）
                     if deep_thinking:
                         try:
-                            if hasattr(message, 'reasoning_content'):
-                                reasoning_text = message.reasoning_content
-                                if reasoning_text:
-                                    reasoning_content += reasoning_text
-                                    yield {
-                                        'type': 'thinking',
-                                        'content': reasoning_text,
-                                        'full_thinking': reasoning_content
-                                    }
-                        except Exception as reasoning_error:
-                            print(f"处理思考过程时出错: {str(reasoning_error)}")
+                            # 尝试多种方式获取思考内容
+                            possible_keys = ['reasoning_content', 'reasoningContent', 'thinking', 'reasoning']
+                            for key in possible_keys:
+                                try:
+                                    if hasattr(message, 'get'):
+                                        reasoning_text = message.get(key, None)
+                                    elif hasattr(message, '__getitem__'):
+                                        try:
+                                            reasoning_text = message[key]
+                                        except KeyError:
+                                            reasoning_text = None
+                                    
+                                    if reasoning_text and isinstance(reasoning_text, str) and reasoning_text.strip():
+                                        break
+                                except (KeyError, AttributeError, TypeError):
+                                    continue
+                        except Exception as e:
+                            print(f"获取思考内容时出错: {str(e)}")
                     
-                    # 处理回答内容 - 实现服务器端打字机效果
+                    # 获取回答内容
                     try:
-                        if hasattr(message, 'content') and message.content:
-                            content_text = message.content
-                            if not is_answering:
-                                is_answering = True
-                                print("开始输出回答内容")
-                            
-                            # 计算新增的内容
-                            new_content = content_text[len(answer_content):]
-                            if new_content:
-                                # 逐字符发送，实现打字机效果
-                                for char in new_content:
-                                    answer_content += char
-                                    yield {
-                                        'type': 'content',
-                                        'content': char,  # 发送单个字符
-                                        'full_content': answer_content
-                                    }
-                                    # 添加延迟以控制打字速度
-                                    time.sleep(0.03)  # 30ms延迟，可调整打字速度
-                    except Exception as content_error:
-                        print(f"处理回答内容时出错: {str(content_error)}")
+                        if hasattr(message, 'get'):
+                            content_text = message.get('content', None)
+                        elif hasattr(message, '__getitem__'):
+                            try:
+                                content_text = message['content']
+                            except KeyError:
+                                content_text = None
+                    except Exception as e:
+                        print(f"获取回答内容时出错: {str(e)}")
+                    
+                    # 处理内容流
+                    current_chunk_content = ""
+                    
+                    # 如果有思考内容且当前处于思考阶段
+                    if reasoning_text and isinstance(reasoning_text, str) and reasoning_text.strip():
+                        # 计算新增的思考内容
+                        new_reasoning = reasoning_text[len(reasoning_content):]
+                        if new_reasoning:
+                            reasoning_content += new_reasoning
+                            current_chunk_content = new_reasoning
+                            print(f"思考内容片段: {len(new_reasoning)} 字符")
+                    
+                    # 如果有回答内容
+                    if content_text and isinstance(content_text, str) and content_text.strip():
+                        # 如果从思考阶段转换到回答阶段
+                        if is_thinking_phase:
+                            is_thinking_phase = False
+                            print("从思考阶段转换到回答阶段")
+                        
+                        # 计算新增的回答内容
+                        current_answer_length = len(full_response_content) - len(reasoning_content)
+                        new_answer = content_text[current_answer_length:]
+                        if new_answer:
+                            current_chunk_content = new_answer
+                            print(f"回答内容片段: {len(new_answer)} 字符")
+                    
+                    # 如果有新内容，添加到完整响应中并流式输出
+                    if current_chunk_content:
+                        full_response_content += current_chunk_content
+                        
+                        # 直接发送完整的新内容块，而不是逐字符输出
+                        yield {
+                            'type': 'content',
+                            'content': current_chunk_content,
+                            'full_content': full_response_content,
+                            'is_thinking': is_thinking_phase,
+                            'thinking_content': reasoning_content if deep_thinking else None
+                        }
                     
                     # 安全地检查是否完成
                     finish_reason = getattr(choice, 'finish_reason', None)
@@ -463,7 +378,7 @@ class ChatService:
                         # 返回最终结果和使用统计
                         final_data = {
                             'type': 'final',
-                            'content': answer_content,
+                            'content': full_response_content,
                             'usage': {
                                 'input_tokens': getattr(resp.usage, 'input_tokens', 0) if hasattr(resp, 'usage') else 0,
                                 'output_tokens': getattr(resp.usage, 'output_tokens', 0) if hasattr(resp, 'usage') else 0,
@@ -482,14 +397,25 @@ class ChatService:
                         
                 except Exception as chunk_error:
                     import traceback
-                    print(f"处理响应块时出错: {str(chunk_error)}")
+                    chunk_error_message = str(chunk_error)
+                    print(f"处理响应块时出错: {chunk_error_message}")
                     print(f"错误详情: {traceback.format_exc()}")
+                    
+                    # 检查是否为网络连接错误
+                    if is_network_error(chunk_error_message):
+                        print(f"检测到网络连接错误: {chunk_error_message}")
+                        yield {
+                            'type': 'error',
+                            'message': '网络连接超时'
+                        }
+                        return
+                    
                     # 继续处理下一个块，不中断整个流程
                     continue
                     
             # 只有在响应没有正常完成时才检查错误情况
             if not response_completed:
-                if not answer_content and not reasoning_content:
+                if not full_response_content:
                     print("警告: 没有收集到任何响应内容")
                     yield {
                         'type': 'error',
@@ -500,13 +426,22 @@ class ChatService:
                     
         except Exception as e:
             import traceback
-            error_message = f"流式API调用异常: {str(e)}"
-            print(error_message)
+            error_message = str(e)
+            print(f"流式API调用异常: {error_message}")
             print(f"详细错误信息: {traceback.format_exc()}")
-            yield {
-                'type': 'error',
-                'message': error_message
-            }
+            
+            # 检查是否为网络连接错误
+            if is_network_error(error_message):
+                print(f"检测到网络连接错误: {error_message}")
+                yield {
+                    'type': 'error',
+                    'message': '网络连接超时'
+                }
+            else:
+                yield {
+                    'type': 'error',
+                    'message': f"流式API调用异常: {error_message}"
+                }
 
 
 class ConversationService:

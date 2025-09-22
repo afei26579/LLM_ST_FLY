@@ -167,7 +167,7 @@ class ChatCompletionView(View):
             data = json.loads(request.body)
             
             # 检查是否请求流式响应
-            stream = data.get('stream', False)
+            stream = data.get('stream', True)
             accept_header = request.headers.get('Accept', '')
             
             # 如果是流式请求，直接返回流式响应
@@ -223,21 +223,55 @@ class ChatCompletionView(View):
                         content=latest_message.get('content')
                     )
                 
-                # 调用DashScope API
+                # 调用流式DashScope API并收集完整响应
                 try:
-                    print("调用DashScope API...")
-                    api_response = self.chat_service.call_dashscope_api(messages, deep_thinking, web_search)
-                    print(f"API调用成功, 响应长度: {len(api_response.get('content', ''))}")
+                    print("调用流式DashScope API...")
+                    full_content = ""
+                    thinking_process = ""
+                    usage_info = {}
+                    
+                    # 收集流式响应的完整内容
+                    for chunk_data in self.chat_service.call_dashscope_api(messages, deep_thinking, web_search):
+                        if chunk_data.get('type') == 'content':
+                            full_content = chunk_data.get('full_content', '')
+                        elif chunk_data.get('type') == 'thinking':
+                            thinking_process = chunk_data.get('full_thinking', '')
+                        elif chunk_data.get('type') == 'final':
+                            full_content = chunk_data.get('content', '')
+                            thinking_process = chunk_data.get('thinking_process', '')
+                            usage_info = chunk_data.get('usage', {})
+                        elif chunk_data.get('type') == 'error':
+                            raise Exception(chunk_data.get('message', '未知错误'))
+                    
+                    print(f"流式API调用成功, 响应长度: {len(full_content)}")
+                    
+                    # 构建API响应格式
+                    api_response = {
+                        'content': full_content,
+                        'usage': usage_info
+                    }
+                    
+                    # 如果启用了深度思考且有思考过程，添加相关字段
+                    if deep_thinking and thinking_process:
+                        api_response.update({
+                            'thinking_process': thinking_process,
+                            'final_answer': full_content,
+                            'has_structured_response': True
+                        })
+                        
                 except Exception as api_error:
-                    print(f"API调用失败: {str(api_error)}")
+                    error_message = str(api_error)
+                    print(f"流式API调用失败: {error_message}")
+                    
+                    # 直接返回异常消息，如果是网络错误，services.py已经处理为"网络连接超时"
                     return StandardResponse.error(
-                        message=f'AI服务调用失败: {str(api_error)}',
+                        message=error_message,
                         code=500,
                         request_id=getattr(request, 'request_id', None)
                     )
                 
                 # 保存AI回复到数据库
-                if 'content' in api_response:
+                if 'content' in api_response and api_response['content']:
                     tokens = api_response.get('usage', {}).get('total_tokens', 0)
                     self.chat_service.save_ai_message(
                         conversation=conversation,
@@ -245,7 +279,7 @@ class ChatCompletionView(View):
                         tokens_used=tokens
                     )
                 else:
-                    print("警告: API响应中没有content字段")
+                    print("警告: API响应中没有content字段或内容为空")
                 
                 # 更新对话标题（如果是新对话）
                 self.chat_service.update_conversation_title(conversation, messages)
@@ -342,7 +376,7 @@ class ChatCompletionView(View):
                         usage_info = {}
                         
                         try:
-                            for chunk_data in self.chat_service.call_dashscope_api_stream(messages, deep_thinking, web_search):
+                            for chunk_data in self.chat_service.call_dashscope_api(messages, deep_thinking, web_search):
                                 # 发送流式数据给前端
                                 yield f"data: {json.dumps(chunk_data)}\n\n"
                                 
@@ -358,7 +392,9 @@ class ChatCompletionView(View):
                                     
                         except Exception as api_error:
                             print(f"API调用失败: {str(api_error)}")
-                            yield f"data: {json.dumps({'error': f'AI服务调用失败: {str(api_error)}'})}\n\n"
+                            error_message = str(api_error)
+                            # 直接返回异常消息，如果是网络错误，services.py已经处理为"网络连接超时"
+                            yield f"data: {json.dumps({'error': error_message})}\n\n"
                             return
                         
                         # 保存AI回复到数据库

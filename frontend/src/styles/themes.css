@@ -1236,22 +1236,274 @@ body {
 }
 
 
-/* 滚动条样式 */
+/* ========================================
+   滚动条样式 - 三种主题适配 (全局应用)
+======================================== */
+
+/* 默认滚动条样式 - 基础样式 */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #334155 #1e293b;
+}
+
 ::-webkit-scrollbar {
-  width: 8px;
+  width: 10px !important;
+  height: 10px !important;
 }
 
 ::-webkit-scrollbar-track {
-  background: var(--color-surface);
+  background: #1e293b !important;
+  border-radius: 4px !important;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--color-border);
-  border-radius: 4px;
+  background: #334155 !important;
+  border-radius: 4px !important;
+  transition: all 0.3s ease !important;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--color-textSecondary);
+  background: #475569 !important;
+}
+
+::-webkit-scrollbar-corner {
+  background: #1e293b !important;
+}
+
+/* ========================================
+   浅色主题滚动条 - 清新商务风格
+======================================== */
+.theme-light * {
+  scrollbar-color: #d1d5db #f8fafc !important;
+}
+
+.theme-light ::-webkit-scrollbar-track {
+  background: #f8fafc !important;
+  border: 1px solid #e5e7eb !important;
+}
+
+.theme-light ::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, #e5e7eb 0%, #d1d5db 100%) !important;
+  border: 1px solid #d1d5db !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.5) !important;
+}
+
+.theme-light ::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, #d1d5db 0%, #9ca3af 100%) !important;
+  border-color: #9ca3af !important;
+}
+
+.theme-light ::-webkit-scrollbar-thumb:active {
+  background: linear-gradient(180deg, #9ca3af 0%, #6b7280 100%) !important;
+  border-color: #6b7280 !important;
+}
+
+.theme-light ::-webkit-scrollbar-corner {
+  background: #f8fafc !important;
+  border: 1px solid #e5e7eb !important;
+}
+
+/* ========================================
+   深色主题滚动条 - 现代暗黑风格
+======================================== */
+.theme-dark * {
+  scrollbar-color: #475569 #1e293b !important;
+}
+
+.theme-dark ::-webkit-scrollbar-track {
+  background: #1e293b !important;
+  border: 1px solid #334155 !important;
+  box-shadow: inset 0 0 6px rgba(0, 0, 0, 0.3) !important;
+}
+
+.theme-dark ::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, #475569 0%, #334155 100%) !important;
+  border: 1px solid #475569 !important;
+  box-shadow: 
+    inset 0 1px 0 rgba(94, 155, 255, 0.1),
+    0 1px 3px rgba(0, 0, 0, 0.3) !important;
+}
+
+.theme-dark ::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, #5e9bff 0%, #4f8aff 100%) !important;
+  border-color: #5e9bff !important;
+  box-shadow: 
+    inset 0 1px 0 rgba(255, 255, 255, 0.2),
+    0 0 8px rgba(94, 155, 255, 0.3) !important;
+}
+
+.theme-dark ::-webkit-scrollbar-thumb:active {
+  background: linear-gradient(180deg, #4f8aff 0%, #3d7eff 100%) !important;
+  border-color: #4f8aff !important;
+  box-shadow: 
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    0 0 10px rgba(94, 155, 255, 0.4) !important;
+}
+
+.theme-dark ::-webkit-scrollbar-corner {
+  background: #1e293b !important;
+  border: 1px solid #334155 !important;
+}
+
+/* ========================================
+   未来科技主题滚动条 - 赛博朋克风格
+======================================== */
+.theme-future * {
+  scrollbar-color: #00d4ff #1a1a2e !important;
+}
+
+.theme-future ::-webkit-scrollbar-track {
+  background: linear-gradient(180deg, #1a1a2e 0%, #16213e 100%) !important;
+  border: 1px solid #3730a3 !important;
+  box-shadow: 
+    inset 0 0 10px rgba(0, 0, 0, 0.5),
+    inset 0 0 20px rgba(0, 212, 255, 0.03) !important;
+}
+
+.theme-future ::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, 
+    rgba(0, 212, 255, 0.6) 0%, 
+    rgba(124, 58, 237, 0.6) 50%,
+    rgba(255, 0, 110, 0.6) 100%
+  ) !important;
+  border: 1px solid #00d4ff !important;
+  box-shadow: 
+    inset 0 1px 0 rgba(0, 212, 255, 0.3),
+    0 0 10px rgba(0, 212, 255, 0.2),
+    0 0 20px rgba(255, 0, 110, 0.1) !important;
+  animation: future-glow 3s ease-in-out infinite alternate !important;
+}
+
+.theme-future ::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, 
+    rgba(0, 212, 255, 0.8) 0%, 
+    rgba(124, 58, 237, 0.8) 50%,
+    rgba(255, 0, 110, 0.8) 100%
+  ) !important;
+  box-shadow: 
+    inset 0 1px 0 rgba(0, 212, 255, 0.4),
+    0 0 15px rgba(0, 212, 255, 0.4),
+    0 0 30px rgba(255, 0, 110, 0.2) !important;
+  animation: future-glow-intense 2s ease-in-out infinite alternate !important;
+}
+
+.theme-future ::-webkit-scrollbar-thumb:active {
+  background: linear-gradient(180deg, 
+    rgba(0, 212, 255, 1) 0%, 
+    rgba(124, 58, 237, 1) 50%,
+    rgba(255, 0, 110, 1) 100%
+  ) !important;
+  box-shadow: 
+    inset 0 1px 0 rgba(255, 255, 255, 0.2),
+    0 0 20px rgba(0, 212, 255, 0.6),
+    0 0 40px rgba(255, 0, 110, 0.3) !important;
+}
+
+.theme-future ::-webkit-scrollbar-corner {
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%) !important;
+  border: 1px solid #3730a3 !important;
+  box-shadow: 
+    inset 0 0 10px rgba(0, 0, 0, 0.5),
+    0 0 5px rgba(0, 212, 255, 0.1) !important;
+}
+
+/* ========================================
+   未来科技主题滚动条动画
+======================================== */
+@keyframes future-glow {
+  0% {
+    box-shadow: 
+      inset 0 1px 0 rgba(0, 212, 255, 0.3),
+      0 0 10px rgba(0, 212, 255, 0.2),
+      0 0 20px rgba(255, 0, 110, 0.1);
+  }
+  100% {
+    box-shadow: 
+      inset 0 1px 0 rgba(0, 212, 255, 0.4),
+      0 0 15px rgba(0, 212, 255, 0.3),
+      0 0 25px rgba(255, 0, 110, 0.15);
+  }
+}
+
+@keyframes future-glow-intense {
+  0% {
+    box-shadow: 
+      inset 0 1px 0 rgba(0, 212, 255, 0.4),
+      0 0 15px rgba(0, 212, 255, 0.4),
+      0 0 30px rgba(255, 0, 110, 0.2);
+  }
+  100% {
+    box-shadow: 
+      inset 0 1px 0 rgba(0, 212, 255, 0.5),
+      0 0 20px rgba(0, 212, 255, 0.5),
+      0 0 40px rgba(255, 0, 110, 0.3);
+  }
+}
+
+/* ========================================
+   细化滚动条 - 针对不同容器的特殊设置
+======================================== */
+
+/* 侧边栏滚动条 - 更细致 */
+.conversation-sidebar * ::-webkit-scrollbar,
+.nav-container * ::-webkit-scrollbar,
+.sidebar * ::-webkit-scrollbar {
+  width: 6px !important;
+}
+
+.conversation-sidebar * ::-webkit-scrollbar-thumb,
+.nav-container * ::-webkit-scrollbar-thumb,
+.sidebar * ::-webkit-scrollbar-thumb {
+  border-radius: 3px !important;
+}
+
+/* 消息容器滚动条 - 透明轨道 */
+.messages-container * ::-webkit-scrollbar {
+  width: 6px !important;
+}
+
+.messages-container * ::-webkit-scrollbar-track {
+  background: transparent !important;
+}
+
+/* 浅色主题消息容器滚动条 */
+.theme-light .messages-container * ::-webkit-scrollbar-thumb {
+  background: rgba(107, 114, 128, 0.3) !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+.theme-light .messages-container * ::-webkit-scrollbar-thumb:hover {
+  background: rgba(107, 114, 128, 0.5) !important;
+}
+
+/* 深色主题消息容器滚动条 */
+.theme-dark .messages-container * ::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.3) !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+.theme-dark .messages-container * ::-webkit-scrollbar-thumb:hover {
+  background: rgba(148, 163, 184, 0.5) !important;
+}
+
+/* 未来科技主题消息容器滚动条 */
+.theme-future .messages-container * ::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, 
+    rgba(0, 212, 255, 0.3) 0%, 
+    rgba(255, 0, 110, 0.3) 100%
+  ) !important;
+  border: none !important;
+  animation: none !important;
+}
+
+.theme-future .messages-container * ::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, 
+    rgba(0, 212, 255, 0.5) 0%, 
+    rgba(255, 0, 110, 0.5) 100%
+  ) !important;
+  box-shadow: 0 0 8px rgba(0, 212, 255, 0.3) !important;
 }
 
 /* 未来科技主题特殊效果 */

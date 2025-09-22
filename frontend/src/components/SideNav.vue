@@ -93,6 +93,66 @@
             </div>
           </div>
 
+          <!-- 智能体菜单项 -->
+          <div class="nav-item-group">
+            <div class="nav-item has-submenu" @click="toggleAgentMenu">
+              <div class="nav-header">
+                <div class="nav-icon">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M20 13c0 5-3.5 7.5-7.5 7.5-1.79 0-3.43-.73-4.61-1.91a5.73 5.73 0 0 1-1.64-4.04 5.73 5.73 0 0 1 1.64-4.04C8.57 9.73 10.21 9 12 9c4 0 7.5 2.5 7.5 7.5z"></path>
+                    <path d="M12 5c2.5 0 4.5-2 4.5-4.5S14.5-2 12-2s-4.5 2-4.5 4.5S9.5 5 12 5z"></path>
+                    <path d="M8 14s1.5 2 4 2 4-2 4-2"></path>
+                  </svg>
+                </div>
+                <span class="nav-text">智能体</span>
+                <div class="submenu-icon" :class="{ 'rotated': isAgentMenuOpen }">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="6 9 12 15 18 9"></polyline>
+                  </svg>
+                </div>
+              </div>
+            </div>
+
+            <!-- 智能体二级菜单 -->
+            <div class="submenu" v-show="!isCollapsed && isAgentMenuOpen">
+              <router-link to="/agent/travel-assistant" class="submenu-item" @click="handleSubMenuClick">
+                <div class="submenu-icon">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+                    <circle cx="12" cy="10" r="3"></circle>
+                  </svg>
+                </div>
+                <span>旅游助手</span>
+              </router-link>
+              
+              <router-link to="/agent/poetry-painting" class="submenu-item" @click="handleSubMenuClick">
+                <div class="submenu-icon">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                    <polyline points="14 2 14 8 20 8"></polyline>
+                    <line x1="16" y1="13" x2="8" y2="13"></line>
+                    <line x1="16" y1="17" x2="8" y2="17"></line>
+                    <polyline points="10 9 9 9 8 9"></polyline>
+                  </svg>
+                </div>
+                <span>诗词绘画</span>
+              </router-link>
+
+              <router-link to="/agent/customer-service" class="submenu-item" @click="handleSubMenuClick">
+                <div class="submenu-icon">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M3 16.5v2.8A2.7 2.7 0 0 0 5.7 22h2.8a2.7 2.7 0 0 0 2.7-2.7V16.5"></path>
+                    <path d="M15 16.5v2.8a2.7 2.7 0 0 0 2.7 2.7h2.8a2.7 2.7 0 0 0 2.7-2.7V16.5"></path>
+                    <path d="M9 7.5V5.3A2.7 2.7 0 0 1 11.7 2.6h.6A2.7 2.7 0 0 1 15 5.3v2.2"></path>
+                    <path d="M3 11.5v2a2 2 0 0 0 2 2h1v-6H5a2 2 0 0 0-2 2z"></path>
+                    <path d="M18 11.5v2a2 2 0 0 1-2 2h-1v-6h1a2 2 0 0 1 2 2z"></path>
+                  </svg>
+                </div>
+                <span>客服助手</span>
+              </router-link>
+            </div>
+          </div>
+
           <!-- 系统管理菜单项 -->
           <div class="nav-item-group">
             <div class="nav-item has-submenu" @click="toggleSystemMenu">
@@ -292,6 +352,7 @@ const themeStore = useThemeStore()
 const isCollapsed = ref(false)
 const isSystemMenuOpen = ref(true)
 const isAIMenuOpen = ref(true)
+const isAgentMenuOpen = ref(true)
 const isUserDropdownOpen = ref(false)
 const isSettingsModalOpen = ref(false)
 const isPasswordModalOpen = ref(false)
@@ -324,6 +385,16 @@ const toggleAIMenu = () => {
     // 如果侧边栏折叠，点击展开侧边栏
     isCollapsed.value = false
     isAIMenuOpen.value = true
+  }
+}
+
+const toggleAgentMenu = () => {
+  if (!isCollapsed.value) {
+    isAgentMenuOpen.value = !isAgentMenuOpen.value
+  } else {
+    // 如果侧边栏折叠，点击展开侧边栏
+    isCollapsed.value = false
+    isAgentMenuOpen.value = true
   }
 }
 
@@ -733,4 +804,4 @@ const handleSubMenuClick = () => {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-</style> 
+</style>

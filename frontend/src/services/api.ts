@@ -11,6 +11,10 @@ export interface ChatMessage {
   timestamp?: Date;
   id?: number;
   tokens_used?: number;
+  // 新增字段支持流式输出
+  thinking_process?: string;
+  has_thinking?: boolean;
+  is_thinking?: boolean;
 }
 
 // 对话接口
@@ -97,6 +101,252 @@ export interface RoleRequest {
   name: string;
   description?: string;
   permissions?: number[];
+}
+
+// AI图像生成相关接口
+export interface ImageGenerationRequest {
+  prompt: string;
+  negative_prompt?: string;
+  size?: string;
+  n?: number;
+  prompt_extend?: boolean;
+  watermark?: boolean;
+  style?: string;
+  shot_type?: string;
+  angle?: string;
+  shooting_technique?: string;
+  lighting?: string;
+}
+
+export interface GeneratedImage {
+  original_url: string;
+  saved_path: string;
+  saved_url: string;
+  filename: string;
+  size: number;
+  download_time: string;
+  orig_prompt?: string;
+  actual_prompt?: string;
+}
+
+export interface ImageGenerationResponse {
+  task_id: string;
+  status: string;
+  images: GeneratedImage[];
+  usage: any;
+  request_id: string;
+  enhanced_prompt: string;
+  submit_time?: string;
+  end_time?: string;
+}
+
+export interface ImagePresets {
+  sizes: Array<{value: string, label: string, aspect_ratio: string}>;
+  styles: Array<{value: string, label: string}>;
+  shot_types: Array<{value: string, label: string}>;
+  angles: Array<{value: string, label: string}>;
+  shooting_techniques: Array<{value: string, label: string}>;
+  lighting: Array<{value: string, label: string}>;
+}
+
+// AI音频处理相关接口
+export interface SpeechToTextRequest {
+  audio_file?: File;
+  audio_url?: string;
+  language?: string;
+  model?: string;
+}
+
+export interface TextToSpeechRequest {
+  text: string;
+  voice?: string;
+  speed?: number;
+  volume?: number;
+  pitch?: number;
+  format?: string;
+}
+
+export interface VoiceCloneRequest {
+  reference_audio?: File;
+  reference_url?: string;
+  reference_text: string;
+  target_text: string;
+  model?: string;
+}
+
+export interface AudioTaskResponse {
+  task_id: string;
+  status: string;
+  task_type: string;
+  result_url?: string;
+  result_text?: string;
+  confidence?: number;
+  duration?: number;
+  file_size?: number;
+  created_at: string;
+  completed_at?: string;
+  error_message?: string;
+}
+
+export interface AudioHistoryItem {
+  task_id: string;
+  task_type: string;
+  status: string;
+  created_at: string;
+  completed_at?: string;
+  result_url?: string;
+  result_text?: string;
+  duration?: number;
+}
+
+export interface UserAudioStats {
+  total_tasks: number;
+  completed_tasks: number;
+  failed_tasks: number;
+  total_duration: number;
+  total_storage_used: number;
+  speech_to_text_count: number;
+  text_to_speech_count: number;
+  voice_clone_count: number;
+}
+
+// AI视频生成相关接口
+export interface TextToVideoRequest {
+  prompt: string;
+  model?: string;
+  resolution?: string;
+  duration?: number;
+  fps?: number;
+  style_preset?: string;
+}
+
+export interface ImageToVideoRequest {
+  image_file?: File;
+  image_url?: string;
+  image_base64?: string;
+  prompt?: string;
+  model?: string;
+  resolution?: string;
+  duration?: number;
+  fps?: number;
+  style_preset?: string;
+}
+
+export interface VideoTaskResponse {
+  task_id: string;
+  status: string;
+  task_type: string;
+  result_url?: string;
+  thumbnail_url?: string;
+  duration?: number;
+  file_size?: number;
+  resolution?: string;
+  fps?: number;
+  created_at: string;
+  completed_at?: string;
+  error_message?: string;
+}
+
+export interface VideoHistoryItem {
+  task_id: string;
+  task_type: string;
+  status: string;
+  created_at: string;
+  completed_at?: string;
+  result_url?: string;
+  thumbnail_url?: string;
+  duration?: number;
+  resolution?: string;
+}
+
+export interface UserVideoStats {
+  total_tasks: number;
+  completed_tasks: number;
+  failed_tasks: number;
+  total_duration: number;
+  total_storage_used: number;
+  text_to_video_count: number;
+  image_to_video_count: number;
+}
+
+export interface VideoStylePreset {
+  id: number;
+  name: string;
+  description: string;
+  style_keywords: string;
+  recommended_model: string;
+  default_resolution: string;
+  default_duration: number;
+  default_fps: number;
+}
+
+// 智能体相关接口
+export interface Agent {
+  id: string;
+  name: string;
+  type: string;
+  type_display: string;
+  description: string;
+  avatar?: string;
+  greeting_message: string;
+  is_active: boolean;
+  created_at: string;
+}
+
+export interface Message {
+  id: string;
+  type: string;
+  type_display: string;
+  content: string;
+  metadata?: any;
+  created_at: string;
+  tokens_used: number;
+}
+
+export interface AgentConversation {
+  id: string;
+  title: string;
+  agent_name: string;
+  agent_type: string;
+  agent_avatar?: string;
+  started_at: string;
+  last_message_at: string;
+  is_active: boolean;
+  message_count: number;
+  messages?: Message[];
+  agent?: Agent;
+}
+
+export interface UserAgentStats {
+  username: string;
+  total_conversations: number;
+  total_messages: number;
+  total_tokens_used: number;
+  travel_conversations: number;
+  poetry_conversations: number;
+  service_conversations: number;
+  last_used_at?: string;
+  created_at: string;
+}
+
+export interface AgentChatRequest {
+  message: string;
+  conversation_id?: string;
+  agent_type: string;
+}
+
+export interface AgentChatResponse {
+  conversation_id: string;
+  message: string;
+  message_id: string;
+  agent: Agent;
+  tokens_used: number;
+  is_new_conversation: boolean;
+}
+
+export interface CreateAgentConversationRequest {
+  agent_type: string;
+  title?: string;
 }
 
 // API基础配置
@@ -539,7 +789,7 @@ class ApiService {
         stream: true // 启用流式响应
       };
 
-      console.log("发送流式聊天请求:", requestData);
+      console.log("📤 [流式请求] 发送流式聊天请求:", requestData);
 
       // 使用fetch API处理流式响应
       const token = localStorage.getItem('token');
@@ -553,8 +803,11 @@ class ApiService {
         body: JSON.stringify(requestData)
       });
 
+      console.log("📡 [流式请求] 服务器响应状态:", response.status, response.statusText);
+
       if (!response.ok) {
         const errorText = await response.text();
+        console.error("❌ [流式请求] 服务器返回错误:", response.status, errorText);
         throw new Error(`HTTP ${response.status}: ${errorText}`);
       }
 
@@ -562,8 +815,11 @@ class ApiService {
       const decoder = new TextDecoder();
 
       if (!reader) {
+        console.error("❌ [流式请求] 无法获取响应流");
         throw new Error('无法获取响应流');
       }
+
+      console.log("🚀 [流式响应] 开始处理流式数据...");
 
       let buffer = '';
       let conversationId_result = conversationId;
@@ -571,6 +827,7 @@ class ApiService {
       let thinkingProcess = '';
       let usage = {};
       let requestId = '';
+      let chunkCount = 0;
 
       try {
         while (true) {
@@ -590,14 +847,28 @@ class ApiService {
                 
                 const data = JSON.parse(jsonStr);
                 
+                // 添加浏览器控制台日志：显示服务器流式输出的实时返回消息
+                console.log('🔄 [流式响应] 收到服务器数据:', data);
+                console.log('📊 [流式响应] 数据详情:', {
+                  type: data.type,
+                  timestamp: new Date().toLocaleTimeString(),
+                  dataSize: JSON.stringify(data).length + ' 字节'
+                });
+                
                 if (data.error) {
+                  console.error('❌ [流式响应] 服务器返回错误:', data.error);
                   throw new Error(data.error);
                 }
                 
                 if (data.type === 'conversation_id') {
                   conversationId_result = data.conversation_id;
+                  console.log('🆔 [流式响应] 对话ID:', data.conversation_id);
                 } else if (data.type === 'thinking') {
                   thinkingProcess = data.full_thinking || '';
+                  console.log('🤔 [流式响应] 思考过程片段:', {
+                    content: data.content,
+                    fullThinking: thinkingProcess.length + ' 字符'
+                  });
                   if (options?.onChunk) {
                     options.onChunk({
                       type: 'thinking',
@@ -607,6 +878,10 @@ class ApiService {
                   }
                 } else if (data.type === 'content') {
                   fullContent = data.full_content || '';
+                  console.log('💬 [流式响应] 内容片段:', {
+                    content: data.content,
+                    fullContent: fullContent.length + ' 字符'
+                  });
                   if (options?.onChunk) {
                     options.onChunk({
                       type: 'content',
@@ -621,11 +896,20 @@ class ApiService {
                   if (data.thinking_process) {
                     thinkingProcess = data.thinking_process;
                   }
+                  console.log('✅ [流式响应] 最终结果:', {
+                    contentLength: fullContent.length + ' 字符',
+                    thinkingLength: thinkingProcess.length + ' 字符',
+                    usage: usage,
+                    requestId: requestId
+                  });
                 } else if (data.type === 'done') {
+                  console.log('🏁 [流式响应] 响应完成');
                   break;
+                } else {
+                  console.log('ℹ️ [流式响应] 其他类型数据:', data.type, data);
                 }
               } catch (parseError) {
-                console.warn('解析SSE数据失败:', parseError, 'Line:', line);
+                console.warn('⚠️ [流式响应] 解析SSE数据失败:', parseError, 'Line:', line);
               }
             }
           }
@@ -634,7 +918,13 @@ class ApiService {
         reader.releaseLock();
       }
 
-      console.log("流式响应完成:", { fullContent, thinkingProcess, usage });
+      console.log("✅ [流式响应] 流式响应完成:", { 
+        contentLength: fullContent.length + ' 字符',
+        thinkingLength: thinkingProcess.length + ' 字符',
+        totalChunks: chunkCount,
+        usage: usage,
+        conversationId: conversationId_result
+      });
 
       return {
         code: 200,
@@ -794,10 +1084,13 @@ class ApiService {
   }
 
   // 获取对话列表
-  async getConversations(): Promise<ApiResponse<ConversationList>> {
+  async getConversations(conversationType?: 'default' | 'ai_chat'): Promise<ApiResponse<ConversationList>> {
     try {
-      console.log("获取对话列表")
-      const response = await this.instance.get<ApiResponse<ConversationList>>('chat/conversations/');
+      console.log(`获取${conversationType ? conversationType : '所有'}对话列表`)
+      const url = conversationType 
+        ? `chat/conversations/?type=${conversationType}` 
+        : 'chat/conversations/';
+      const response = await this.instance.get<ApiResponse<ConversationList>>(url);
       console.log("获取对话列表原始响应:", response)
       
       // 后端已经返回标准格式 { code, message, data }，直接返回即可
@@ -914,9 +1207,12 @@ class ApiService {
   }
 
   // 删除对话
-  async deleteConversation(id: number): Promise<ApiResponse<any>> {
+  async deleteConversation(id: number, isAIChat: boolean = false): Promise<ApiResponse<any>> {
     try {
-      const response = await this.instance.delete<ApiResponse<any>>(`chat/conversations/${id}/`);
+      const url = isAIChat 
+        ? `chat/ai_chat/conversations/${id}/` 
+        : `chat/conversations/${id}/`;
+      const response = await this.instance.delete<ApiResponse<any>>(url);
       return response.data;
     } catch (error: any) {
       console.error('删除对话失败:', error);
@@ -936,9 +1232,12 @@ class ApiService {
   }
 
   // 清空对话消息
-  async clearConversationMessages(id: number): Promise<ApiResponse<any>> {
+  async clearConversationMessages(id: number, isAIChat: boolean = false): Promise<ApiResponse<any>> {
     try {
-      const response = await this.instance.delete<ApiResponse<any>>(`chat/conversations/${id}/clear_messages/`);
+      const url = isAIChat 
+        ? `chat/ai_chat/conversations/${id}/clear_messages/` 
+        : `chat/conversations/${id}/clear_messages/`;
+      const response = await this.instance.delete<ApiResponse<any>>(url);
       return response.data;
     } catch (error: any) {
       console.error('清空对话消息失败:', error);
@@ -1263,10 +1562,500 @@ class ApiService {
       };
     }
   }
+
+  // AI图像生成API方法
+  
+  // 生成图像
+  async generateImage(data: ImageGenerationRequest): Promise<ApiResponse<ImageGenerationResponse>> {
+    try {
+      console.log('发送图像生成请求:', data);
+      const response = await this.instance.post<ApiResponse<ImageGenerationResponse>>(
+        'ai-image/generate/', 
+        data,
+        {
+          timeout: 60000 // 图像生成超时时间设置为60秒
+        }
+      );
+      console.log('图像生成响应:', response.data);
+      return response.data;
+    } catch (error: any) {
+      console.error('图像生成失败:', error);
+      if (error.response) {
+        return {
+          code: error.response.status,
+          message: error.response.data?.message || '图像生成失败',
+          data: {} as ImageGenerationResponse
+        };
+      }
+      return {
+        code: 500,
+        message: '网络错误，请检查网络连接',
+        data: {} as ImageGenerationResponse
+      };
+    }
+  }
+
+  // 获取图像生成预设参数
+  async getImagePresets(): Promise<ApiResponse<ImagePresets>> {
+    try {
+      const response = await this.instance.get<ApiResponse<ImagePresets>>('ai-image/presets/');
+      return response.data;
+    } catch (error: any) {
+      console.error('获取预设参数失败:', error);
+      if (error.response) {
+        return {
+          code: error.response.status,
+          message: error.response.data?.message || '获取预设参数失败',
+          data: {} as ImagePresets
+        };
+      }
+      return {
+        code: 500,
+        message: '网络错误，请检查网络连接',
+        data: {} as ImagePresets
+      };
+    }
+  }
+
+  // 查询图像生成任务状态
+  async getImageTaskStatus(taskId: string): Promise<ApiResponse<any>> {
+    try {
+      const response = await this.instance.get<ApiResponse<any>>(
+        `ai-image/task/status/?task_id=${taskId}`
+      );
+      return response.data;
+    } catch (error: any) {
+      console.error('查询任务状态失败:', error);
+      if (error.response) {
+        return {
+          code: error.response.status,
+          message: error.response.data?.message || '查询任务状态失败',
+          data: {}
+        };
+      }
+      return {
+        code: 500,
+        message: '网络错误，请检查网络连接',
+        data: {}
+      };
+    }
+  }
+
+  // 获取图像生成历史
+  async getImageHistory(page: number = 1, pageSize: number = 20): Promise<ApiResponse<any>> {
+    try {
+      const response = await this.instance.get<ApiResponse<any>>(
+        `ai-image/history/?page=${page}&page_size=${pageSize}`
+      );
+      return response.data;
+    } catch (error: any) {
+      console.error('获取图像历史失败:', error);
+      if (error.response) {
+        return {
+          code: error.response.status,
+          message: error.response.data?.message || '获取图像历史失败',
+          data: {}
+        };
+      }
+      return {
+        code: 500,
+        message: '网络错误，请检查网络连接',
+        data: {}
+      };
+    }
+  }
+
+  // 获取用户图像统计
+  async getImageStats(days: number = 30): Promise<ApiResponse<any>> {
+    try {
+      const response = await this.instance.get<ApiResponse<any>>(
+        `ai-image/stats/?days=${days}`
+      );
+      return response.data;
+    } catch (error: any) {
+      console.error('获取图像统计失败:', error);
+      if (error.response) {
+        return {
+          code: error.response.status,
+          message: error.response.data?.message || '获取图像统计失败',
+          data: {}
+        };
+      }
+      return {
+        code: 500,
+        message: '网络错误，请检查网络连接',
+        data: {}
+      };
+    }
+  }
+
+  // =============================================================================
+  // AI音频处理API方法
+  // =============================================================================
+
+  // 语音转文字
+  async speechToText(data: SpeechToTextRequest): Promise<ApiResponse<AudioTaskResponse>> {
+    try {
+      const formData = new FormData();
+      if (data.audio_file) {
+        formData.append('audio_file', data.audio_file);
+      }
+      if (data.audio_url) {
+        formData.append('audio_url', data.audio_url);
+      }
+      if (data.language) {
+        formData.append('language', data.language);
+      }
+      if (data.model) {
+        formData.append('model', data.model);
+      }
+
+      const response = await this.instance.post<ApiResponse<AudioTaskResponse>>(
+        'chat/ai-audio/speech-to-text/', 
+        formData,
+        {
+          headers: {
+            'Content-Type': 'multipart/form-data',
+          },
+          timeout: 60000
+        }
+      );
+      return response.data;
+    } catch (error: any) {
+      console.error('语音转文字失败:', error);
+      return this.handleApiError(error, '语音转文字失败');
+    }
+  }
+
+  // 文字转语音
+  async textToSpeech(data: TextToSpeechRequest): Promise<ApiResponse<AudioTaskResponse>> {
+    try {
+      const response = await this.instance.post<ApiResponse<AudioTaskResponse>>(
+        'chat/ai-audio/text-to-speech/', 
+        data,
+        {
+          timeout: 60000
+        }
+      );
+      return response.data;
+    } catch (error: any) {
+      console.error('文字转语音失败:', error);
+      return this.handleApiError(error, '文字转语音失败');
+    }
+  }
+
+  // 语音克隆
+  async voiceClone(data: VoiceCloneRequest): Promise<ApiResponse<AudioTaskResponse>> {
+    try {
+      const formData = new FormData();
+      if (data.reference_audio) {
+        formData.append('reference_audio', data.reference_audio);
+      }
+      if (data.reference_url) {
+        formData.append('reference_url', data.reference_url);
+      }
+      formData.append('reference_text', data.reference_text);
+      formData.append('target_text', data.target_text);
+      if (data.model) {
+        formData.append('model', data.model);
+      }
+
+      const response = await this.instance.post<ApiResponse<AudioTaskResponse>>(
+        'chat/ai-audio/voice-clone/', 
+        formData,
+        {
+          headers: {
+            'Content-Type': 'multipart/form-data',
+          },
+          timeout: 60000
+        }
+      );
+      return response.data;
+    } catch (error: any) {
+      console.error('语音克隆失败:', error);
+      return this.handleApiError(error, '语音克隆失败');
+    }
+  }
+
+  // 获取音频任务状态
+  async getAudioTaskStatus(taskId: string): Promise<ApiResponse<AudioTaskResponse>> {
+    try {
+      const response = await this.instance.get<ApiResponse<AudioTaskResponse>>(
+        `chat/ai-audio/task/${taskId}/status/`
+      );
+      return response.data;
+    } catch (error: any) {
+      console.error('获取音频任务状态失败:', error);
+      return this.handleApiError(error, '获取任务状态失败');
+    }
+  }
+
+  // 获取音频处理历史
+  async getAudioHistory(params?: { task_type?: string; limit?: number }): Promise<ApiResponse<AudioHistoryItem[]>> {
+    try {
+      const response = await this.instance.get<ApiResponse<AudioHistoryItem[]>>(
+        'chat/ai-audio/history/',
+        { params }
+      );
+      return response.data;
+    } catch (error: any) {
+      console.error('获取音频历史失败:', error);
+      return this.handleApiError(error, '获取音频历史失败');
+    }
+  }
+
+  // 获取用户音频统计
+  async getUserAudioStats(): Promise<ApiResponse<UserAudioStats>> {
+    try {
+      const response = await this.instance.get<ApiResponse<UserAudioStats>>(
+        'chat/ai-audio/stats/'
+      );
+      return response.data;
+    } catch (error: any) {
+      console.error('获取音频统计失败:', error);
+      return this.handleApiError(error, '获取音频统计失败');
+    }
+  }
+
+  // =============================================================================
+  // AI视频生成API方法
+  // =============================================================================
+
+  // 文生视频
+  async textToVideo(data: TextToVideoRequest): Promise<ApiResponse<VideoTaskResponse>> {
+    try {
+      const response = await this.instance.post<ApiResponse<VideoTaskResponse>>(
+        'chat/ai-video/text-to-video/', 
+        data,
+        {
+          timeout: 120000 // 视频生成需要更长时间
+        }
+      );
+      return response.data;
+    } catch (error: any) {
+      console.error('文生视频失败:', error);
+      return this.handleApiError(error, '文生视频失败');
+    }
+  }
+
+  // 图生视频
+  async imageToVideo(data: ImageToVideoRequest): Promise<ApiResponse<VideoTaskResponse>> {
+    try {
+      const formData = new FormData();
+      if (data.image_file) {
+        formData.append('image_file', data.image_file);
+      }
+      if (data.image_url) {
+        formData.append('image_url', data.image_url);
+      }
+      if (data.image_base64) {
+        formData.append('image_base64', data.image_base64);
+      }
+      if (data.prompt) {
+        formData.append('prompt', data.prompt);
+      }
+      if (data.model) {
+        formData.append('model', data.model);
+      }
+      if (data.resolution) {
+        formData.append('resolution', data.resolution);
+      }
+      if (data.duration) {
+        formData.append('duration', data.duration.toString());
+      }
+      if (data.fps) {
+        formData.append('fps', data.fps.toString());
+      }
+      if (data.style_preset) {
+        formData.append('style_preset', data.style_preset);
+      }
+
+      const response = await this.instance.post<ApiResponse<VideoTaskResponse>>(
+        'chat/ai-video/image-to-video/', 
+        formData,
+        {
+          headers: {
+            'Content-Type': 'multipart/form-data',
+          },
+          timeout: 120000
+        }
+      );
+      return response.data;
+    } catch (error: any) {
+      console.error('图生视频失败:', error);
+      return this.handleApiError(error, '图生视频失败');
+    }
+  }
+
+  // 获取视频任务状态
+  async getVideoTaskStatus(taskId: string): Promise<ApiResponse<VideoTaskResponse>> {
+    try {
+      const response = await this.instance.get<ApiResponse<VideoTaskResponse>>(
+        `chat/ai-video/task/${taskId}/status/`
+      );
+      return response.data;
+    } catch (error: any) {
+      console.error('获取视频任务状态失败:', error);
+      return this.handleApiError(error, '获取任务状态失败');
+    }
+  }
+
+  // 获取视频生成历史
+  async getVideoHistory(params?: { task_type?: string; limit?: number }): Promise<ApiResponse<VideoHistoryItem[]>> {
+    try {
+      const response = await this.instance.get<ApiResponse<VideoHistoryItem[]>>(
+        'chat/ai-video/history/',
+        { params }
+      );
+      return response.data;
+    } catch (error: any) {
+      console.error('获取视频历史失败:', error);
+      return this.handleApiError(error, '获取视频历史失败');
+    }
+  }
+
+  // 获取用户视频统计
+  async getUserVideoStats(): Promise<ApiResponse<UserVideoStats>> {
+    try {
+      const response = await this.instance.get<ApiResponse<UserVideoStats>>(
+        'chat/ai-video/stats/'
+      );
+      return response.data;
+    } catch (error: any) {
+      console.error('获取视频统计失败:', error);
+      return this.handleApiError(error, '获取视频统计失败');
+    }
+  }
+
+  // 获取视频风格预设
+  async getVideoStylePresets(): Promise<ApiResponse<VideoStylePreset[]>> {
+    try {
+      const response = await this.instance.get<ApiResponse<VideoStylePreset[]>>(
+        'chat/ai-video/style-presets/'
+      );
+      return response.data;
+    } catch (error: any) {
+      console.error('获取视频风格预设失败:', error);
+      return this.handleApiError(error, '获取视频风格预设失败');
+    }
+  }
+
+  // =============================================================================
+  // 智能体API方法
+  // =============================================================================
+
+  // 获取智能体列表
+  async getAgents(): Promise<ApiResponse<Agent[]>> {
+    try {
+      const response = await this.instance.get<ApiResponse<Agent[]>>('agent/agents/');
+      return response.data;
+    } catch (error: any) {
+      console.error('获取智能体列表失败:', error);
+      return this.handleApiError(error, '获取智能体列表失败');
+    }
+  }
+
+  // 与智能体聊天
+  async agentChat(data: AgentChatRequest): Promise<ApiResponse<AgentChatResponse>> {
+    try {
+      const response = await this.instance.post<ApiResponse<AgentChatResponse>>(
+        'agent/chat/', 
+        data,
+        {
+          timeout: 30000 // 聊天可能需要较长时间
+        }
+      );
+      return response.data;
+    } catch (error: any) {
+      console.error('智能体聊天失败:', error);
+      return this.handleApiError(error, '智能体聊天失败');
+    }
+  }
+
+  // 创建智能体对话
+  async createAgentConversation(data: CreateAgentConversationRequest): Promise<ApiResponse<AgentConversation>> {
+    try {
+      const response = await this.instance.post<ApiResponse<AgentConversation>>(
+        'agent/conversations/create/', 
+        data
+      );
+      return response.data;
+    } catch (error: any) {
+      console.error('创建智能体对话失败:', error);
+      return this.handleApiError(error, '创建智能体对话失败');
+    }
+  }
+
+  // 获取智能体对话列表
+  async getAgentConversations(params?: { agent_type?: string; limit?: number; offset?: number }): Promise<ApiResponse<AgentConversation[]>> {
+    try {
+      const response = await this.instance.get<ApiResponse<AgentConversation[]>>(
+        'agent/conversations/',
+        { params }
+      );
+      return response.data;
+    } catch (error: any) {
+      console.error('获取智能体对话列表失败:', error);
+      return this.handleApiError(error, '获取智能体对话列表失败');
+    }
+  }
+
+  // 获取智能体对话详情
+  async getAgentConversationDetail(conversationId: string): Promise<ApiResponse<AgentConversation>> {
+    try {
+      const response = await this.instance.get<ApiResponse<AgentConversation>>(
+        `agent/conversations/${conversationId}/`
+      );
+      return response.data;
+    } catch (error: any) {
+      console.error('获取智能体对话详情失败:', error);
+      return this.handleApiError(error, '获取智能体对话详情失败');
+    }
+  }
+
+  // 删除智能体对话
+  async deleteAgentConversation(conversationId: string): Promise<ApiResponse<any>> {
+    try {
+      const response = await this.instance.delete<ApiResponse<any>>(
+        `agent/conversations/${conversationId}/delete/`
+      );
+      return response.data;
+    } catch (error: any) {
+      console.error('删除智能体对话失败:', error);
+      return this.handleApiError(error, '删除智能体对话失败');
+    }
+  }
+
+  // 获取用户智能体统计
+  async getUserAgentStats(): Promise<ApiResponse<UserAgentStats>> {
+    try {
+      const response = await this.instance.get<ApiResponse<UserAgentStats>>('agent/stats/');
+      return response.data;
+    } catch (error: any) {
+      console.error('获取用户智能体统计失败:', error);
+      return this.handleApiError(error, '获取用户智能体统计失败');
+    }
+  }
+
+  // 通用错误处理方法
+  private handleApiError(error: any, defaultMessage: string): ApiResponse<any> {
+    if (error.response) {
+      return {
+        code: error.response.status,
+        message: error.response.data?.message || defaultMessage,
+        data: error.response.data?.data || null
+      };
+    }
+    return {
+      code: 500,
+      message: '网络错误，请检查网络连接',
+      data: null
+    };
+  }
 }
 
 // 创建并导出实例
 export const apiService = new ApiService();
 
 // 同时提供类作为默认导出
-export default ApiService; 
+export default ApiService;
