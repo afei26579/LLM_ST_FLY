@@ -393,7 +393,7 @@ const toggleSidebar = () => {
   display: flex;
   flex-direction: column;
   height: 100vh;
-  background: var(--bg-color);
+  background: var(--color-background);
 }
 
 .page-header {
@@ -714,16 +714,42 @@ const toggleSidebar = () => {
   padding: 0.75rem;
   border: 1px solid var(--color-border);
   border-radius: 8px;
-  background: var(--input-background);
+  background: var(--card-background, #ffffff) !important;
   color: var(--color-text);
   resize: none;
   font-family: inherit;
   line-height: 1.4;
+  transition: border-color 0.2s ease;
 }
 
 .input-container textarea:focus {
   outline: none;
   border-color: var(--color-primary);
+  box-shadow: 0 0 0 2px rgba(94, 155, 255, 0.1);
+}
+
+/* 确保不同主题下输入框背景正确 */
+:global(.theme-dark) .input-container textarea {
+  background: #1e293b !important;
+  color: #e1e6f5 !important;
+  border-color: #334155;
+}
+
+:global(.theme-future) .input-container textarea {
+  background: linear-gradient(135deg, #1e1b3a 0%, #2d1b4e 50%, #1b2942 100%) !important;
+  color: #f0f8ff !important;
+  border: 1px solid rgba(0, 245, 255, 0.25);
+}
+
+:global(.theme-future) .input-container textarea:focus {
+  border-color: #00f5ff !important;
+  box-shadow: 0 0 0 2px rgba(0, 245, 255, 0.1), 0 0 20px rgba(0, 245, 255, 0.2);
+}
+
+:global(.theme-light) .input-container textarea {
+  background: #ffffff !important;
+  color: #1f2937 !important;
+  border-color: #e5e7eb;
 }
 
 .send-btn {

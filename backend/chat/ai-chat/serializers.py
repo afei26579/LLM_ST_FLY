@@ -34,8 +34,14 @@ class AIChatConversationSerializer(serializers.ModelSerializer):
     # 获取对话中的消息数量
     message_count = serializers.SerializerMethodField()
     
-    # 获取最后一条消息的内容作为预览
+    # 获取用户问题数量
+    user_question_count = serializers.SerializerMethodField()
+    
+    # 获取最后一条消息的内容作为预览（已弃用，保留兼容性）
     last_message_preview = serializers.SerializerMethodField()
+    
+    # 获取第一个用户问题作为预览
+    first_user_question = serializers.SerializerMethodField()
     
     # 格式化创建时间和更新时间
     created_at = serializers.DateTimeField(format='%Y-%m-%d %H:%M:%S')
@@ -43,12 +49,16 @@ class AIChatConversationSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = Conversation
-        fields = ('id', 'user', 'title', 'created_at', 'updated_at', 'message_count', 'last_message_preview')
-        read_only_fields = ('id', 'user', 'created_at', 'updated_at', 'message_count', 'last_message_preview')
+        fields = ('id', 'user', 'title', 'created_at', 'updated_at', 'message_count', 'user_question_count', 'last_message_preview', 'first_user_question')
+        read_only_fields = ('id', 'user', 'created_at', 'updated_at', 'message_count', 'user_question_count', 'last_message_preview', 'first_user_question')
     
     def get_message_count(self, obj):
         """获取对话中的消息数量"""
         return Message.objects.filter(conversation=obj).count()
+    
+    def get_user_question_count(self, obj):
+        """获取对话中用户问题的数量"""
+        return Message.objects.filter(conversation=obj, role='user').count()
     
     def get_last_message_preview(self, obj):
         """获取最后一条消息的内容预览"""
@@ -57,6 +67,21 @@ class AIChatConversationSerializer(serializers.ModelSerializer):
             # 截取前100个字符作为预览
             preview = last_message.content[:100]
             if len(last_message.content) > 100:
+                preview += '...'
+            return preview
+        return ''
+    
+    def get_first_user_question(self, obj):
+        """获取第一个用户问题作为预览"""
+        first_user_message = Message.objects.filter(
+            conversation=obj, 
+            role='user'
+        ).order_by('created_at').first()
+        
+        if first_user_message:
+            # 截取前50个字符作为预览
+            preview = first_user_message.content[:50]
+            if len(first_user_message.content) > 50:
                 preview += '...'
             return preview
         return ''

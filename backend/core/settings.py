@@ -25,6 +25,9 @@ SECRET_KEY = env('SECRET_KEY')
 DEBUG = env.bool('DEBUG', default=False)
 ALLOWED_HOSTS = env.list('ALLOWED_HOSTS', default=['localhost', '127.0.0.1'])
 
+# 基础URL配置（用于生成完整的媒体文件URL）
+BASE_URL = env.str('BASE_URL', default='http://localhost:8000')
+
 # Application definition
 INSTALLED_APPS = [
     "django.contrib.admin",

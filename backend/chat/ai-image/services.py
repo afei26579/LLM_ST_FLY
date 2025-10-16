@@ -324,13 +324,24 @@ class AIImageService:
                 ContentFile(response.content)
             )
             
-            # 生成访问URL
+            # 生成访问URL - 返回完整URL
             if hasattr(default_storage, 'url'):
                 saved_url = default_storage.url(saved_path)
             else:
                 saved_url = f"/media/{saved_path}"
             
+            # 确保返回完整URL（包含域名和端口）
+            from django.contrib.sites.shortcuts import get_current_site
+            from django.http import HttpRequest
+            
+            # 如果是相对路径，转换为绝对路径
+            if saved_url.startswith('/'):
+                # 使用配置的BASE_URL或默认localhost
+                base_url = getattr(settings, 'BASE_URL', 'http://localhost:8000')
+                saved_url = f"{base_url}{saved_url}"
+            
             logger.info(f"图像保存成功: {saved_path}")
+            logger.info(f"图像访问URL: {saved_url}")
             
             return {
                 'original_url': image_url,
@@ -524,6 +535,395 @@ class AIImageService:
             
         except Exception as e:
             logger.error(f"更新用户统计失败: {str(e)}")
+
+
+    def understand_image(self, user, image_file, analyze_type='description') -> Dict[str, Any]:
+        """
+        图像理解功能
+        上传图片，AI分析并描述图像内容
+        """
+        import tempfile
+        import os
+        from django.core.files.storage import default_storage
+        from django.core.files.base import ContentFile
+        from datetime import datetime
+        temp_path = None
+        saved_path = None
+        
+        try:
+            logger.info(f"开始图像理解，用户: {user.username}, 文件: {image_file.name}, 分析类型: {analyze_type}")
+            
+            # 先保存文件到media目录，获得稳定的本地路径
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            save_filename = f"temp_understand_{user.id}_{timestamp}_{analyze_type}.jpg"
+            save_path = f"temp/{save_filename}"
+            
+            # 保存到media目录
+            saved_path = default_storage.save(save_path, ContentFile(image_file.read()))
+            local_path = default_storage.path(saved_path)
+            
+            logger.info(f"图片已保存到本地: {local_path}")
+            
+            # 根据分析类型构建不同的提示词
+            if analyze_type == 'question':
+                text_prompt = '这是一道题目，请仔细分析图片中的问题，请你分步骤解答这道题，输出对这道题的思考判断过程。'
+            elif analyze_type == 'ocr':
+                text_prompt = '你是一个专门用于识别和提取图像中文本的AI。你的任务是分析图像文档，并使用指定的标签以QwenVL文档解析器的HTML格式生成结果，同时确保用户隐私和数据完整性。'
+            else:  # description
+                text_prompt = '图中描绘的是什么景象？请详细描述图片的内容，包括主要物体、场景、颜色、构图等信息。'
+            
+            # 按您建议的格式调用API
+            image_path = f"file://{local_path}"
+            messages = [
+                {
+                    'role': 'user',
+                    'content': [
+                        {'image': image_path},
+                        {'text': text_prompt}
+                    ]
+                }
+            ]
+            
+            # 调用DashScope多模态对话API
+            from http import HTTPStatus
+            response = dashscope.MultiModalConversation.call(
+                model='qwen-vl-plus',
+                messages=messages
+            )
+            
+            logger.info(f"DashScope API调用完成，状态码: {response.status_code}")
+            
+            # 清理临时文件
+            if saved_path and default_storage.exists(saved_path):
+                default_storage.delete(saved_path)
+                logger.info(f"临时文件已清理: {saved_path}")
+            
+            if response.status_code == HTTPStatus.OK:
+                description = response.output.choices[0].message.content
+                logger.info(f"图像理解成功({analyze_type})，描述长度: {len(description)}")
+                return {
+                    'description': description,
+                    'confidence': 0.9,
+                    'analyze_type': analyze_type
+                }
+            else:
+                error_msg = f"DashScope API调用失败: {response.code} - {response.message}"
+                logger.error(error_msg)
+                # 使用默认描述而不是抛出异常
+                return {
+                    'description': f'这是一张图片。API调用遇到问题：{response.message}',
+                    'confidence': 0.1,
+                    'analyze_type': analyze_type
+                }
+                
+        except Exception as e:
+            logger.error(f"图像理解失败: {str(e)}")
+            
+            # 清理临时文件
+            if saved_path:
+                try:
+                    if default_storage.exists(saved_path):
+                        default_storage.delete(saved_path)
+                        logger.info(f"异常时临时文件已清理: {saved_path}")
+                except Exception as cleanup_error:
+                    logger.error(f"清理临时文件失败: {cleanup_error}")
+            
+            # 返回默认描述而不是抛出异常，确保前端不报错
+            logger.warning(f"使用默认描述替代API结果")
+            return {
+                'description': f'这是一张图片，由于技术限制暂时无法提供详细{analyze_type}。错误信息：{str(e)}',
+                'confidence': 0.1,
+                'analyze_type': analyze_type
+            }
+    
+    def detect_objects(self, user, image_file, detection_prompt) -> Dict[str, Any]:
+        """
+        物体检测和定位功能
+        用户上传图片+提示词，返回标注后的图片
+        使用qwen-image-edit模型检测并标注图像中的指定物体
+        """
+        import os
+        from django.core.files.storage import default_storage
+        from django.core.files.base import ContentFile
+        from datetime import datetime
+        import requests
+        import uuid
+        saved_path = None
+        
+        try:
+            logger.info(f"=== 开始物体定位 ===")
+            logger.info(f"用户: {user.username}")
+            logger.info(f"文件: {image_file.name}")
+            logger.info(f"提示词: {detection_prompt}")
+            
+            # 1. 临时保存上传的图片
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            save_filename = f"temp_detect_{user.id}_{timestamp}.jpg"
+            save_path = f"temp/{save_filename}"
+            
+            saved_path = default_storage.save(save_path, ContentFile(image_file.read()))
+            local_path = default_storage.path(saved_path)
+            logger.info(f"步骤1: 图片已临时保存到 {local_path}")
+            
+            # 2. 调用qwen-image-edit模型
+            image_path = f"file://{local_path}"
+            messages = [
+                {
+                    'role': 'user',
+                    'content': [
+                        {'image': image_path},
+                        {'text': detection_prompt}  # 直接使用用户的提示词
+                    ]
+                }
+            ]
+            
+            logger.info(f"步骤2: 调用qwen-image-edit API, 提示词: {detection_prompt}")
+            
+            from http import HTTPStatus
+            response = dashscope.MultiModalConversation.call(
+                model='qwen-image-edit',
+                messages=messages,
+                stream=False
+            )
+            
+            logger.info(f"步骤3: API调用完成，状态码: {response.status_code}")
+            
+            # 清理上传的临时文件
+            if saved_path and default_storage.exists(saved_path):
+                default_storage.delete(saved_path)
+                logger.info(f"上传临时文件已清理")
+            
+            if response.status_code == HTTPStatus.OK:
+                # 3. 查询qwen-image-edit返回的已标注的图片
+                if hasattr(response.output, 'choices') and len(response.output.choices) > 0:
+                    content = response.output.choices[0].message.content
+                    logger.info(f"API返回内容类型: {type(content)}")
+                    
+                    annotated_image_url = None
+                    description_text = ""
+                    
+                    # 解析返回内容
+                    if isinstance(content, list):
+                        for item in content:
+                            if isinstance(item, dict):
+                                # 提取标注后的图像URL
+                                if 'image' in item:
+                                    annotated_image_url = item['image']
+                                    logger.info(f"找到标注图像URL: {annotated_image_url}")
+                                # 提取文本描述
+                                if 'text' in item:
+                                    description_text += item['text']
+                    elif isinstance(content, str):
+                        description_text = content
+                    
+                    # 4. 下载并保存标注后的图片
+                    saved_annotated_url = None
+                    if annotated_image_url:
+                        try:
+                            logger.info(f"步骤4: 开始下载标注图像")
+                            
+                            # 下载标注图像
+                            img_response = requests.get(annotated_image_url, timeout=30)
+                            img_response.raise_for_status()
+                            
+                            # 保存到用户的ai-images目录
+                            annotated_filename = f"annotated_{uuid.uuid4().hex[:12]}.jpg"
+                            today = datetime.now().strftime('%Y%m%d')
+                            annotated_save_path = f"ai-images/{user.id}/{today}/{annotated_filename}"
+                            
+                            annotated_saved_path = default_storage.save(
+                                annotated_save_path,
+                                ContentFile(img_response.content)
+                            )
+                            
+                            # 生成可访问的URL
+                            saved_annotated_url = default_storage.url(annotated_saved_path)
+                            
+                            # 确保URL是完整的绝对路径
+                            if saved_annotated_url.startswith('/'):
+                                # 如果是相对路径，需要加上服务器地址
+                                from django.conf import settings
+                                base_url = getattr(settings, 'MEDIA_URL_BASE', 'http://localhost:8000')
+                                saved_annotated_url = base_url + saved_annotated_url
+                            
+                            logger.info(f"标注图像已保存: {annotated_saved_path}")
+                            logger.info(f"完整访问URL: {saved_annotated_url}")
+                            
+                        except Exception as download_error:
+                            logger.warning(f"下载标注图像失败: {download_error}，使用原始URL")
+                            saved_annotated_url = annotated_image_url
+                    
+                    # 返回给前端渲染
+                    logger.info(f"=== 物体定位完成 ===")
+                    return {
+                        'annotated_image_url': saved_annotated_url or annotated_image_url,  # 标注后的图片
+                        'description': description_text or f"已完成{detection_prompt}的物体定位标注",
+                        'confidence': 0.9
+                    }
+                else:
+                    logger.warning("API返回内容中没有choices")
+                    return {
+                        'annotated_image_url': None,
+                        'description': f'物体定位完成，但未能生成标注图像',
+                        'confidence': 0.5
+                    }
+            else:
+                error_msg = f"qwen-image-edit API调用失败: {response.code} - {response.message}"
+                logger.error(error_msg)
+                return {
+                    'annotated_image_url': None,
+                    'description': f'物体定位遇到问题：{response.message}',
+                    'confidence': 0.1
+                }
+                
+        except Exception as e:
+            logger.error(f"物体检测失败: {str(e)}")
+            
+            # 清理临时文件
+            if saved_path:
+                try:
+                    if default_storage.exists(saved_path):
+                        default_storage.delete(saved_path)
+                        logger.info(f"异常时临时文件已清理: {saved_path}")
+                except Exception as cleanup_error:
+                    logger.error(f"清理临时文件失败: {cleanup_error}")
+            
+            # 返回错误信息
+            return {
+                'annotated_image_url': None,
+                'description': f'物体定位失败: {str(e)}',
+                'confidence': 0.1
+            }
+    
+    def _extract_coordinates_from_text(self, text: str, target_object: str) -> List[str]:
+        """
+        从AI返回的文本中提取坐标信息
+        """
+        import re
+        coordinates = []
+        
+        try:
+            # 多种位置描述模式匹配
+            location_patterns = [
+                # 坐标格式: "坐标: (x, y)" 或 "位置: (x, y)"
+                r'(?:坐标|位置)[：:]\s*\(([^)]+)\)',
+                # 百分比位置: "位于图像左上角约25%处"
+                r'位于图像([^，。！？\s]+)约?(\d+%?[^，。！？\s]*)',
+                # 相对位置: "在图像的左上角" "位于中央" "处于右下方"
+                r'(?:在图像的|位于|处于|在)([左右上下中央部]{1,4}[^，。！？\s]*)',
+                # 具体物体位置
+                fr'{re.escape(target_object)}(?:位于|在|处于)([^，。！？\s]+)',
+                # 像素坐标
+                r'(?:坐标|位置).*?(\d+,\s*\d+)',
+                # 区域描述
+                r'(?:左上角|右上角|左下角|右下角|中央|中心|顶部|底部|左侧|右侧)'
+            ]
+            
+            for pattern in location_patterns:
+                matches = re.finditer(pattern, text, re.IGNORECASE)
+                for match in matches:
+                    coord_text = match.group(1) if match.groups() else match.group(0)
+                    if coord_text and coord_text.strip():
+                        coordinates.append(coord_text.strip())
+            
+            # 如果没有找到具体坐标，但找到了目标物体，提取相关描述
+            if not coordinates and target_object in text:
+                sentences = re.split(r'[。！？\n]', text)
+                for sentence in sentences:
+                    if target_object in sentence and len(sentence.strip()) > 0:
+                        coordinates.append(sentence.strip())
+            
+            # 去重
+            coordinates = list(dict.fromkeys(coordinates))
+            
+        except Exception as e:
+            logger.error(f"坐标提取失败: {e}")
+        
+        return coordinates
+    
+    def edit_image(self, user, image_file, prompt: str, edit_type: str = 'prompt', style: str = '') -> Dict[str, Any]:
+        """
+        图像编辑功能
+        根据提示词对上传的图片进行编辑
+        """
+        import tempfile
+        import os
+        temp_path = None
+        
+        try:
+            logger.info(f"开始图像编辑，用户: {user.username}, 编辑类型: {edit_type}")
+            
+            # 使用tempfile创建临时文件（跨平台兼容）
+            with tempfile.NamedTemporaryFile(delete=False, suffix='.jpg') as temp_file:
+                for chunk in image_file.chunks():
+                    temp_file.write(chunk)
+                temp_path = temp_file.name
+            
+            # 根据编辑类型构建不同的提示词
+            if edit_type == 'background':
+                final_prompt = f"保持主体不变，将背景修改为：{prompt}"
+            elif edit_type == 'style':
+                final_prompt = f"保持主体和场景不变，将整体风格转换为：{style}风格"
+            else:  # prompt
+                final_prompt = prompt
+            
+            logger.info(f"最终提示词: {final_prompt}")
+            
+            # 调用DashScope图像编辑API
+            from http import HTTPStatus
+            response = dashscope.ImageSynthesis.call(
+                model='wanx-v1',
+                prompt=final_prompt,
+                reference_image=f'file://{temp_path}',
+                size='1024*1024',
+                n=1
+            )
+            
+            # 清理临时文件
+            if temp_path and os.path.exists(temp_path):
+                os.remove(temp_path)
+            
+            if response.status_code == HTTPStatus.OK:
+                # 处理编辑结果
+                output = response.output
+                if output.results:
+                    edited_url = output.results[0].url
+                    
+                    logger.info(f"图像编辑成功，原始URL: {edited_url}")
+                    
+                    # 下载并保存编辑后的图像
+                    try:
+                        saved_info = self._download_and_save_image(edited_url, response.output.task_id, user.id)
+                        logger.info(f"编辑图像已保存: {saved_info['saved_path']}")
+                        return {
+                            'edited_image_url': saved_info['saved_url'],
+                            'task_id': response.output.task_id
+                        }
+                    except Exception as save_error:
+                        logger.warning(f"保存编辑后图像失败: {save_error}")
+                        return {
+                            'edited_image_url': edited_url,
+                            'task_id': response.output.task_id
+                        }
+                else:
+                    raise Exception("编辑结果为空")
+            else:
+                error_msg = f"DashScope API调用失败: {response.code} - {response.message}"
+                logger.error(error_msg)
+                raise Exception(error_msg)
+                
+        except Exception as e:
+            logger.error(f"图像编辑失败: {str(e)}")
+            
+            # 清理临时文件
+            if temp_path and os.path.exists(temp_path):
+                try:
+                    os.remove(temp_path)
+                    logger.info(f"异常时临时文件已清理: {temp_path}")
+                except Exception as cleanup_error:
+                    logger.error(f"清理临时文件失败: {cleanup_error}")
+            
+            raise Exception(f"图像编辑失败: {str(e)}")
 
 
 # 创建服务实例

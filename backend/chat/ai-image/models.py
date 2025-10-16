@@ -93,7 +93,21 @@ class ImageGenerationTask(models.Model):
 class GeneratedImage(models.Model):
     """生成的图像记录"""
     
+    IMAGE_SOURCE_CHOICES = [
+        ('text_to_image', '文生图'),
+        ('image_edit', '图像编辑'),
+    ]
+    
     task = models.ForeignKey(ImageGenerationTask, on_delete=models.CASCADE, verbose_name='生成任务', related_name='images')
+    
+    # 图像来源标识
+    image_source = models.CharField(
+        max_length=20, 
+        choices=IMAGE_SOURCE_CHOICES, 
+        default='text_to_image',
+        verbose_name='图像来源',
+        db_index=True
+    )
     
     # 图像信息
     original_url = models.URLField(max_length=1000, verbose_name='原始图像URL')

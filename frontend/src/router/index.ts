@@ -1,16 +1,13 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import HomeView from '../views/HomeView.vue'
-import LoginView from '../views/LoginView.vue'
-import VerifyEmailView from '../views/VerifyEmailView.vue'
+import LoginView from '@views/LoginView.vue'
+import VerifyEmailView from '@views/VerifyEmailView.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
   routes: [
     {
       path: '/',
-      name: 'home',
-      component: HomeView,
-      meta: { requiresAuth: true }
+      redirect: '/ai-chat'
     },
     {
       path: '/about',
@@ -18,7 +15,7 @@ const router = createRouter({
       // route level code-splitting
       // this generates a separate chunk (About.[hash].js) for this route
       // which is lazy-loaded when the route is visited.
-      component: () => import('../views/AboutView.vue'),
+      component: () => import('@views/AboutView.vue'),
       meta: { requiresAuth: true }
     },
     {
@@ -35,127 +32,75 @@ const router = createRouter({
       meta: { requiresAuth: false }
     },
     // AI功能页面
-    { path: '/ai-text', name: 'ai-text', component: () => import('../views/ai-text/AITextView.vue'), meta: { requiresAuth: true } },
+    { path: '/ai-chat', name: 'ai-chat', component: () => import('@views/ai-chat/AIChatView.vue'), meta: { requiresAuth: true } },
     {
-      path: '/ai-reading',
-      name: 'ai-reading',
-      component: () => import('../views/ai-reading/AIReadingView.vue'),
-      meta: { requiresAuth: true }
+      path: '/ai-reading', name: 'ai-reading', component: () => import('@views/ai-reading/AIReadingView.vue'), meta: { requiresAuth: true }
     },
     {
-      path: '/ai-image',
-      name: 'ai-image',
-      component: () => import('../views/ai-image/AIImageView.vue'),
-      meta: { requiresAuth: true }
+      path: '/ai-image', name: 'ai-image', component: () => import('@views/ai-image/AIImageView.vue'), meta: { requiresAuth: true }
     },
     {
-      path: '/ai-audio',
-      name: 'ai-audio',
-      component: () => import('../views/ai-audio/AIAudioView.vue'),
-      meta: { requiresAuth: true }
+      path: '/ai-audio',name: 'ai-audio', component: () => import('@views/ai-audio/AIAudioView.vue'), meta: { requiresAuth: true }
     },
     {
-      path: '/ai-video',
-      name: 'ai-video',
-      component: () => import('../views/ai-video/AIVideoView.vue'),
-      meta: { requiresAuth: true }
+      path: '/ai-video', name: 'ai-video', component: () => import('@views/ai-video/AIVideoView.vue'), meta: { requiresAuth: true }
     },
     // 智能体路由
     {
-      path: '/agent/travel-assistant',
-      name: 'travel-assistant',
-      component: () => import('../views/agent/TravelAssistantView.vue'),
+      path: '/agent/travel-assistant', name: 'travel-assistant', component: () => import('@views/agent/TravelAssistantView.vue'),
       meta: { requiresAuth: true }
     },
     {
-      path: '/agent/poetry-painting',
-      name: 'poetry-painting',
-      component: () => import('../views/agent/PoetryPaintingView.vue'),
+      path: '/agent/poetry-painting', name: 'poetry-painting', component: () => import('@views/agent/PoetryPaintingView.vue'),
       meta: { requiresAuth: true }
     },
     {
-      path: '/agent/customer-service',
-      name: 'customer-service',
-      component: () => import('../views/agent/CustomerServiceView.vue'),
+      path: '/agent/customer-service', name: 'customer-service', component: () => import('@views/agent/CustomerServiceView.vue'),
       meta: { requiresAuth: true }
     },
     // 系统管理 - 用户管理
     {
-      path: '/users',
-      name: 'users',
-      component: () => import('../views/system/UsersView.vue'),
-      meta: { requiresAuth: true }
+      path: '/users', name: 'users', component: () => import('@views/system/UsersView.vue'), meta: { requiresAuth: true }
     },
     // 系统管理 - 角色管理
     {
-      path: '/roles',
-      name: 'roles',
-      component: () => import('../views/system/RolesView.vue'),
-      meta: { requiresAuth: true }
+      path: '/roles', name: 'roles', component: () => import('@views/system/RolesView.vue'), meta: { requiresAuth: true }
     },
     // 系统管理 - 权限管理
     {
-      path: '/permissions',
-      name: 'permissions',
-      component: () => import('../views/system/PermissionsView.vue'),
-      meta: { requiresAuth: true }
+      path: '/permissions', name: 'permissions', component: () => import('@views/system/PermissionsView.vue'), meta: { requiresAuth: true }
     },
     // 系统管理 - 日志管理
     {
-      path: '/logs',
-      name: 'logs',
-      component: () => import('../views/system/LogsView.vue'),
-      meta: { requiresAuth: true }
+      path: '/logs', name: 'logs', component: () => import('@views/system/LogsView.vue'), meta: { requiresAuth: true }
     },
     // 主题测试页面
     {
-      path: '/theme-test',
-      name: 'theme-test',
-      component: () => import('../views/ThemeTestView.vue'),
-      meta: { requiresAuth: true }
+      path: '/theme-test', name: 'theme-test', component: () => import('@views/ThemeTestView.vue'), meta: { requiresAuth: true }
     },
     // 主题展示页面
     {
-      path: '/theme-showcase',
-      name: 'theme-showcase',
-      component: () => import('../views/ThemeShowcaseView.vue'),
-      meta: { requiresAuth: true }
+      path: '/theme-showcase', name: 'theme-showcase', component: () => import('@views/ThemeShowcaseView.vue'), meta: { requiresAuth: true }
     },
     // 按钮展示页面
     {
-      path: '/button-showcase',
-      name: 'button-showcase',
-      component: () => import('../views/ButtonShowcaseView.vue'),
-      meta: { requiresAuth: true }
+      path: '/button-showcase', name: 'button-showcase', component: () => import('@views/ButtonShowcaseView.vue'), meta: { requiresAuth: true }
     },
     {
-      path: '/logs/system',
-      name: 'system-logs',
-      component: () => import('../views/system/SystemLogsView.vue'),
-      meta: { requiresAuth: true }
+      path: '/logs/system', name: 'system-logs', component: () => import('@views/system/SystemLogsView.vue'), meta: { requiresAuth: true }
     },
     {
-      path: '/logs/user',
-      name: 'user-logs',
-      component: () => import('../views/system/UserLogsView.vue'),
-      meta: { requiresAuth: true }
+      path: '/logs/user', name: 'user-logs', component: () => import('@views/system/UserLogsView.vue'), meta: { requiresAuth: true }
     },
     {
-      path: '/logs/api',
-      name: 'api-logs',
-      component: () => import('../views/system/ApiLogsView.vue'),
-      meta: { requiresAuth: true }
+      path: '/logs/api', name: 'api-logs', component: () => import('@views/system/ApiLogsView.vue'), meta: { requiresAuth: true }
     },
     {
-      path: '/logs/error',
-      name: 'error-logs',
-      component: () => import('../views/system/ErrorLogsView.vue'),
-      meta: { requiresAuth: true }
+      path: '/logs/error', name: 'error-logs', component: () => import('@views/system/ErrorLogsView.vue'), meta: { requiresAuth: true }
     },
     // 将其他未匹配路由重定向到首页
     {
-      path: '/:pathMatch(.*)*',
-      redirect: '/'
+      path: '/:pathMatch(.*)*', redirect: '/'
     }
   ],
 })

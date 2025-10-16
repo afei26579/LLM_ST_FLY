@@ -537,6 +537,8 @@ const loadStylePresets = async () => {
   padding: 2rem;
   max-width: 1200px;
   margin: 0 auto;
+  min-height: 100vh;
+  background: var(--color-background);
 }
 
 .page-header {

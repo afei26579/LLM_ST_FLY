@@ -1,0 +1,226 @@
+/**
+ * 渐变边框实现指南
+ * 
+ * CSS的border属性不直接支持渐变，本文件提供几种实现渐变边框的方法
+ * 适用于未来科技主题的霓虹渐变效果
+ */
+
+/* ============================================
+   方法1: 使用伪元素 (推荐)
+   优点: 兼容性好，控制精确
+   缺点: 需要额外的伪元素
+   ============================================ */
+
+.gradient-border-pseudo {
+  position: relative;
+  background: var(--card-background);
+  border-radius: 12px;
+  padding: 1rem;
+}
+
+.gradient-border-pseudo::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 2px; /* 边框宽度 */
+  background: linear-gradient(90deg, #00f5ff 0%, #9d4edd 50%, #ff0080 100%);
+  -webkit-mask: 
+    linear-gradient(#fff 0 0) content-box, 
+    linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask: 
+    linear-gradient(#fff 0 0) content-box, 
+    linear-gradient(#fff 0 0);
+  mask-composite: exclude;
+  pointer-events: none;
+}
+
+/* ============================================
+   方法2: 使用border-image
+   优点: 代码简洁
+   缺点: 不支持border-radius
+   ============================================ */
+
+.gradient-border-image {
+  border: 2px solid transparent;
+  border-image: linear-gradient(90deg, #00f5ff 0%, #9d4edd 50%, #ff0080 100%) 1;
+  background: var(--card-background);
+  padding: 1rem;
+}
+
+/* ============================================
+   方法3: 使用多层背景
+   优点: 无需伪元素
+   缺点: 需要精确计算
+   ============================================ */
+
+.gradient-border-background {
+  background: 
+    linear-gradient(var(--card-background), var(--card-background)) padding-box,
+    linear-gradient(90deg, #00f5ff 0%, #9d4edd 50%, #ff0080 100%) border-box;
+  border: 2px solid transparent;
+  border-radius: 12px;
+  padding: 1rem;
+}
+
+/* ============================================
+   方法4: 动画霓虹边框 (未来主题专用)
+   优点: 炫酷效果
+   缺点: 性能开销较大
+   ============================================ */
+
+.gradient-border-animated {
+  position: relative;
+  background: var(--card-background);
+  border-radius: 12px;
+  padding: 1rem;
+}
+
+.gradient-border-animated::before {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: inherit;
+  background: linear-gradient(
+    45deg,
+    #00f5ff,
+    #9d4edd,
+    #ff0080,
+    #00f5ff
+  );
+  background-size: 300% 300%;
+  animation: gradientBorderFlow 3s ease infinite;
+  z-index: -1;
+}
+
+.gradient-border-animated::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--card-background);
+  border-radius: inherit;
+  z-index: -1;
+}
+
+@keyframes gradientBorderFlow {
+  0%, 100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+}
+
+/* ============================================
+   方法5: 带发光效果的渐变边框
+   优点: 霓虹效果逼真
+   缺点: 复杂度高
+   ============================================ */
+
+.gradient-border-glow {
+  position: relative;
+  background: var(--card-background);
+  border: 2px solid rgba(0, 245, 255, 0.3);
+  border-radius: 12px;
+  padding: 1rem;
+  box-shadow: 
+    0 0 10px rgba(0, 245, 255, 0.2),
+    0 0 20px rgba(157, 78, 221, 0.15),
+    0 0 30px rgba(255, 0, 128, 0.1),
+    inset 0 0 10px rgba(0, 245, 255, 0.05);
+}
+
+.gradient-border-glow::before {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: inherit;
+  background: linear-gradient(
+    90deg,
+    rgba(0, 245, 255, 0.5) 0%,
+    rgba(157, 78, 221, 0.5) 50%,
+    rgba(255, 0, 128, 0.5) 100%
+  );
+  filter: blur(8px);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  z-index: -1;
+}
+
+.gradient-border-glow:hover::before {
+  opacity: 1;
+}
+
+/* ============================================
+   使用示例：在Vue组件中应用
+   ============================================ */
+
+/*
+<template>
+  <div class="my-card gradient-border-pseudo">
+    <h3>带渐变边框的卡片</h3>
+    <p>未来科技主题的霓虹边框效果</p>
+  </div>
+</template>
+
+<style scoped>
+.my-card {
+  background: var(--card-background);
+  color: var(--color-text);
+}
+
+.theme-future .my-card {
+  position: relative;
+}
+
+.theme-future .my-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 12px;
+  padding: 2px;
+  background: linear-gradient(90deg, #00f5ff 0%, #9d4edd 50%, #ff0080 100%);
+  -webkit-mask: 
+    linear-gradient(#fff 0 0) content-box, 
+    linear-gradient(#fff 0 0);
+  mask-composite: exclude;
+}
+</style>
+*/
+
+/* ============================================
+   性能建议
+   ============================================ */
+
+/*
+1. 对于静态边框，使用方法1（伪元素）
+2. 对于简单场景且不需要圆角，使用方法2（border-image）
+3. 对于hover效果，使用方法5（带发光效果）
+4. 避免在列表中大量使用动画渐变边框
+5. 使用will-change属性优化性能：
+   .gradient-border-animated::before {
+     will-change: background-position;
+   }
+*/
+
+/* ============================================
+   未来主题专用工具类
+   ============================================ */
+
+.theme-future .future-card-border {
+  position: relative;
+  border: 1px solid rgba(0, 245, 255, 0.3);
+  box-shadow: 
+    0 0 15px rgba(0, 245, 255, 0.1),
+    0 0 30px rgba(255, 0, 128, 0.05);
+}
+
+.theme-future .future-card-border:hover {
+  border-color: rgba(0, 245, 255, 0.6);
+  box-shadow: 
+    0 0 20px rgba(0, 245, 255, 0.2),
+    0 0 40px rgba(157, 78, 221, 0.15),
+    0 0 60px rgba(255, 0, 128, 0.1);
+}
+

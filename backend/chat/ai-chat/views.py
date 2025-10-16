@@ -3,17 +3,173 @@ from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.parsers import JSONParser, MultiPartParser
+from rest_framework.renderers import BaseRenderer
+from django.http import StreamingHttpResponse
+from django.views.decorators.csrf import csrf_exempt
+from django.utils.decorators import method_decorator
+import json
 
 from django.db import transaction
 from django.shortcuts import get_object_or_404
 
 from chat.models import Conversation, Message
-from chat.ai_chat.serializers import (
+from .serializers import (
     AIChatConversationSerializer, 
     AIChatMessageSerializer,
     AIChatMessageCreateSerializer
 )
-from chat.ai_chat.services import AIChatService
+from .services import AIChatService
+
+
+@csrf_exempt
+def stream_chat_view(request):
+    """独立的流式聊天视图函数 - 避免DRF内容协商问题"""
+    if request.method != 'POST':
+        return StreamingHttpResponse(
+            iter([f"data: {json.dumps({'error': '只支持POST方法'})}\n\n"]),
+            content_type='text/event-stream'
+        )
+    
+    # JWT认证
+    from rest_framework_simplejwt.authentication import JWTAuthentication
+    from rest_framework_simplejwt.exceptions import InvalidToken, TokenError
+    
+    auth_header = request.headers.get('Authorization', '')
+    if not auth_header.startswith('Bearer '):
+        def error_stream():
+            yield f"data: {json.dumps({'error': '需要Authorization header'})}\n\n"
+        return StreamingHttpResponse(
+            error_stream(),
+            content_type='text/event-stream'
+        )
+    
+    try:
+        jwt_auth = JWTAuthentication()
+        validated_token = jwt_auth.get_validated_token(auth_header.split(' ')[1])
+        user = jwt_auth.get_user(validated_token)
+        request.user = user
+    except (InvalidToken, TokenError) as e:
+        def error_stream():
+            yield f"data: {json.dumps({'error': '无效的认证令牌'})}\n\n"
+        return StreamingHttpResponse(
+            error_stream(),
+            content_type='text/event-stream'
+        )
+    except Exception as e:
+        def error_stream():
+            yield f"data: {json.dumps({'error': f'认证失败: {str(e)}'})}\n\n"
+        return StreamingHttpResponse(
+            error_stream(),
+            content_type='text/event-stream'
+        )
+    
+    try:
+        # 解析JSON数据
+        data = json.loads(request.body)
+        messages = data.get('messages', [])
+        conversation_id = data.get('conversation_id')
+        deep_thinking = data.get('deep_thinking', False)
+        web_search = data.get('web_search', False)
+        
+        if not messages:
+            def error_stream():
+                yield f"data: {json.dumps({'error': '消息不能为空'})}\n\n"
+            return StreamingHttpResponse(
+                error_stream(),
+                content_type='text/event-stream'
+            )
+        
+        # 获取最新的用户消息
+        latest_message = messages[-1]
+        if latest_message.get('role') != 'user':
+            def error_stream():
+                yield f"data: {json.dumps({'error': '最后一条消息必须是用户消息'})}\n\n"
+            return StreamingHttpResponse(
+                error_stream(),
+                content_type='text/event-stream'
+            )
+        
+        user_message = latest_message.get('content', '')
+        
+        def generate_stream():
+            """生成流式响应"""
+            try:
+                # 获取或创建对话
+                if conversation_id:
+                    try:
+                        conversation = Conversation.objects.get(
+                            id=conversation_id, 
+                            user=request.user
+                        )
+                    except Conversation.DoesNotExist:
+                        yield f"data: {json.dumps({'error': '对话不存在'})}\n\n"
+                        return
+                else:
+                    # 创建新对话
+                    title = user_message[:50] if len(user_message) > 50 else user_message
+                    conversation = Conversation.objects.create(
+                        user=request.user,
+                        title=title
+                    )
+                
+                # 发送对话ID
+                yield f"data: {json.dumps({'conversation_id': conversation.id, 'type': 'conversation_id'})}\n\n"
+                
+                # 调用AI Chat服务处理消息
+                service = AIChatService()
+                for chunk in service.process_message_stream(
+                    conversation=conversation,
+                    user_message=user_message,
+                    user=request.user,
+                    deep_thinking=deep_thinking,
+                    web_search=web_search
+                ):
+                    yield f"data: {json.dumps(chunk, ensure_ascii=False)}\n\n"
+                    
+            except Exception as e:
+                error_data = {
+                    'type': 'error', 
+                    'error': str(e),
+                    'message': '处理消息时发生错误'
+                }
+                yield f"data: {json.dumps(error_data, ensure_ascii=False)}\n\n"
+        
+        # 返回流式响应
+        response = StreamingHttpResponse(
+            generate_stream(),
+            content_type='text/event-stream'
+        )
+        response['Cache-Control'] = 'no-cache'
+        response['Access-Control-Allow-Origin'] = '*'
+        response['Access-Control-Allow-Headers'] = 'Cache-Control, Authorization, Content-Type, Accept'
+        
+        return response
+        
+    except json.JSONDecodeError:
+        def error_stream():
+            yield f"data: {json.dumps({'error': '无效的JSON数据'})}\n\n"
+        return StreamingHttpResponse(
+            error_stream(),
+            content_type='text/event-stream'
+        )
+    except Exception as e:
+        def error_stream():
+            yield f"data: {json.dumps({'error': f'服务器错误: {str(e)}'})}\n\n"
+        return StreamingHttpResponse(
+            error_stream(),
+            content_type='text/event-stream'
+        )
+
+
+class ServerSentEventRenderer(BaseRenderer):
+    """Server-Sent Events 渲染器"""
+    media_type = 'text/event-stream'
+    format = 'sse'
+    charset = 'utf-8'
+
+    def render(self, data, media_type=None, renderer_context=None):
+        # 对于StreamingHttpResponse，直接返回原始数据
+        return data
 
 
 class AIChatViewSet(viewsets.ModelViewSet):
@@ -235,8 +391,7 @@ class AIChatViewSet(viewsets.ModelViewSet):
             total_messages = Message.objects.filter(conversation__user=user).count()
             
             # 获取最近的对话
-            recent_conversations = Conversation.objects.filter(user=user)
-            .order_by('-updated_at')[:5]
+            recent_conversations = Conversation.objects.filter(user=user).order_by('-updated_at')[:5]
             
             # 序列化最近的对话
             recent_conversations_data = self.get_serializer_class()(recent_conversations, many=True).data

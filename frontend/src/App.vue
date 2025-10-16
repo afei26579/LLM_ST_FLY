@@ -39,16 +39,18 @@ body {
     'Microsoft YaHei', '微软雅黑', Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  color: #333;
-  background-color: #f7f9fc;
+  color: var(--color-text);
+  background: var(--color-background);
   line-height: 1.5;
   overflow-x: hidden;
+  min-height: 100vh;
 }
 
 .main-container {
-  height: 100vh;
+  min-height: 100vh;
   width: 100%;
   position: relative;
+  background: var(--color-background);
 }
 
 .main-container.with-sidebar {

@@ -99,10 +99,8 @@ class TextToSpeechTask(models.Model):
     audio_task = models.OneToOneField(AudioTask, on_delete=models.CASCADE, primary_key=True, verbose_name=_('音频任务'))
     
     # 语音合成配置
-    voice = models.CharField(max_length=50, default='zhifeng_emo', verbose_name=_('音色'))
-    speed = models.FloatField(default=1.0, verbose_name=_('语速'))
-    volume = models.IntegerField(default=50, verbose_name=_('音量'))
-    pitch = models.FloatField(default=1.0, verbose_name=_('音调'))
+    voice = models.CharField(max_length=50, default='Cherry', verbose_name=_('音色'))
+    language_type = models.CharField(max_length=50, default='Chinese', verbose_name=_('语言类型'))
     format = models.CharField(max_length=10, default='mp3', verbose_name=_('输出格式'))
     sample_rate = models.IntegerField(default=22050, verbose_name=_('采样率'))
     

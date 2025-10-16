@@ -143,6 +143,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { apiService, type UserProfileUpdate } from '../services/api'
 import ModalStyle from './ModalStyle.vue'
@@ -155,6 +156,7 @@ const props = defineProps<{
 const emit = defineEmits(['close', 'save'])
 
 const authStore = useAuthStore()
+const router = useRouter()
 const fileInput = ref<HTMLInputElement | null>(null)
 const previewImage = ref<string | null>(null)
 const isSaving = ref(false)
@@ -334,83 +336,36 @@ const loadUserInfo = async () => {
       });
       
     } else {
-      console.warn('API返回失败，使用本地数据:', response.message);
-      // 如果获取失败，使用authStore中的数据
-      fallbackToStoredUserInfo();
-      showNotification(`获取用户信息失败: ${response.message}`, 'error');
+      console.warn('API返回失败:', response.message);
+      // 清除本地缓存并跳转到登录页
+      await handleAuthFailure();
     }
   } catch (error) {
     console.error('获取用户信息失败', error);
-    // 如果出错，使用authStore中的数据
-    fallbackToStoredUserInfo();
-    showNotification('获取用户信息失败，使用本地缓存数据', 'error');
+    // 清除本地缓存并跳转到登录页
+    await handleAuthFailure();
   } finally {
     isLoading.value = false;
   }
 }
 
-// 使用本地存储的用户信息作为后备
-const fallbackToStoredUserInfo = () => {
-  console.log('使用本地存储的用户信息作为后备');
+// 处理认证失败，清除缓存并跳转登录页
+const handleAuthFailure = async () => {
+  console.log('用户认证失败，清除本地缓存并跳转到登录页');
   
-  if (authStore.userInfo) {
-    console.log('本地用户信息:', authStore.userInfo);
-    
-    // 基本信息
-    userInfo.username = authStore.userInfo.username || '';
-    userInfo.nickname = authStore.userInfo.nickname || '';
-    userInfo.email = authStore.userInfo.email || '';
-    userInfo.phone = authStore.userInfo.phone || '';
-    userInfo.bio = authStore.userInfo.bio || '';
-    
-    // 个人信息字段
-    userInfo.gender = authStore.userInfo.gender || 'male';
-    userInfo.birthday = authStore.userInfo.birthday || '';
-    
-    // 地区信息需要按顺序设置，以确保下拉选项正确加载
-    userInfo.province = authStore.userInfo.province || '';
-    // 如果有省份，确保加载对应城市列表
-    if (userInfo.province) {
-      const province = provinces.value.find(p => p.name === userInfo.province);
-      cities.value = province?.children || [];
-    }
-    
-    userInfo.city = authStore.userInfo.city || '';
-    // 如果有城市，确保加载对应区县列表
-    if (userInfo.city) {
-      const city = cities.value.find(c => c.name === userInfo.city);
-      districts.value = city?.children || [];
-    }
-    
-    userInfo.district = authStore.userInfo.district || '';
-    userInfo.qq = authStore.userInfo.qq || '';
-    
-    // 验证字段
-    validateNickname(userInfo.nickname);
-    if (userInfo.qq) {
-      validateQQ(userInfo.qq);
-    }
-    
-    // 如果有头像，设置预览图
-    if (authStore.userInfo.avatar) {
-      previewImage.value = authStore.userInfo.avatar;
-    } else {
-      previewImage.value = null;
-    }
-    
-    console.log('本地数据已加载到表单:', {
-      username: userInfo.username,
-      nickname: userInfo.nickname,
-      gender: userInfo.gender,
-      birthday: userInfo.birthday,
-      province: userInfo.province,
-      city: userInfo.city,
-      district: userInfo.district,
-      qq: userInfo.qq
-    });
-  } else {
-    console.warn('本地没有用户信息可用');
-  }
+  // 关闭当前弹窗
+  emit('close');
+  
+  // 清除本地缓存（包括token和用户信息）
+  authStore.logout();
+  
+  // 显示提示信息
+  showNotification('登录信息已失效，请重新登录', 'error');
+  
+  // 延迟一下再跳转，让用户看到提示信息
+  setTimeout(() => {
+    router.push('/login');
+  }, 1000);
 }
 
 // 触发文件选择

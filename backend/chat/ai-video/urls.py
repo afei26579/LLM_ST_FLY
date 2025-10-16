@@ -5,7 +5,7 @@ AI视频生成URL配置
 from django.urls import path
 from . import views
 
-app_name = 'ai_video'
+app_name = 'ai-video'
 
 urlpatterns = [
     # 文生视频

@@ -26,13 +26,11 @@ class SpeechToTextSerializer(serializers.Serializer):
 class TextToSpeechSerializer(serializers.Serializer):
     """文字转语音请求序列化器"""
     text = serializers.CharField(max_length=5000, help_text="要转换的文本")
-    voice = serializers.CharField(max_length=50, default='zhifeng_emo', help_text="音色")
-    speed = serializers.FloatField(default=1.0, min_value=0.5, max_value=2.0, help_text="语速")
-    volume = serializers.IntegerField(default=50, min_value=0, max_value=100, help_text="音量")
-    pitch = serializers.FloatField(default=1.0, min_value=0.5, max_value=2.0, help_text="音调")
+    voice = serializers.CharField(max_length=50, default='Cherry', help_text="音色")
+    language_type = serializers.CharField(max_length=50, default='Chinese', help_text="语言类型")
     format = serializers.ChoiceField(
         choices=['mp3', 'wav', 'pcm'], 
-        default='mp3', 
+        default='wav', 
         help_text="输出格式"
     )
     
@@ -96,7 +94,7 @@ class TextToSpeechTaskSerializer(serializers.ModelSerializer):
     class Meta:
         model = TextToSpeechTask
         fields = [
-            'audio_task', 'voice', 'speed', 'volume', 'pitch', 
+            'audio_task', 'voice', 'language_type', 
             'format', 'sample_rate', 'audio_duration', 'file_size'
         ]
 

@@ -12,26 +12,34 @@ import json
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def get_document_history(request):
-    """获取用户的文档历史"""
+    """获取用户的文档历史（仅返回已分析的文档）"""
     try:
+        # 获取所有已分析的用户文档，按上传时间倒序
+        # 使用 distinct() 去重，基于文档 ID（每个文档 ID 唯一）
         documents = Document.objects.filter(
-            documentaccess__user=request.user
-        ).order_by('-upload_time')[:20]  # 最近20个文档
+            documentaccess__user=request.user,
+            documentanalysis__isnull=False  # 只返回已分析的文档
+        ).distinct().order_by('-upload_time')[:20]  # 最多返回20个文档
         
         document_list = []
         for doc in documents:
-            # 获取分析结果
-            analysis = DocumentAnalysis.objects.filter(document=doc).first()
-            
-            document_list.append({
-                'id': doc.id,
-                'name': doc.name,
-                'size': doc.size,
-                'created_at': doc.upload_time.isoformat(),
-                'file_object_id': doc.file_object_id,
-                'has_analysis': analysis is not None,
-                'summary': analysis.summary if analysis else None
-            })
+            # 获取该文档的分析结果（使用 document 对象直接查询，确保一一对应）
+            try:
+                analysis = doc.documentanalysis  # 使用反向关系，一对一关系
+                
+                document_list.append({
+                    'id': doc.id,
+                    'name': doc.name,
+                    'size': doc.size,
+                    'created_at': doc.upload_time.isoformat(),
+                    'file_object_id': doc.file_object_id,
+                    'has_analysis': True,  # 已过滤，全部都是已分析的
+                    'summary': analysis.summary if analysis else None
+                })
+            except DocumentAnalysis.DoesNotExist:
+                # 理论上不会发生，因为已经过滤了有分析的文档
+                print(f"警告：文档 {doc.id} 没有分析结果")
+                continue
         
         return Response({
             'success': True,
@@ -39,6 +47,7 @@ def get_document_history(request):
         })
         
     except Exception as e:
+        print(f"获取文档历史失败: {e}")
         return Response({
             'success': False,
             'error': str(e)
@@ -306,13 +315,36 @@ def get_user_documents(request):
     """获取用户的文档列表"""
     try:
         limit = int(request.GET.get('limit', 50))
+        document_id = request.GET.get('document_id')  # 支持按 document_id 查询单个文档
         
-        documents = ai_reading_service.get_user_documents(request.user, limit)
+        # 如果指定了 document_id，只返回该文档
+        if document_id:
+            try:
+                doc = Document.objects.get(id=document_id, user=request.user)
+                documents = [doc]
+            except Document.DoesNotExist:
+                return Response({
+                    'error': '文档不存在或无权访问'
+                }, status=status.HTTP_404_NOT_FOUND)
+        else:
+            documents = ai_reading_service.get_user_documents(request.user, limit)
         
         documents_data = []
         for doc in documents:
-            # 获取分析结果
-            analysis = ai_reading_service.get_document_analysis(doc)
+            # 直接通过反向关系获取分析结果，确保一一对应
+            try:
+                analysis = doc.documentanalysis  # 使用一对一反向关系
+                has_analysis = True
+                analysis_data = {
+                    'summary': analysis.summary,
+                    'keyPoints': analysis.key_points,
+                    'keywords': analysis.keywords,
+                    'entities': analysis.entities,
+                    'suggestedQuestions': analysis.suggested_questions
+                }
+            except DocumentAnalysis.DoesNotExist:
+                has_analysis = False
+                analysis_data = None
             
             documents_data.append({
                 'id': doc.id,
@@ -321,14 +353,8 @@ def get_user_documents(request):
                 'file_type': doc.file_type,
                 'file_object_id': doc.file_object_id,
                 'upload_time': doc.upload_time.isoformat(),
-                'has_analysis': analysis is not None,
-                'analysis': {
-                    'summary': analysis.summary if analysis else '',
-                    'keyPoints': analysis.key_points if analysis else [],
-                    'keywords': analysis.keywords if analysis else [],
-                    'entities': analysis.entities if analysis else [],
-                    'suggestedQuestions': analysis.suggested_questions if analysis else []
-                } if analysis else None
+                'has_analysis': has_analysis,
+                'analysis': analysis_data
             })
         
         return Response({
@@ -338,6 +364,8 @@ def get_user_documents(request):
         
     except Exception as e:
         print(f"获取用户文档失败: {e}")
+        import traceback
+        traceback.print_exc()
         return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 

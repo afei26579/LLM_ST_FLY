@@ -58,21 +58,35 @@ class AIReadingService:
     
     def upload_file_to_ai_service(self, file_content: bytes, filename: str) -> str:
         """上传文件到AI服务"""
+        temp_file_path = None
         try:
+            # 创建临时文件并写入内容
             with tempfile.NamedTemporaryFile(delete=False, suffix=Path(filename).suffix) as temp_file:
                 temp_file.write(file_content)
                 temp_file.flush()
-                
-                with open(temp_file.name, 'rb') as f:
-                    file_object = self.client.files.create(
-                        file=f,
-                        purpose="file-extract"
-                    )
-                
-                os.unlink(temp_file.name)
-                return file_object.id
+                temp_file_path = temp_file.name
+            # 注意：此时temp_file已经关闭，文件句柄已释放
+            
+            # 重新打开文件进行上传（此时没有文件锁定问题）
+            with open(temp_file_path, 'rb') as f:
+                file_object = self.client.files.create(
+                    file=f,
+                    purpose="file-extract"
+                )
+            
+            # 上传成功后删除临时文件
+            if temp_file_path and os.path.exists(temp_file_path):
+                os.unlink(temp_file_path)
+            
+            return file_object.id
         except Exception as e:
             print(f"上传文件到AI服务失败: {e}")
+            # 清理临时文件
+            if temp_file_path and os.path.exists(temp_file_path):
+                try:
+                    os.unlink(temp_file_path)
+                except Exception as cleanup_error:
+                    print(f"清理临时文件失败: {cleanup_error}")
             raise
     
     @transaction.atomic
@@ -122,48 +136,51 @@ class AIReadingService:
         """分析文档内容"""
         try:
             response = self.client.chat.completions.create(
-                model="qwen-plus",
+                model="qwen-long",
                 messages=[
                     {
                         "role": "system",
-                        "content": """你是一个专业的文档分析助手。请对上传的文档进行全面分析，并按以下JSON格式返回结果：
-
-{
-    "summary": "文档的详细总结",
-    "keyPoints": ["要点1", "要点2", "要点3"],
-    "keywords": ["关键词1", "关键词2", "关键词3"],
-    "entities": [{"text": "实体名", "type": "实体类型"}],
-    "suggestedQuestions": ["问题1", "问题2", "问题3", "问题4", "问题5"]
-}
-
-请确保：
-1. summary 是对文档内容的详细总结
-2. keyPoints 是文档的核心要点，3-5个
-3. keywords 是关键词列表，5-10个
-4. entities 是识别出的重要实体
-5. suggestedQuestions 是基于文档内容的5个推荐问题
-"""
+                        "content": f"fileid://{file_object_id}"
                     },
                     {
-                        "role": "user", 
-                        "content": [
-                            {
-                                "type": "file", 
-                                "file_url": {
-                                    "url": f"fileid://{file_object_id}"
-                                }
-                            },
-                            {
-                                "type": "text",
-                                "text": "请分析这个文档并返回JSON格式的分析结果。"
-                            }
-                        ]
-                    }
+                        "role": "system", 
+                        "content": """你是一个专业的文档分析助手。请对上传的文档进行全面分析，并按以下JSON格式返回结果：
+
+                        {
+                            "summary": "文档的详细总结",
+                            "keyPoints": ["要点1", "要点2", "要点3"],
+                            "keywords": ["关键词1", "关键词2", "关键词3"],
+                            "entities": [{"text": "实体名", "type": "实体类型"}],
+                            "suggestedQuestions": ["问题1", "问题2", "问题3", "问题4", "问题5"]
+                        }
+
+                        请确保：
+                        1. summary 是对文档内容的详细总结
+                        2. keyPoints 是文档的核心要点，3-5个
+                        3. keywords 是关键词列表，5-10个
+                        4. entities 是识别出的重要实体
+                        5. suggestedQuestions 是基于文档内容的5个推荐问题
+
+                        请分析这个文档并返回JSON格式的分析结果。"""
+                    },
+                    {
+                        "role": "user",
+                        "content": "详细分析文档内容，按JSON格式返回"
+                    },
                 ],
-                temperature=0.1
+                stream=True,
+                stream_options={"include_usage": True}
             )
             
-            content = response.choices[0].message.content
+            # 处理流式响应
+            content = ""
+            for chunk in response:
+                if chunk.choices and len(chunk.choices) > 0:
+                    delta = chunk.choices[0].delta
+                    if delta.content:
+                        content += delta.content
+            
+            print(f"文档分析完成，返回内容长度: {len(content)}")
             
             # 尝试解析JSON
             import json
@@ -171,7 +188,18 @@ class AIReadingService:
                 result = json.loads(content)
                 return result
             except json.JSONDecodeError:
-                # 如果不是标准JSON，尝试提取内容
+                print(f"JSON解析失败，尝试从文本中提取...")
+                # 尝试提取JSON内容（可能被包裹在 ```json ``` 中）
+                import re
+                json_match = re.search(r'```json\s*(.*?)\s*```', content, re.DOTALL)
+                if json_match:
+                    try:
+                        result = json.loads(json_match.group(1))
+                        return result
+                    except json.JSONDecodeError:
+                        pass
+                
+                # 如果不是标准JSON，返回默认结构
                 return {
                     "summary": content[:500] + "..." if len(content) > 500 else content,
                     "keyPoints": ["文档分析完成", "内容已提取", "可进行问答"],
@@ -233,32 +261,31 @@ class AIReadingService:
         """基于文档回答问题"""
         try:
             response = self.client.chat.completions.create(
-                model="qwen-plus",
+                model="qwen-long",
                 messages=[
                     {
                         "role": "system",
-                        "content": "你是一个专业的文档问答助手。请基于上传的文档内容回答用户的问题。回答要准确、详细，并且要基于文档内容。"
+                        "content": f"fileid://{file_object_id}"
                     },
                     {
                         "role": "user",
-                        "content": [
-                            {
-                                "type": "file",
-                                "file_url": {
-                                    "url": f"fileid://{file_object_id}"
-                                }
-                            },
-                            {
-                                "type": "text",
-                                "text": f"问题：{question}"
-                            }
-                        ]
+                        "content": f"你是一个专业的文档问答助手。请基于上传的文档内容回答用户的问题。回答要准确、详细，并且要基于文档内容。\n\n问题：{question}"
                     }
                 ],
-                temperature=0.1
+                stream=True,
+                stream_options={"include_usage": True}
             )
             
-            return response.choices[0].message.content
+            # 处理流式响应
+            content = ""
+            for chunk in response:
+                if chunk.choices and len(chunk.choices) > 0:
+                    delta = chunk.choices[0].delta
+                    if delta.content:
+                        content += delta.content
+            
+            print(f"问答完成，返回内容长度: {len(content)}")
+            return content
             
         except Exception as e:
             print(f"问答失败: {e}")

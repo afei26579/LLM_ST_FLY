@@ -6,41 +6,56 @@
     </div>
     
     <div class="content-container">
-      <!-- 左侧：智能问答和文档上传 -->
+      <!-- 左侧：文档处理和智能问答 -->
       <div class="left-panel">
-        <!-- 智能问答区域（移到上面） -->
-        <div class="demo-card">
+        <!-- 文档上传与智能问答（合并，动态切换） -->
+        <div class="demo-card main-card">
           <div class="card-header">
-            <h2>智能问答</h2>
-            <p>基于文档内容进行智能问答</p>
-          </div>
-          
-          <div class="demo-content" v-if="selectedFile && currentFileId">
-            <div class="qa-section">
-              <div class="question-input">
-                <label for="question">提出问题:</label>
-                <input 
-                  id="question"
-                  type="text" 
-                  v-model="question" 
-                  placeholder="请输入您想了解的问题..."
-                  @keyup.enter="askQuestion"
-                >
-                <button class="ask-btn" @click="askQuestion" :disabled="!question.trim() || answering">
-                  <span v-if="answering">思考中...</span>
-                  <span v-else>提问</span>
-                </button>
+            <div class="header-content">
+              <div class="title-section">
+                <h2 v-if="!analysisResults">文档上传与分析</h2>
+                <h2 v-else>智能问答</h2>
+                <p v-if="!analysisResults">上传文档，AI智能解析内容</p>
+               
               </div>
               
-              <div class="qa-history" v-if="qaHistory.length > 0">
-                <h5>问答历史</h5>
-                <div class="qa-list">
-                  <div v-for="(qa, index) in qaHistory" :key="index" class="qa-item">
-                    <div class="question-item">
-                      <strong>Q:</strong> {{ qa.question }}
-                    </div>
-                    <div class="answer-item">
-                      <strong>A:</strong> {{ qa.answer }}
+              <!-- 文档历史下拉菜单 -->
+              <div class="document-history-dropdown">
+                <button 
+                  class="history-toggle-btn" 
+                  @click="toggleDocumentHistory"
+                  :disabled="documentHistory.length === 0"
+                  :title="documentHistory.length === 0 ? '暂无文档历史' : '查看文档历史'"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 8V4H8"></path>
+                    <path d="m8 4-4 4 4 4"></path>
+                    <path d="M4 8h11a4 4 0 1 1 0 8h-1"></path>
+                  </svg>
+                  <span>历史 ({{ documentHistory.length }})</span>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" 
+                       :class="['dropdown-arrow', { 'expanded': showDocumentHistory }]">
+                    <polyline points="6,9 12,15 18,9"></polyline>
+                  </svg>
+                </button>
+                
+                <!-- 文档历史下拉列表 -->
+                <div v-if="showDocumentHistory" class="history-dropdown">
+                  <div class="history-dropdown-content">
+                    <div 
+                      v-for="doc in documentHistory.slice(0, 10)" 
+                      :key="doc.id" 
+                      class="history-dropdown-item"
+                      :class="{ active: currentFileId === doc.file_object_id }"
+                      @click="loadDocumentAndCloseDropdown(doc)"
+                    >
+                      <div class="dropdown-doc-info">
+                        <div class="dropdown-doc-name">{{ doc.name }}</div>
+                        <div class="dropdown-doc-meta">
+                          <span class="dropdown-doc-size">{{ formatFileSize(doc.size) }}</span>
+                          <span class="dropdown-doc-date">{{ formatDate(doc.created_at) }}</span>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -48,19 +63,8 @@
             </div>
           </div>
           
-          <div class="no-document" v-else>
-            <p>请先上传文档并完成分析以启用智能问答功能</p>
-          </div>
-        </div>
-
-        <!-- 文档上传与分析（合并） -->
-        <div class="demo-card">
-          <div class="card-header">
-            <h2>文档上传与分析</h2>
-            <p>上传文档，AI智能解析内容</p>
-          </div>
-          
-          <div class="demo-content">
+          <!-- 文档上传模式（分析完成前显示） -->
+          <div class="demo-content" v-if="!analysisResults">
             <div class="upload-section">
               <div class="upload-area" :class="{ disabled: analyzing }" @dragover.prevent @drop.prevent="handleFileDrop">
                 <input 
@@ -101,49 +105,62 @@
               </div>
             </div>
           </div>
-        </div>
-      </div>
-      
-      <!-- 右侧：文档历史、推荐问题和详细分析 -->
-      <div class="right-panel">
-        <!-- 文档历史 -->
-        <div class="demo-card" v-if="documentHistory.length > 0">
-          <div class="card-header">
-            <h2>文档历史</h2>
-            <p>您最近分析过的文档</p>
-          </div>
           
-          <div class="demo-content">
-            <div class="document-history">
-              <div 
-                v-for="doc in documentHistory" 
-                :key="doc.id" 
-                class="history-item"
-                :class="{ active: currentFileId === doc.file_object_id }"
-                @click="loadDocument(doc)"
-              >
-                <div class="doc-info">
-                  <div class="doc-name">{{ doc.name }}</div>
-                  <div class="doc-meta">
-                    <span class="doc-size">{{ formatFileSize(doc.size) }}</span>
-                    <span class="doc-date">{{ formatDate(doc.created_at) }}</span>
-                  </div>
-                  <div v-if="doc.summary" class="doc-summary">{{ doc.summary.substring(0, 100) }}...</div>
+          <!-- 智能问答模式（分析完成后显示） -->
+          <div class="demo-content" v-if="analysisResults && currentFileId">
+            <div class="qa-section">
+              <div class="current-document-info">
+                <div class="document-badge">
+                  <span class="doc-icon">📄</span>
+                  <span class="doc-name">{{ selectedFile?.name || '未知文档' }}</span>
+                  <button class="switch-document-btn" @click="switchToUploadMode">
+                    文档
+                  </button>
                 </div>
-                <div class="doc-status">
-                  <span v-if="doc.has_analysis" class="analyzed">已分析</span>
-                  <span v-else class="pending">待分析</span>
+              </div>
+              
+              <div class="question-input">
+                <div class="input-with-button">
+                  <input 
+                    id="question"
+                    type="text" 
+                    v-model="question" 
+                    placeholder="请输入您想了解的问题..."
+                    @keyup.enter="askQuestion"
+                    class="question-input-field"
+                  >
+                  <button class="ask-btn-inline" @click="askQuestion" :disabled="!question.trim() || answering">
+                    <span v-if="answering">思考中...</span>
+                    <span v-else>提问</span>
+                  </button>
+                </div>
+              </div>
+              
+              <div class="qa-history" v-if="qaHistory.length > 0">
+                <h5>问答历史</h5>
+                <div class="qa-list">
+                  <div v-for="(qa, index) in qaHistory" :key="index" class="qa-item">
+                    <div class="question-item">
+                      <strong>Q:</strong> {{ qa.question }}
+                    </div>
+                    <div class="answer-item">
+                      <strong>A:</strong> {{ qa.answer }}
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
           </div>
         </div>
-
+      </div>
+      
+      <!-- 右侧：推荐问题和详细分析 -->
+      <div class="right-panel">
         <!-- 推荐问题 -->
-        <div class="demo-card">
+        <div class="demo-card questions-card">
           <div class="card-header">
             <h2>推荐问题</h2>
-            <p>基于文档内容的常见问题</p>
+            
           </div>
           
           <div class="demo-content">
@@ -167,11 +184,10 @@
           </div>
         </div>
 
-        <!-- 详细分析结果（移到推荐问题下面） -->
-        <div class="demo-card" v-if="analysisResults">
+        <!-- 详细分析结果 -->
+        <div class="demo-card analysis-card" v-if="analysisResults">
           <div class="card-header">
             <h2>详细分析</h2>
-            <p>文档的深度分析结果</p>
           </div>
           
           <div class="demo-content">
@@ -254,6 +270,9 @@ const documentSummary = ref<any>(null)
 const suggestedQuestions = ref<string[]>([])
 const documentHistory = ref<any[]>([])
 const currentDocumentId = ref<string>('')
+
+// 文档历史下拉状态
+const showDocumentHistory = ref(false)
 
 // 标签页顺序调整：总结放在第一位
 const resultTabs = [
@@ -534,11 +553,28 @@ const loadDocument = async (doc: any) => {
     console.log('文档ID:', doc.id)
     console.log('file_object_id:', doc.file_object_id)
     
+    // 先清空所有状态，确保不会显示上一份文档的数据
+    analysisResults.value = null
+    documentSummary.value = null
+    suggestedQuestions.value = []
+    qaHistory.value = []
+    
     currentFileId.value = doc.file_object_id
     currentDocumentId.value = doc.id
     
+    // 创建一个模拟的 selectedFile 对象以支持智能问答界面显示
+    selectedFile.value = {
+      name: doc.name,
+      size: doc.size,
+      type: '', // 历史文档可能没有 type 信息
+      lastModified: new Date(doc.created_at).getTime()
+    } as File
+    
     // 如果文档已经有分析结果，直接加载
     if (doc.has_analysis) {
+      console.log('正在加载文档分析结果...')
+      console.log('请求 URL:', `${API_BASE_URL}/api/v1/ai-reading/documents/?document_id=${doc.id}`)
+      
       const response = await fetch(`${API_BASE_URL}/api/v1/ai-reading/documents/?document_id=${doc.id}`, {
         method: 'GET',
         headers: {
@@ -548,15 +584,24 @@ const loadDocument = async (doc: any) => {
       
       if (response.ok) {
         const result = await response.json()
+        console.log('API 返回结果:', result)
         const docData = result.documents[0]
         
-        if (docData.analysis) {
+        if (docData && docData.analysis) {
+          console.log('加载到的文档信息:', {
+            id: docData.id,
+            name: docData.name,
+            file_object_id: docData.file_object_id
+          })
+          console.log('分析结果摘要:', docData.analysis.summary.substring(0, 100) + '...')
+          console.log('推荐问题数量:', docData.analysis.suggestedQuestions?.length || 0)
+          
           analysisResults.value = docData.analysis
           
           // 设置文档总结数据
           documentSummary.value = {
             keyPoints: docData.analysis.keyPoints || [],
-            summary: docData.analysis.summary
+            summary: docData.analysis.summary || ''
           }
           
           // 设置推荐问题
@@ -564,18 +609,55 @@ const loadDocument = async (doc: any) => {
           suggestedQuestions.value = allQuestions.slice(0, 5)
           
           console.log('历史文档分析结果加载完成')
+        } else {
+          console.log('API 返回的文档没有分析结果')
         }
         
         // 加载问答历史
         await loadQAHistory()
+      } else {
+        console.error('加载文档详情失败:', response.status, response.statusText)
       }
+    } else {
+      console.log('该文档未分析')
     }
     
     console.log('==================')
     
   } catch (error) {
     console.error('加载文档失败:', error)
+    // 出错时也要确保清空状态
+    analysisResults.value = null
+    documentSummary.value = null
+    suggestedQuestions.value = []
   }
+}
+
+// 切换到上传模式（重新上传文档）
+const switchToUploadMode = () => {
+  // 重置所有状态，回到上传模式
+  analysisResults.value = null
+  documentSummary.value = null
+  suggestedQuestions.value = []
+  qaHistory.value = []
+  currentFileId.value = ''
+  currentDocumentId.value = ''
+  selectedFile.value = null
+  question.value = ''
+  showDocumentHistory.value = false  // 关闭下拉菜单
+  
+  console.log('切换到上传模式')
+}
+
+// 切换文档历史下拉显示
+const toggleDocumentHistory = () => {
+  showDocumentHistory.value = !showDocumentHistory.value
+}
+
+// 加载文档并关闭下拉菜单
+const loadDocumentAndCloseDropdown = async (doc: any) => {
+  showDocumentHistory.value = false
+  await loadDocument(doc)
 }
 
 // 格式化日期
@@ -604,9 +686,25 @@ const initializeFromStorage = async () => {
 }
 
 // 组件挂载时初始化
-import { onMounted } from 'vue'
+import { onMounted, onUnmounted } from 'vue'
+
+// 点击外部关闭下拉菜单
+const handleClickOutside = (event: Event) => {
+  const target = event.target as HTMLElement
+  if (!target.closest('.document-history-dropdown')) {
+    showDocumentHistory.value = false
+  }
+}
+
 onMounted(() => {
   initializeFromStorage()
+  // 添加全局点击监听器
+  document.addEventListener('click', handleClickOutside)
+})
+
+onUnmounted(() => {
+  // 移除全局点击监听器
+  document.removeEventListener('click', handleClickOutside)
 })
 </script>
 
@@ -616,6 +714,8 @@ onMounted(() => {
   max-width: 1400px;
   margin: 0;
   margin-left: 1rem;
+  min-height: 100vh;
+  background: var(--color-background);
 }
 
 .page-header {
@@ -643,12 +743,19 @@ onMounted(() => {
   display: grid;
   grid-template-columns: 1fr 500px;
   gap: 1.5rem;
+  align-items: start;  /* 确保两侧从顶部开始对齐 */
 }
 
 .left-panel, .right-panel {
   display: flex;
   flex-direction: column;
-  gap: 2rem;
+  gap: 1.5rem;
+  align-self: stretch;  /* 允许两侧自然伸展 */
+}
+
+.right-panel {
+  /* 右侧面板与左侧对齐，允许自然扩展 */
+  min-height: 0;  /* 允许 flex 子元素正确收缩 */
 }
 
 .demo-card {
@@ -659,19 +766,160 @@ onMounted(() => {
   border: 1px solid var(--card-border);
 }
 
-.card-header {
-  margin-bottom: 2rem;
+/* 主卡片自动高度，根据内容扩展 */
+.main-card {
+  display: flex;
+  flex-direction: column;
 }
+
+.main-card .demo-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+/* 推荐问题和详细分析卡片保持宽度一致 */
+.questions-card,
+.analysis-card {
+  display: flex;
+  flex-direction: column;
+}
+
+.questions-card .demo-content,
+.analysis-card .demo-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.card-header {
+  margin-bottom: 1.5rem;  /* 减少底部间距，因为描述文本已删除 */
+}
+
+/* 新的头部内容布局 */
+.header-content {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.title-section {
+  flex: 1;
+}
+
+/* 文档历史下拉菜单样式 */
+.document-history-dropdown {
+  position: relative;
+}
+
+.history-toggle-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  background: var(--button-secondary);
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-size: 0.9rem;
+  white-space: nowrap;
+}
+
+.history-toggle-btn:hover:not(:disabled) {
+  background: var(--color-primary-alpha);
+  border-color: var(--color-primary);
+}
+
+.history-toggle-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.dropdown-arrow {
+  transition: transform 0.3s ease;
+}
+
+.dropdown-arrow.expanded {
+  transform: rotate(180deg);
+}
+
+.history-dropdown {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  z-index: 1000;
+  margin-top: 0.5rem;
+  background: var(--card-background);
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  box-shadow: var(--card-shadow);
+  min-width: 350px;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.history-dropdown-content {
+  padding: 0.5rem;
+}
+
+.history-dropdown-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.75rem;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  margin-bottom: 0.25rem;
+}
+
+.history-dropdown-item:hover {
+  background: var(--color-primary-alpha);
+}
+
+.history-dropdown-item.active {
+  background: var(--color-primary-alpha);
+  border-left: 3px solid var(--color-primary);
+}
+
+.dropdown-doc-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.dropdown-doc-name {
+  font-weight: 500;
+  color: var(--color-text);
+  font-size: 0.9rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin-bottom: 0.25rem;
+}
+
+.dropdown-doc-meta {
+  display: flex;
+  gap: 0.75rem;
+  font-size: 0.75rem;
+  color: var(--color-text-secondary);
+}
+
 
 .card-header h2 {
   font-size: 1.5rem;
   font-weight: 600;
   color: var(--color-text);
-  margin-bottom: 0.5rem;
+  margin-bottom: 0;  /* 移除默认底部间距 */
 }
 
 .card-header p {
   color: var(--color-text-secondary);
+  margin-top: 0.5rem;  /* 添加顶部间距 */
+  margin-bottom: 0;
 }
 
 .demo-content {
@@ -845,6 +1093,15 @@ onMounted(() => {
   padding-top: 1rem;
 }
 
+.tab-content h5 {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--color-text);
+  margin-bottom: 1rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--color-border);
+}
+
 .keyword-tags {
   display: flex;
   flex-wrap: wrap;
@@ -883,41 +1140,64 @@ onMounted(() => {
 }
 
 .question-input {
-  display: flex;
-  gap: 1rem;
-  align-items: end;
   margin-bottom: 1.5rem;
 }
 
-.question-input label {
-  display: block;
-  font-weight: 500;
-  color: var(--color-text);
-  margin-bottom: 0.5rem;
+.input-with-button {
+  position: relative;
+  display: flex;
+  align-items: center;
 }
 
-.question-input input {
-  flex: 1;
-  padding: 0.75rem;
+.question-input-field {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  padding-right: 100px; /* 为内联按钮留出空间 */
   border: 1px solid var(--color-border);
   border-radius: 8px;
   background: var(--input-background);
   color: var(--color-text);
+  font-size: 1rem;
+  outline: none;
+  transition: border-color 0.2s ease;
 }
 
-.ask-btn {
+.question-input-field:focus {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 2px rgba(94, 155, 255, 0.1);
+}
+
+.ask-btn-inline {
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
   background: var(--color-primary);
   color: white;
   border: none;
-  padding: 0.75rem 1.5rem;
-  border-radius: 8px;
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
   cursor: pointer;
+  font-size: 0.9rem;
+  font-weight: 500;
   white-space: nowrap;
+  transition: all 0.2s ease;
+  z-index: 10;
 }
 
-.ask-btn:disabled {
+.ask-btn-inline:hover:not(:disabled) {
+  background: var(--color-primary-dark);
+  transform: translateY(-50%) scale(1.02);
+}
+
+.ask-btn-inline:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+  transform: translateY(-50%);
+}
+
+.ask-btn-inline:active {
+  transform: translateY(-50%) scale(0.98);
 }
 
 .qa-list {
@@ -949,10 +1229,131 @@ onMounted(() => {
   color: var(--color-text-secondary);
 }
 
+/* 当前文档信息样式 */
+.current-document-info {
+  margin-bottom: 1.5rem;
+  padding: 1rem;
+  padding-right: 4px;  /* 与提问按钮的右边距保持一致 (4px) */
+  background: var(--input-background);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+}
+
+.document-badge {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  /* 不需要额外的padding，由父容器统一控制 */
+}
+
+.doc-icon {
+  font-size: 1.5rem;
+}
+
+.doc-name {
+  flex: 1;
+  font-weight: 500;
+  color: var(--color-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.switch-document-btn {
+  background: var(--color-primary);
+  color: white;
+  border: none;
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  font-size: 0.9rem;  /* 与提问按钮字体大小一致 */
+  font-weight: 500;   /* 与提问按钮字重一致 */
+  cursor: pointer;
+  transition: all 0.2s ease;  /* 与提问按钮过渡效果一致 */
+  white-space: nowrap;
+}
+
+.switch-document-btn:hover {
+  background: var(--color-primary-dark);
+  transform: scale(1.02);  /* 添加悬停缩放效果，与提问按钮一致 */
+}
+
 .questions-section {
   display: flex;
   flex-direction: column;
   gap: 1rem;
+  flex: 1;
+  overflow-y: auto;
+}
+
+.qa-section {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  overflow-y: auto;
+}
+
+.upload-section {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;  /* 上传区域垂直居中 */
+}
+
+.qa-history {
+  flex: 1;
+  overflow-y: auto;
+  /* 移除 max-height 限制，让它自动扩展 */
+  /* 使用 calc 计算最大高度：视口高度 - 页面头部 - 问答输入区 - 边距 */
+  max-height: calc(100vh - 400px);
+  min-height: 200px;
+  /* 平滑滚动 */
+  scroll-behavior: smooth;
+}
+
+.qa-history h5 {
+  position: sticky;
+  top: 0;
+  background: var(--card-background);
+  padding: 0.75rem 0;
+  margin: 0 0 1rem 0;
+  z-index: 10;
+  border-bottom: 1px solid var(--color-border);
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+/* 自定义滚动条样式 - 符合主题设置 */
+.qa-history::-webkit-scrollbar,
+.history-dropdown::-webkit-scrollbar {
+  width: 8px;
+}
+
+.qa-history::-webkit-scrollbar-track,
+.history-dropdown::-webkit-scrollbar-track {
+  background: var(--input-background);
+  border-radius: 4px;
+}
+
+.qa-history::-webkit-scrollbar-thumb,
+.history-dropdown::-webkit-scrollbar-thumb {
+  background: var(--color-primary-alpha);
+  border-radius: 4px;
+  transition: background 0.3s ease;
+}
+
+.qa-history::-webkit-scrollbar-thumb:hover,
+.history-dropdown::-webkit-scrollbar-thumb:hover {
+  background: var(--color-primary);
+}
+
+/* Firefox 滚动条样式 */
+.qa-history,
+.history-dropdown {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-primary-alpha) var(--input-background);
 }
 
 .question-list {
@@ -993,12 +1394,13 @@ onMounted(() => {
     grid-template-columns: 1fr;
   }
   
-  .right-panel {
-    order: -1;
-  }
-  
   .ai-reading-view {
     margin-left: 0.5rem;
+  }
+  
+  .qa-history {
+    /* 移动端调整最大高度 */
+    max-height: 500px;
   }
 }
 
@@ -1097,19 +1499,46 @@ onMounted(() => {
     padding: 1.5rem;
   }
   
-  .question-input {
-    flex-direction: column;
-    align-items: stretch;
+  .main-card,
+  .questions-card,
+  .analysis-card {
+    height: auto;
+    min-height: 300px;
   }
   
-  .history-item {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 0.5rem;
+  .content-container {
+    grid-template-columns: 1fr;
   }
   
-  .doc-status {
-    align-self: flex-end;
+  .question-input-field {
+    padding-right: 90px; /* 移动端减少右侧padding */
+  }
+  
+  .ask-btn-inline {
+    padding: 0.4rem 0.8rem;
+    font-size: 0.8rem;
+  }
+  
+  .switch-document-btn {
+    padding: 0.4rem 0.8rem;
+    font-size: 0.8rem;
+  }
+  
+  .current-document-info {
+    padding-right: 4px; /* 移动端保持与提问按钮一致的右边距 */
+  }
+  
+  .history-toggle-btn {
+    font-size: 0.8rem;
+    padding: 0.4rem 0.8rem;
+  }
+  
+  .history-dropdown {
+    min-width: 300px;
+  }
+  
+  .qa-history {
+    max-height: 400px;
   }
 }
 </style>

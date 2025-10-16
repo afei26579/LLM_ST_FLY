@@ -8,6 +8,9 @@ import { createPinia } from 'pinia'
 import App from './App.vue'
 import router from './router'
 
+// 导入主题 store
+import { useThemeStore } from './stores/theme'
+
 // 导入 Toast 通知组件
 import Toast from 'vue-toastification'
 import "vue-toastification/dist/index.css"
@@ -25,6 +28,11 @@ const toastOptions = {
 const app = createApp(App)
 
 app.use(createPinia())
+
+// 初始化主题（必须在 Pinia 安装之后）
+const themeStore = useThemeStore()
+themeStore.loadTheme()
+
 app.use(router)
 app.use(Toast, toastOptions)
 

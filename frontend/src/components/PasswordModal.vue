@@ -335,7 +335,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, defineProps, defineEmits, onMounted, computed, watch } from 'vue'
+import { ref, reactive, defineEmits, onMounted, computed, watch } from 'vue'
 import { useAuthStore } from '../stores/auth'
 import { apiService } from '../services/api'
 import { useRouter } from 'vue-router'

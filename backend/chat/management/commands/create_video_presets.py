@@ -3,7 +3,7 @@
 """
 
 from django.core.management.base import BaseCommand
-from chat.ai_video.models import VideoStylePreset
+from chat.ai-video.models import VideoStylePreset
 
 
 class Command(BaseCommand):

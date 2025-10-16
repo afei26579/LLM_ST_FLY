@@ -37,7 +37,8 @@
 
             <!-- AI助手二级菜单 -->
             <div class="submenu" v-show="!isCollapsed && isAIMenuOpen">
-              <router-link to="/ai-text" class="submenu-item" @click="handleSubMenuClick">
+             
+              <router-link to="/ai-chat" class="submenu-item" @click="handleSubMenuClick">
                 <div class="submenu-icon">
                   <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
@@ -47,7 +48,7 @@
                     <polyline points="10 9 9 9 8 9"></polyline>
                   </svg>
                 </div>
-                <span>AI 文本</span>
+                <span>AI 对话</span>
               </router-link>
               
               <router-link to="/ai-reading" class="submenu-item" @click="handleSubMenuClick">
@@ -68,7 +69,7 @@
                     <polyline points="21 15 16 10 5 21"></polyline>
                   </svg>
                 </div>
-                <span>AI 图片</span>
+                <span>AI 绘画</span>
               </router-link>
 
               <router-link to="/ai-audio" class="submenu-item" @click="handleSubMenuClick">

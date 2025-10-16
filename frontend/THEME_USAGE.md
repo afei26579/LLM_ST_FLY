@@ -192,6 +192,50 @@ const themes: Record<ThemeType, ThemeConfig> = {
 }
 ```
 
+## 渐变边框实现 (未来主题专用)
+
+由于CSS的`border`属性不直接支持渐变，需要使用以下方法实现：
+
+### 推荐方法：使用伪元素
+
+```vue
+<template>
+  <div class="future-card">
+    <h3>带渐变边框的卡片</h3>
+  </div>
+</template>
+
+<style scoped>
+.future-card {
+  position: relative;
+  background: var(--card-background);
+  border-radius: 12px;
+  padding: 1rem;
+}
+
+/* 仅在未来主题下应用渐变边框 */
+.theme-future .future-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 2px; /* 边框宽度 */
+  background: linear-gradient(90deg, #00f5ff 0%, #9d4edd 50%, #ff0080 100%);
+  -webkit-mask: 
+    linear-gradient(#fff 0 0) content-box, 
+    linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask: 
+    linear-gradient(#fff 0 0) content-box, 
+    linear-gradient(#fff 0 0);
+  mask-composite: exclude;
+  pointer-events: none;
+}
+</style>
+```
+
+详细实现方法请查看：`src/styles/gradient-border-guide.css`
+
 ## 最佳实践
 
 ### 1. 颜色使用规范
@@ -203,11 +247,13 @@ const themes: Record<ThemeType, ThemeConfig> = {
 - 所有组件都应支持主题切换
 - 使用CSS变量而不是固定颜色
 - 考虑不同主题下的视觉效果
+- 未来主题的渐变边框使用伪元素实现
 
 ### 3. 性能优化
 - 主题切换使用CSS变量，无需重新渲染组件
 - 主题配置缓存在localStorage中
 - 避免频繁的主题切换操作
+- 主题切换已集成300ms平滑过渡动画
 
 ## 故障排除
 
@@ -227,6 +273,13 @@ const themes: Record<ThemeType, ThemeConfig> = {
 - 验证主题名称是否匹配
 
 ## 更新日志
+
+### v1.1.0 (2025-10-12)
+- ✨ 优化主题初始化流程，确保首次加载正确应用
+- ✨ 新增主题切换动画效果（300ms平滑过渡）
+- 🐛 修复未来主题渐变边框不兼容问题
+- 📝 新增渐变边框实现指南文档
+- 🔧 调整未来主题border配置为单色
 
 ### v1.0.0 (2024-01-10)
 - ✨ 实现三种预设主题

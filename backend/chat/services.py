@@ -5,13 +5,34 @@
 import os
 import time
 import threading
-from http import HTTPStatus
-from typing import Dict, List, Any, Generator, Optional
+import logging
+import json
+from typing import Dict, List, Any, Optional
 import dashscope
-from dashscope import Generation
 from django.conf import settings
 from django.db import transaction
 from .models import Conversation, Message
+
+# 配置详细日志 - 创建Chat专用的logger
+logger = logging.getLogger('chat_service')
+
+# 如果还没有配置handler，则添加一个
+if not logger.handlers:
+    # 创建控制台处理器
+    console_handler = logging.StreamHandler()
+    console_handler.setLevel(logging.DEBUG)
+    
+    # 创建格式器
+    formatter = logging.Formatter(
+        '[%(asctime)s] %(levelname)s [%(name)s:%(lineno)d] %(message)s',
+        datefmt='%Y-%m-%d %H:%M:%S'
+    )
+    console_handler.setFormatter(formatter)
+    
+    # 添加处理器到logger
+    logger.addHandler(console_handler)
+    logger.setLevel(logging.DEBUG)
+    logger.propagate = False  # 防止重复输出
 
 
 class APITimeoutError(Exception):
@@ -88,12 +109,22 @@ class ChatService:
         else:
             # 创建新对话，使用第一条用户消息作为标题
             user_message = next((m for m in messages if m.get('role') == 'user'), None) if messages else None
-            title = user_message.get('content', '新对话')[:50] if user_message else '新对话'
+            title = user_message.get('content', '新对话') if user_message else '新对话'
+            
+            # 如果有用户消息，同时设置为custom_title（截取前50个字符）
+            custom_title = None
+            if user_message and title != '新对话':
+                # 截取前50个字符作为自定义标题
+                custom_title = title[:50]
+                if len(title) > 50:
+                    custom_title += '...'
+            
             conversation = Conversation.objects.create(
                 user=user,
-                title=title
+                title=title,
+                custom_title=custom_title
             )
-            print(f"创建新对话: id={conversation.id}, title={conversation.title}")
+            print(f"创建新对话: id={conversation.id}, title={conversation.title}, custom_title={conversation.custom_title}")
             return conversation
     
     def save_user_message(self, conversation: Conversation, content: str) -> Message:
@@ -234,215 +265,6 @@ class ChatService:
         
         return api_params
     
-    def call_dashscope_api(self, messages: List[Dict], deep_thinking: bool = False, web_search: bool = False) -> Generator[Dict[str, Any], None, None]:
-        """
-        使用DashScope SDK进行流式API调用
-        
-        Args:
-            messages: 对话历史消息列表
-            deep_thinking: 是否启用深度思考
-            web_search: 是否启用联网搜索
-            
-        Yields:
-            Dict: 包含流式响应数据的字典
-        """
-        print("准备调用DashScope流式API...")
-        
-        try:
-            # 设置超时时间：深度思考模式60秒，普通模式15秒
-            timeout_seconds = 60 if deep_thinking else 15
-            
-            # 构建API调用参数
-            api_params = self.build_api_params(messages, deep_thinking, web_search)
-            print(f"API调用参数: {api_params}")
-            print(f"API调用参数: 当前模型={api_params.get('model')},深度思考={api_params.get('enable_thinking')},联网搜索={api_params.get('enable_search')}")
-            
-            # 调用DashScope流式API
-            responses = Generation.call(**api_params)
-            
-            # 处理流式响应 - 统一处理所有内容
-            full_response_content = ""  # 完整的响应内容（包含思考过程和回答）
-            reasoning_content = ""     # 仅用于记录思考过程
-            is_thinking_phase = True   # 当前是否处于思考阶段
-            chunk_count = 0
-            start_time = time.time()
-            
-            print("SDK调用成功，开始处理流式响应")
-            
-            response_completed = False
-            
-            for resp in responses:
-                try:
-                    chunk_count += 1
-                    
-                    # 安全地检查响应状态
-                    if not hasattr(resp, 'status_code') or resp.status_code != HTTPStatus.OK:
-                        print(f"响应状态异常: {getattr(resp, 'status_code', 'unknown')}")
-                        continue
-                    
-                    # 安全地访问响应数据
-                    if not hasattr(resp, 'output') or not hasattr(resp.output, 'choices') or not resp.output.choices:
-                        print("响应格式异常: 缺少output或choices")
-                        continue
-                    
-                    choice = resp.output.choices[0]
-                    if not hasattr(choice, 'message'):
-                        print("响应格式异常: 缺少message")
-                        continue
-                    
-                    message = choice.message
-                    
-                    # 获取思考内容和回答内容
-                    reasoning_text = None
-                    content_text = None
-                    
-                    # 获取思考内容（仅在深度思考模式下）
-                    if deep_thinking:
-                        try:
-                            # 尝试多种方式获取思考内容
-                            possible_keys = ['reasoning_content', 'reasoningContent', 'thinking', 'reasoning']
-                            for key in possible_keys:
-                                try:
-                                    if hasattr(message, 'get'):
-                                        reasoning_text = message.get(key, None)
-                                    elif hasattr(message, '__getitem__'):
-                                        try:
-                                            reasoning_text = message[key]
-                                        except KeyError:
-                                            reasoning_text = None
-                                    
-                                    if reasoning_text and isinstance(reasoning_text, str) and reasoning_text.strip():
-                                        break
-                                except (KeyError, AttributeError, TypeError):
-                                    continue
-                        except Exception as e:
-                            print(f"获取思考内容时出错: {str(e)}")
-                    
-                    # 获取回答内容
-                    try:
-                        if hasattr(message, 'get'):
-                            content_text = message.get('content', None)
-                        elif hasattr(message, '__getitem__'):
-                            try:
-                                content_text = message['content']
-                            except KeyError:
-                                content_text = None
-                    except Exception as e:
-                        print(f"获取回答内容时出错: {str(e)}")
-                    
-                    # 处理内容流
-                    current_chunk_content = ""
-                    
-                    # 如果有思考内容且当前处于思考阶段
-                    if reasoning_text and isinstance(reasoning_text, str) and reasoning_text.strip():
-                        # 计算新增的思考内容
-                        new_reasoning = reasoning_text[len(reasoning_content):]
-                        if new_reasoning:
-                            reasoning_content += new_reasoning
-                            current_chunk_content = new_reasoning
-                            print(f"思考内容片段: {len(new_reasoning)} 字符")
-                    
-                    # 如果有回答内容
-                    if content_text and isinstance(content_text, str) and content_text.strip():
-                        # 如果从思考阶段转换到回答阶段
-                        if is_thinking_phase:
-                            is_thinking_phase = False
-                            print("从思考阶段转换到回答阶段")
-                        
-                        # 计算新增的回答内容
-                        current_answer_length = len(full_response_content) - len(reasoning_content)
-                        new_answer = content_text[current_answer_length:]
-                        if new_answer:
-                            current_chunk_content = new_answer
-                            print(f"回答内容片段: {len(new_answer)} 字符")
-                    
-                    # 如果有新内容，添加到完整响应中并流式输出
-                    if current_chunk_content:
-                        full_response_content += current_chunk_content
-                        
-                        # 直接发送完整的新内容块，而不是逐字符输出
-                        yield {
-                            'type': 'content',
-                            'content': current_chunk_content,
-                            'full_content': full_response_content,
-                            'is_thinking': is_thinking_phase,
-                            'thinking_content': reasoning_content if deep_thinking else None
-                        }
-                    
-                    # 安全地检查是否完成
-                    finish_reason = getattr(choice, 'finish_reason', None)
-                    if finish_reason == 'stop':
-                        print(f"流式响应完成 - 处理了 {chunk_count} 个数据块")
-                        response_completed = True
-                        
-                        # 返回最终结果和使用统计
-                        final_data = {
-                            'type': 'final',
-                            'content': full_response_content,
-                            'usage': {
-                                'input_tokens': getattr(resp.usage, 'input_tokens', 0) if hasattr(resp, 'usage') else 0,
-                                'output_tokens': getattr(resp.usage, 'output_tokens', 0) if hasattr(resp, 'usage') else 0,
-                                'total_tokens': getattr(resp.usage, 'total_tokens', 0) if hasattr(resp, 'usage') else 0
-                            },
-                            'request_id': getattr(resp, 'request_id', '')
-                        }
-                        
-                        # 如果有思考过程，添加到最终结果中
-                        if reasoning_content:
-                            final_data['thinking_process'] = reasoning_content
-                            final_data['has_thinking'] = True
-                        
-                        yield final_data
-                        return  # 成功完成，直接返回，不执行后续的错误检查
-                        
-                except Exception as chunk_error:
-                    import traceback
-                    chunk_error_message = str(chunk_error)
-                    print(f"处理响应块时出错: {chunk_error_message}")
-                    print(f"错误详情: {traceback.format_exc()}")
-                    
-                    # 检查是否为网络连接错误
-                    if is_network_error(chunk_error_message):
-                        print(f"检测到网络连接错误: {chunk_error_message}")
-                        yield {
-                            'type': 'error',
-                            'message': '网络连接超时'
-                        }
-                        return
-                    
-                    # 继续处理下一个块，不中断整个流程
-                    continue
-                    
-            # 只有在响应没有正常完成时才检查错误情况
-            if not response_completed:
-                if not full_response_content:
-                    print("警告: 没有收集到任何响应内容")
-                    yield {
-                        'type': 'error',
-                        'message': '没有收到有效的AI响应'
-                    }
-                else:
-                    print("警告: 响应异常结束，但收集到了部分内容")
-                    
-        except Exception as e:
-            import traceback
-            error_message = str(e)
-            print(f"流式API调用异常: {error_message}")
-            print(f"详细错误信息: {traceback.format_exc()}")
-            
-            # 检查是否为网络连接错误
-            if is_network_error(error_message):
-                print(f"检测到网络连接错误: {error_message}")
-                yield {
-                    'type': 'error',
-                    'message': '网络连接超时'
-                }
-            else:
-                yield {
-                    'type': 'error',
-                    'message': f"流式API调用异常: {error_message}"
-                }
-
 
 class ConversationService:
     """对话管理服务类"""

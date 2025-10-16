@@ -108,12 +108,8 @@ class AIAudioService:
             audio_task.status = 'processing'
             audio_task.save()
             
-            # 调用DashScope API (如果可用)
-            if HAS_SPEECH_RECOGNITION and SpeechRecognition:
-                result = self._call_speech_recognition_api(audio_task, stt_task)
-            else:
-                # 模拟处理（用于开发测试）
-                result = self._simulate_speech_to_text(audio_task, stt_task)
+            # 调用真实的 DashScope API
+            result = self._call_speech_recognition_api(audio_task, stt_task)
             
             # 更新任务状态
             audio_task.status = 'completed'
@@ -135,6 +131,7 @@ class AIAudioService:
             
             return {
                 'task_id': audio_task.task_id,
+                'result_text': result.get('text', ''),  # 前端使用 result_text 字段
                 'text': result.get('text', ''),
                 'confidence': result.get('confidence', 0.0),
                 'duration': result.get('duration', 0.0),
@@ -158,11 +155,9 @@ class AIAudioService:
         self,
         user_id: int,
         text: str,
-        voice: str = 'zhifeng_emo',
-        speed: float = 1.0,
-        volume: int = 50,
-        pitch: float = 1.0,
-        format: str = 'mp3'
+        voice: str = 'Cherry',
+        language_type: str = 'Chinese',
+        format: str = 'wav'
     ) -> Dict[str, Any]:
         """
         文字转语音
@@ -171,9 +166,7 @@ class AIAudioService:
             user_id: 用户ID
             text: 要转换的文本
             voice: 音色
-            speed: 语速
-            volume: 音量
-            pitch: 音调
+            language_type: 语言类型
             format: 输出格式
             
         Returns:
@@ -193,9 +186,7 @@ class AIAudioService:
                 tts_task = TextToSpeechTask.objects.create(
                     audio_task=audio_task,
                     voice=voice,
-                    speed=speed,
-                    volume=volume,
-                    pitch=pitch,
+                    language_type=language_type,
                     format=format
                 )
             
@@ -205,15 +196,12 @@ class AIAudioService:
             audio_task.status = 'processing'
             audio_task.save()
             
-            # 调用DashScope API (如果可用)
-            if HAS_SPEECH_SYNTHESIS and SpeechSynthesis:
-                result = self._call_speech_synthesis_api(audio_task, tts_task)
-            else:
-                # 模拟处理（用于开发测试）
-                result = self._simulate_text_to_speech(audio_task, tts_task)
+            # 调用真实的 DashScope API
+            result = self._call_speech_synthesis_api(audio_task, tts_task)
             
-            # 下载并保存生成的音频
+            # 下载并保存生成的音频到本地 media/ai-audio/ 目录
             if result.get('audio_url'):
+                logger.info(f"开始下载音频文件: {result['audio_url']}")
                 saved_info = self._download_and_save_audio(
                     result['audio_url'], 
                     audio_task.task_id,
@@ -221,12 +209,13 @@ class AIAudioService:
                     format
                 )
                 result.update(saved_info)
+                logger.info(f"音频文件已保存到: {saved_info['saved_path']}")
             
             # 更新任务状态
             audio_task.status = 'completed'
             audio_task.completed_at = timezone.now()
-            audio_task.output_audio_url = result.get('audio_url', '')
-            audio_task.output_audio_file = result.get('saved_path', '')
+            audio_task.output_audio_url = result.get('audio_url', '')  # DashScope 原始临时URL
+            audio_task.output_audio_file = result.get('saved_path', '')  # 本地保存的文件路径
             audio_task.api_request_id = result.get('request_id', '')
             audio_task.api_usage = result.get('usage', {})
             audio_task.save()
@@ -243,7 +232,11 @@ class AIAudioService:
             
             return {
                 'task_id': audio_task.task_id,
-                'audio_url': result.get('saved_url', result.get('audio_url', '')),
+                'audio_url': result.get('saved_url', result.get('audio_url', '')),  # 优先返回本地URL
+                'original_url': result.get('audio_url', ''),  # DashScope 原始URL
+                'saved_path': result.get('saved_path', ''),  # 本地文件路径
+                'audio_id': result.get('audio_id', ''),
+                'expires_at': result.get('expires_at', ''),
                 'duration': result.get('duration', 0.0),
                 'file_size': result.get('file_size', 0),
                 'usage': result.get('usage', {}),
@@ -348,70 +341,130 @@ class AIAudioService:
             
             raise AudioProcessingError(f"语音克隆失败: {str(e)}")
     
-    def _call_speech_recognition_api(self, audio_task: AudioTask, stt_task: SpeechToTextTask) -> Dict[str, Any]:
-        """调用DashScope语音识别API"""
+    def _call_speech_recognition_api_stream(self, audio_task: AudioTask, stt_task: SpeechToTextTask):
+        """调用DashScope语音识别API - 流式输出版本"""
         try:
-            # 获取音频文件路径或URL
-            audio_source = None
-            if audio_task.input_audio_file:
-                audio_source = audio_task.input_audio_file.path
-            elif audio_task.input_audio_url:
-                audio_source = audio_task.input_audio_url
-            else:
-                raise AudioProcessingError("没有提供音频源")
+            import dashscope
+            from http import HTTPStatus
+            import json
             
-            # 调用API（示例代码，需要根据实际API调整）
-            response = SpeechRecognition.call(
-                api_key=self.api_key,
-                model=stt_task.model,
-                audio=audio_source,
-                language=stt_task.language,
-                format=stt_task.format,
-                sample_rate=stt_task.sample_rate
+            # 获取音频文件的绝对路径
+            if not audio_task.input_audio_file:
+                raise AudioProcessingError("没有提供音频文件")
+            
+            # 获取文件的绝对路径
+            audio_file_path = audio_task.input_audio_file.path
+            
+            # 添加 file:// 前缀（必须使用绝对路径）
+            audio_file_url = f"file://{audio_file_path}"
+            
+            logger.info(f"准备调用语音识别 API（流式）: 文件路径={audio_file_path}")
+            
+            # 构建 messages
+            messages = [
+                {
+                    "role": "user",
+                    "content": [
+                        {"audio": audio_file_url},
+                        {"text": "请将音频内容转换为文字，只输出识别的文字内容，不需要额外说明。"}
+                    ]
+                }
+            ]
+            
+            # 调用 MultiModalConversation API（流式）
+            responses = dashscope.MultiModalConversation.call(
+                model="qwen-audio-turbo-latest",
+                messages=messages,
+                stream=True,
+                incremental_output=True,
+                result_format="message"
             )
             
-            if response.status_code == HTTPStatus.OK:
-                return {
-                    'text': response.output.get('text', ''),
-                    'confidence': response.output.get('confidence', 0.0),
-                    'duration': response.output.get('duration', 0.0),
-                    'request_id': getattr(response, 'request_id', ''),
-                    'usage': dict(response.usage.__dict__) if hasattr(response, 'usage') else {}
-                }
-            else:
-                raise AudioProcessingError(f"API调用失败: {response.message}")
+            full_content = ""
+            
+            # 流式输出
+            for response in responses:
+                if response.status_code == HTTPStatus.OK:
+                    # 提取当前块的文本
+                    if response.output.choices[0].message.content:
+                        chunk_text = response.output.choices[0].message.content[0]["text"]
+                        full_content += chunk_text
+                        
+                        # 生成流式数据
+                        yield {
+                            'type': 'chunk',
+                            'text': chunk_text,
+                            'full_text': full_content
+                        }
+                else:
+                    error_msg = f"API调用失败: {response.message}"
+                    logger.error(error_msg)
+                    yield {
+                        'type': 'error',
+                        'message': error_msg
+                    }
+                    raise AudioProcessingError(error_msg)
+            
+            # 发送完成信号
+            logger.info(f"语音识别完成（流式）: text_length={len(full_content)}")
+            yield {
+                'type': 'done',
+                'text': full_content,
+                'confidence': 0.95,
+                'request_id': response.request_id if hasattr(response, 'request_id') else ''
+            }
                 
         except Exception as e:
-            logger.error(f"语音识别API调用失败: {str(e)}")
-            raise AudioProcessingError(f"语音识别API调用失败: {str(e)}")
+            logger.error(f"语音识别API调用失败（流式）: {str(e)}")
+            logger.error(traceback.format_exc())
+            yield {
+                'type': 'error',
+                'message': str(e)
+            }
     
     def _call_speech_synthesis_api(self, audio_task: AudioTask, tts_task: TextToSpeechTask) -> Dict[str, Any]:
-        """调用DashScope语音合成API"""
+        """调用DashScope语音合成API - 使用 qwen3-tts-flash 模型"""
         try:
-            # 调用API（示例代码，需要根据实际API调整）
-            response = SpeechSynthesis.call(
+            import dashscope
+            from http import HTTPStatus
+            
+            # 调用 MultiModalConversation API（参考 demo.py）
+            response = dashscope.audio.qwen_tts.SpeechSynthesizer.call(
+                model="qwen3-tts-flash-2025-09-18",
                 api_key=self.api_key,
                 text=audio_task.input_text,
                 voice=tts_task.voice,
-                speed=tts_task.speed,
-                volume=tts_task.volume,
-                pitch=tts_task.pitch,
-                format=tts_task.format,
-                sample_rate=tts_task.sample_rate
+                language_type=tts_task.language_type,
+              
             )
-            
+
             if response.status_code == HTTPStatus.OK:
+                # 获取音频URL
+                audio_url = response.output.audio['url']
+                audio_id = response.output.audio['id']
+                expires_at = response.output.audio['expires_at']
+                
+                # 获取使用情况
+                usage = {
+                    'characters': response.usage.characters if hasattr(response.usage, 'characters') else len(audio_task.input_text)
+                }
+                
+                logger.info(f"TTS API调用成功: audio_id={audio_id}, url={audio_url}")
+                
                 return {
-                    'audio_url': response.output.get('audio_url', ''),
-                    'duration': response.output.get('duration', 0.0),
-                    'request_id': getattr(response, 'request_id', ''),
-                    'usage': dict(response.usage.__dict__) if hasattr(response, 'usage') else {}
+                    'audio_url': audio_url,
+                    'audio_id': audio_id,
+                    'expires_at': expires_at,
+                    'duration': 0.0,  # API不直接返回时长
+                    'request_id': response.request_id,
+                    'usage': usage
                 }
             else:
                 raise AudioProcessingError(f"API调用失败: {response.message}")
                 
         except Exception as e:
             logger.error(f"语音合成API调用失败: {str(e)}")
+            logger.error(traceback.format_exc())
             raise AudioProcessingError(f"语音合成API调用失败: {str(e)}")
     
     def _simulate_speech_to_text(self, audio_task: AudioTask, stt_task: SpeechToTextTask) -> Dict[str, Any]:
@@ -470,40 +523,49 @@ class AIAudioService:
         audio_url: str, 
         task_id: str, 
         user_id: int,
-        format: str = 'mp3'
+        format: str = 'wav'
     ) -> Dict[str, Any]:
-        """下载并保存音频文件"""
+        """
+        下载并保存音频文件到 backend/media/ai-audio/ 目录
+        
+        Args:
+            audio_url: DashScope 返回的音频URL
+            task_id: 任务ID
+            user_id: 用户ID
+            format: 音频格式（wav/mp3/pcm）
+            
+        Returns:
+            包含保存信息的字典
+        """
         try:
-            # 生成保存路径
+            # 生成保存路径：ai-audio/{user_id}/{YYYYMMDD}/{task_id}.{format}
             date_str = timezone.now().strftime('%Y%m%d')
             filename = f"{task_id}.{format}"
             save_path = f"ai-audio/{user_id}/{date_str}/{filename}"
             
-            # 下载音频文件（模拟）
-            # 注意：这里是模拟实现，实际需要根据真实URL下载
-            if audio_url.startswith('https://example.com'):
-                # 模拟音频数据
-                fake_audio_data = b'fake audio data for testing'
-                file_size = len(fake_audio_data)
-                
-                # 保存文件
-                saved_path = default_storage.save(
-                    save_path,
-                    ContentFile(fake_audio_data)
-                )
-            else:
-                # 真实下载
-                response = requests.get(audio_url, timeout=30)
-                response.raise_for_status()
-                
-                file_size = len(response.content)
-                saved_path = default_storage.save(
-                    save_path,
-                    ContentFile(response.content)
-                )
+            logger.info(f"准备下载音频 - URL: {audio_url[:100]}...")
+            logger.info(f"保存路径: media/{save_path}")
             
-            # 生成访问URL
+            # 下载音频文件
+            response = requests.get(audio_url, timeout=60)
+            response.raise_for_status()
+            
+            audio_content = response.content
+            file_size = len(audio_content)
+            
+            logger.info(f"音频下载成功 - 大小: {file_size} bytes ({file_size/1024:.2f} KB)")
+            
+            # 保存文件到 media/ai-audio/ 目录
+            saved_path = default_storage.save(
+                save_path,
+                ContentFile(audio_content)
+            )
+            
+            # 生成访问URL（Django media URL）
             saved_url = default_storage.url(saved_path)
+            
+            logger.info(f"音频保存成功 - 文件路径: {saved_path}")
+            logger.info(f"访问URL: {saved_url}")
             
             return {
                 'saved_path': saved_path,
@@ -513,9 +575,16 @@ class AIAudioService:
                 'download_time': timezone.now().isoformat()
             }
             
-        except Exception as e:
-            logger.error(f"下载音频文件失败: {str(e)}")
+        except requests.Timeout:
+            logger.error(f"下载音频超时: URL={audio_url}")
+            raise AudioProcessingError("下载音频文件超时，请重试")
+        except requests.RequestException as e:
+            logger.error(f"下载音频失败（网络错误）: {str(e)}")
             raise AudioProcessingError(f"下载音频文件失败: {str(e)}")
+        except Exception as e:
+            logger.error(f"保存音频文件失败: {str(e)}")
+            logger.error(traceback.format_exc())
+            raise AudioProcessingError(f"保存音频文件失败: {str(e)}")
     
     def _update_user_stats(self, user_id: int):
         """更新用户统计"""

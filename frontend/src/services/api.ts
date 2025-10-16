@@ -21,11 +21,17 @@ export interface ChatMessage {
 export interface Conversation {
   id: number;
   title: string;
+  custom_title?: string;  // 自定义标题
+  display_title?: string;  // 显示标题（优先显示custom_title）
   created_at: string;
   updated_at: string;
   messages?: ChatMessage[];
   message_count: number;
   last_message?: ChatMessage;
+  
+  // 置顶功能
+  is_pinned?: boolean;
+  pinned_at?: string;
 }
 
 export interface ConversationList {
@@ -160,9 +166,7 @@ export interface SpeechToTextRequest {
 export interface TextToSpeechRequest {
   text: string;
   voice?: string;
-  speed?: number;
-  volume?: number;
-  pitch?: number;
+  language_type?: string;
   format?: string;
 }
 
@@ -200,14 +204,14 @@ export interface AudioHistoryItem {
 }
 
 export interface UserAudioStats {
-  total_tasks: number;
-  completed_tasks: number;
-  failed_tasks: number;
-  total_duration: number;
+  total_speech_to_text: number;
+  total_text_to_speech: number;
+  total_voice_clone: number;
+  total_audio_duration: number;
   total_storage_used: number;
-  speech_to_text_count: number;
-  text_to_speech_count: number;
-  voice_clone_count: number;
+  last_audio_at?: string;
+  created_at?: string;
+  updated_at?: string;
 }
 
 // AI视频生成相关接口
@@ -793,7 +797,7 @@ class ApiService {
 
       // 使用fetch API处理流式响应
       const token = localStorage.getItem('token');
-      const response = await fetch(`${API_CONFIG.BASE_URL}chat/completion/`, {
+      const response = await fetch(`${API_CONFIG.BASE_URL}chat/ai-chat/stream-chat/`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -900,8 +904,19 @@ class ApiService {
                     contentLength: fullContent.length + ' 字符',
                     thinkingLength: thinkingProcess.length + ' 字符',
                     usage: usage,
-                    requestId: requestId
+                    requestId: requestId,
+                    userMessageTimestamp: data.user_message_timestamp,
+                    aiMessageTimestamp: data.ai_message_timestamp
                   });
+                  
+                  // 通知父组件更新时间戳
+                  if (options?.onChunk) {
+                    options.onChunk({
+                      type: 'final',
+                      userMessageTimestamp: data.user_message_timestamp,
+                      aiMessageTimestamp: data.ai_message_timestamp
+                    });
+                  }
                 } else if (data.type === 'done') {
                   console.log('🏁 [流式响应] 响应完成');
                   break;
@@ -953,75 +968,6 @@ class ApiService {
     }
   }
 
-  // 备用的非流式聊天API（用于兼容性）
-  async chatCompletionNonStream(
-    messages: ChatMessage[], 
-    conversationId?: number, 
-    options?: {
-      deepThinking?: boolean
-      webSearch?: boolean
-    }
-  ): Promise<ApiResponse<any>> {
-    try {
-      console.log("发送非流式聊天请求:", { 
-        messages, 
-        conversation_id: conversationId,
-        deep_thinking: options?.deepThinking || false,
-        web_search: options?.webSearch || false
-      })
-      const response = await this.instance.post<ApiResponse<any>>('chat/completion/', { 
-        messages,
-        conversation_id: conversationId,
-        deep_thinking: options?.deepThinking || false,
-        web_search: options?.webSearch || false,
-        stream: false
-      },
-      {
-        timeout: 60 * 1000 // 增加超时时间
-      }
-    );
-      console.log("聊天请求原始响应:", response)
-      
-      return response.data;
-    } catch (error: any) {
-      console.error('聊天请求失败:', error);
-      
-      if (error.response) {
-        console.error('错误响应数据:', error.response.data);
-        console.error('错误状态码:', error.response.status);
-        
-        return {
-          code: error.response.status,
-          message: error.response.data?.message || '聊天请求失败，服务器返回错误',
-          data: {
-            content: "抱歉，服务器处理请求时出错，请稍后再试。",
-            conversation_id: conversationId
-          }
-        };
-      }
-      
-      if (error.request) {
-        console.error('请求已发送但未收到响应');
-        return {
-          code: 500,
-          message: '聊天请求超时，未收到服务器响应',
-          data: {
-            content: "抱歉，服务器响应超时，请检查网络连接并稍后再试。",
-            conversation_id: conversationId
-          }
-        };
-      }
-      
-      return {
-        code: 500,
-        message: error.message || '网络错误，请检查网络连接',
-        data: {
-          content: "抱歉，发生网络错误，请检查网络连接并稍后再试。",
-          conversation_id: conversationId
-        }
-      };
-    }
-  }
 
   // 发送消息（支持深度思考和联网搜索）
   async sendMessage(data: {
@@ -1084,7 +1030,7 @@ class ApiService {
   }
 
   // 获取对话列表
-  async getConversations(conversationType?: 'default' | 'ai_chat'): Promise<ApiResponse<ConversationList>> {
+  async getConversations(conversationType?: 'default' | 'ai-chat'): Promise<ApiResponse<ConversationList>> {
     try {
       console.log(`获取${conversationType ? conversationType : '所有'}对话列表`)
       const url = conversationType 
@@ -1210,7 +1156,7 @@ class ApiService {
   async deleteConversation(id: number, isAIChat: boolean = false): Promise<ApiResponse<any>> {
     try {
       const url = isAIChat 
-        ? `chat/ai_chat/conversations/${id}/` 
+        ? `chat/ai-chat/conversations/${id}/` 
         : `chat/conversations/${id}/`;
       const response = await this.instance.delete<ApiResponse<any>>(url);
       return response.data;
@@ -1235,7 +1181,7 @@ class ApiService {
   async clearConversationMessages(id: number, isAIChat: boolean = false): Promise<ApiResponse<any>> {
     try {
       const url = isAIChat 
-        ? `chat/ai_chat/conversations/${id}/clear_messages/` 
+        ? `chat/ai-chat/conversations/${id}/clear_messages/` 
         : `chat/conversations/${id}/clear_messages/`;
       const response = await this.instance.delete<ApiResponse<any>>(url);
       return response.data;
@@ -1245,6 +1191,57 @@ class ApiService {
         return {
           code: error.response.status,
           message: error.response.data.message || '清空对话消息失败',
+          data: {}
+        };
+      }
+      return {
+        code: 500,
+        message: '网络错误，请检查网络连接',
+        data: {}
+      };
+    }
+  }
+
+  // 置顶/取消置顶对话
+  async pinConversation(id: number): Promise<ApiResponse<any>> {
+    try {
+      console.log('置顶/取消置顶对话:', id)
+      const response = await this.instance.post<ApiResponse<any>>(`chat/conversations/${id}/pin/`);
+      console.log('置顶操作响应:', response)
+      return response.data;
+    } catch (error: any) {
+      console.error('置顶操作失败:', error);
+      if (error.response) {
+        return {
+          code: error.response.status,
+          message: error.response.data?.message || '置顶操作失败',
+          data: {}
+        };
+      }
+      return {
+        code: 500,
+        message: '网络错误，请检查网络连接',
+        data: {}
+      };
+    }
+  }
+
+  // 重命名对话
+  async renameConversation(id: number, customTitle: string): Promise<ApiResponse<any>> {
+    try {
+      console.log('重命名对话:', id, '新标题:', customTitle)
+      const response = await this.instance.patch<ApiResponse<any>>(
+        `chat/conversations/${id}/rename/`, 
+        { custom_title: customTitle }
+      );
+      console.log('重命名操作响应:', response)
+      return response.data;
+    } catch (error: any) {
+      console.error('重命名操作失败:', error);
+      if (error.response) {
+        return {
+          code: error.response.status,
+          message: error.response.data?.message || '重命名操作失败',
           data: {}
         };
       }

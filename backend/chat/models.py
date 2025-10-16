@@ -29,7 +29,7 @@ try:
     UserAudioStats = ai_audio_models.UserAudioStats
     
     # 导入AI视频生成模型
-    ai_video_models = importlib.import_module('chat.ai_video.models')
+    ai_video_models = importlib.import_module('chat.ai-video.models')
     VideoGenerationTask = ai_video_models.VideoGenerationTask
     GeneratedVideo = ai_video_models.GeneratedVideo
     UserVideoStats = ai_video_models.UserVideoStats
@@ -45,13 +45,22 @@ class Conversation(models.Model):
     """对话模型"""
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='conversations', verbose_name=_('用户'))
     title = models.CharField(max_length=255, verbose_name=_('标题'))
+    custom_title = models.CharField(max_length=255, blank=True, null=True, verbose_name=_('自定义标题'))
     created_at = models.DateTimeField(auto_now_add=True, verbose_name=_('创建时间'))
     updated_at = models.DateTimeField(auto_now=True, verbose_name=_('更新时间'))
+    
+    # 置顶功能字段
+    is_pinned = models.BooleanField(default=False, verbose_name=_('是否置顶'))
+    pinned_at = models.DateTimeField(null=True, blank=True, verbose_name=_('置顶时间'))
     
     class Meta:
         verbose_name = _('对话')
         verbose_name_plural = _('对话')
-        ordering = ['-updated_at']
+        ordering = ['-is_pinned', '-pinned_at', '-updated_at']  # 置顶优先
+        indexes = [
+            models.Index(fields=['user', '-is_pinned', '-pinned_at']),
+            models.Index(fields=['user', '-updated_at']),
+        ]
     
     def __str__(self):
         return f"{self.user.username} - {self.title}"

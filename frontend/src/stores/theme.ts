@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import type { ThemeType, ThemeConfig } from '../types/theme'
+import { ThemeAnimations } from '../utils/themeUtils'
 
 const themes: Record<ThemeType, ThemeConfig> = {
   light: {
@@ -91,42 +92,42 @@ const themes: Record<ThemeType, ThemeConfig> = {
     name: 'future',
     label: '未来科技',
     colors: {
-      primary: '#00d4ff',
-      secondary: '#7c3aed',
-      background: '#0a0a0f',
-      surface: '#1a1a2e',
-      text: '#e0e7ff',
-      textSecondary: '#a5b4fc',
-      border: '#3730a3',
-      accent: '#ff006e',
-      success: '#00ff88',
-      warning: '#ffaa00',
-      error: '#ff0055',
-      info: '#00aaff'
+      primary: '#00f5ff', // 霓虹青蓝色
+      secondary: '#9d4edd', // 深紫色
+      background: 'linear-gradient(135deg, #0c0d1a 0%, #1a0d2e 50%, #0d1829 100%)', // 深空渐变
+      surface: 'linear-gradient(135deg, #1e1b3a 0%, #2d1b4e 50%, #1b2942 100%)', // 表面渐变
+      text: '#f0f8ff', // 明亮的白色
+      textSecondary: '#b8d4f0', // 淡蓝白色
+      border: 'rgba(0, 245, 255, 0.3)', // 半透明青蓝色边框（渐变边框需用伪元素实现）
+      accent: '#ff0080', // 霓虹粉
+      success: '#00ff9f', // 霓虹绿
+      warning: '#ffb000', // 橙色
+      error: '#ff2965', // 霓虹红
+      info: '#00d4ff' // 信息蓝
     },
     sidebar: {
-      background: 'linear-gradient(180deg, #16213e 0%, #0f172a 50%, #1a1a2e 100%)',
-      text: '#e0e7ff',
-      activeBackground: 'linear-gradient(90deg, rgba(0, 212, 255, 0.2) 0%, rgba(255, 0, 110, 0.1) 100%)',
-      activeText: '#00d4ff',
-      hoverBackground: 'rgba(0, 212, 255, 0.1)',
-      border: 'linear-gradient(90deg, #3730a3 0%, #7c3aed 100%)'
+      background: 'linear-gradient(180deg, #1e1b3a 0%, #0c0d1a 30%, #1a0d2e 60%, #1b2942 100%)',
+      text: '#f0f8ff',
+      activeBackground: 'linear-gradient(90deg, rgba(0, 245, 255, 0.25) 0%, rgba(255, 0, 128, 0.15) 100%)',
+      activeText: '#00f5ff',
+      hoverBackground: 'rgba(0, 245, 255, 0.12)',
+      border: 'rgba(0, 245, 255, 0.2)' // 单色边框
     },
     header: {
-      background: 'linear-gradient(90deg, #1a1a2e 0%, #16213e 100%)',
-      text: '#e0e7ff',
-      border: '#3730a3'
+      background: 'linear-gradient(90deg, #1e1b3a 0%, #2d1b4e 50%, #1b2942 100%)',
+      text: '#f0f8ff',
+      border: 'rgba(0, 245, 255, 0.2)' // 单色边框
     },
     card: {
-      background: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)',
-      border: '#3730a3',
-      shadow: '0 0 20px rgba(0, 212, 255, 0.1), 0 0 40px rgba(255, 0, 110, 0.05)'
+      background: 'linear-gradient(135deg, #1e1b3a 0%, #2d1b4e 50%, #1b2942 100%)',
+      border: 'rgba(0, 245, 255, 0.25)', // 单色边框
+      shadow: '0 0 25px rgba(0, 245, 255, 0.15), 0 0 50px rgba(255, 0, 128, 0.08), 0 8px 32px rgba(0, 0, 0, 0.4)'
     },
     button: {
-      primary: 'linear-gradient(90deg, #00d4ff 0%, #7c3aed 100%)',
-      primaryHover: 'linear-gradient(90deg, #00b8e6 0%, #6d28d9 100%)',
-      secondary: '#7c3aed',
-      secondaryHover: '#6d28d9'
+      primary: 'linear-gradient(90deg, #00f5ff 0%, #9d4edd 50%, #ff0080 100%)',
+      primaryHover: 'linear-gradient(90deg, #00d4ff 0%, #8b3fd9 50%, #e6006b 100%)',
+      secondary: 'linear-gradient(90deg, #9d4edd 0%, #ff0080 100%)',
+      secondaryHover: 'linear-gradient(90deg, #8b3fd9 0%, #e6006b 100%)'
     }
   }
 }
@@ -145,6 +146,9 @@ export const useThemeStore = defineStore('theme', () => {
   
   // 设置主题
   const setTheme = (theme: ThemeType) => {
+    // 添加平滑过渡动画效果（300ms）
+    ThemeAnimations.createTransition(300)
+    
     currentTheme.value = theme
     localStorage.setItem('app-theme', theme)
     applyTheme()
