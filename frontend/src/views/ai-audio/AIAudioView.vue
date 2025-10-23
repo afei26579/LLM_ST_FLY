@@ -10,7 +10,7 @@
       <div class="demo-card">
         <div class="card-header">
           <h2>文字转语音</h2>
-          <p>将文字转换为自然流畅的语音</p>
+
         </div>
         
         <div class="demo-content">
@@ -48,7 +48,7 @@
           </div>
           
           <div class="action-section">
-            <button class="generate-btn" @click="generateSpeech" :disabled="ttsGenerating">
+            <button class="generate-btn" @click="generateSpeech" :disabled="ttsGenerating || !canGenerateSpeech">
               <span v-if="ttsGenerating">生成中...</span>
               <span v-else>生成语音</span>
             </button>
@@ -79,62 +79,81 @@
       <div class="demo-card">
         <div class="card-header">
           <h2>语音转文字</h2>
-          <p>将语音转换为文字</p>
+          
         </div>
         
-        <div class="demo-content">
-          <div class="upload-section">
-            <div class="upload-area" @click="triggerAudioInput" @dragover.prevent @drop.prevent="handleAudioDrop">
-              <input 
-                ref="audioInput" 
-                type="file" 
-                accept="audio/*" 
-                @change="handleAudioSelect" 
-                style="display: none"
-              >
-              <div class="upload-icon">🎵</div>
-              <p v-if="!selectedAudio">点击或拖拽音频文件到此处上传</p>
-              <p v-else class="selected-file">已选择: {{ selectedAudio.name }}</p>
-              <small>支持 MP3, WAV, M4A 等音频格式</small>
+        <div class="stt-content-wrapper">
+          <!-- 左侧：上传和操作区域 -->
+          <div class="stt-left-panel">
+            <div class="upload-section">
+              <div class="upload-area" @click="triggerAudioInput" @dragover.prevent @drop.prevent="handleAudioDrop">
+                <input 
+                  ref="audioInput" 
+                  type="file" 
+                  accept="audio/*" 
+                  @change="handleAudioSelect" 
+                  style="display: none"
+                >
+                <div class="upload-icon">🎵</div>
+                <p v-if="!selectedAudio">点击或拖拽音频文件到此处上传</p>
+                <p v-else class="selected-file">已选择: {{ selectedAudio.name }}</p>
+                <small>支持 MP3, WAV, M4A 等音频格式</small>
+              </div>
+            </div>
+            
+            <!-- 音频预览播放器 -->
+            <div class="audio-preview" v-if="selectedAudio && selectedAudioUrl">
+              <h4>音频预览</h4>
+              <div class="preview-player">
+                <audio controls class="preview-audio-element" :key="selectedAudioUrl">
+                  <source :src="selectedAudioUrl" :type="selectedAudio.type">
+                  您的浏览器不支持音频播放
+                </audio>
+              </div>
+            </div>
+            
+            <div class="action-section" v-if="selectedAudio">
+              <button class="recognize-btn" @click="recognizeSpeech" :disabled="sttRecognizing">
+                <span v-if="sttRecognizing">识别中...</span>
+                <span v-else>开始识别</span>
+              </button>
             </div>
           </div>
           
-          <div class="action-section" v-if="selectedAudio">
-            <button class="recognize-btn" @click="recognizeSpeech" :disabled="sttRecognizing">
-              <span v-if="sttRecognizing">识别中...</span>
-              <span v-else>开始识别</span>
-            </button>
-          </div>
-          
-          <div class="result-section" v-if="sttResult">
-            <h3>识别结果 
-              <span v-if="sttResult.status === 'processing'" class="status-badge recognizing">识别中...</span>
-              <span v-else-if="sttResult.status === 'completed'" class="status-badge completed">✓ 完成</span>
-            </h3>
-            <div class="recognition-result" :key="sttResult.task_id">
-              <div class="result-text">
-                <span v-if="sttResult.result_text">{{ sttResult.result_text }}</span>
-                <span v-else class="waiting-text">等待识别结果...</span>
-              </div>
-              <div class="result-actions" v-if="sttResult.status === 'completed'">
-                <div class="result-meta">
-                  <span v-if="sttResult.confidence">✓ 置信度: {{ (sttResult.confidence * 100).toFixed(1) }}%</span>
-                  <span v-if="sttResult.duration">⏱ 时长: {{ sttResult.duration }}秒</span>
+          <!-- 右侧：识别结果区域 -->
+          <div class="stt-right-panel">
+            <div class="result-section" v-if="sttResult">
+              <h3>识别结果 
+                <span v-if="sttResult.status === 'processing'" class="status-badge recognizing">识别中...</span>
+                <span v-else-if="sttResult.status === 'completed'" class="status-badge completed">✓ 完成</span>
+              </h3>
+              <div class="recognition-result" :key="sttResult.task_id">
+                <div class="result-text">
+                  <span v-if="sttResult.result_text">{{ sttResult.result_text }}</span>
+                  <span v-else class="waiting-text">等待识别结果...</span>
                 </div>
-                <button class="copy-btn" @click="copyResult(sttResult.result_text || '')">
-                  📋 复制文本
-                </button>
+                <div class="result-actions" v-if="sttResult.status === 'completed'">
+                  <button class="copy-btn" @click="copyResult(sttResult.result_text || '')">
+                    📋 复制文本
+                  </button>
+                </div>
               </div>
+            </div>
+            
+            <!-- 空状态提示 -->
+            <div v-else class="empty-result-placeholder">
+              <div class="placeholder-icon">📝</div>
+              <p>识别结果将在此处显示</p>
             </div>
           </div>
         </div>
       </div>
 
       <!-- 语音克隆 -->
-      <div class="demo-card">
+      <!--div class="demo-card">
         <div class="card-header">
           <h2>语音克隆</h2>
-          <p>基于参考音频克隆特定的语音风格</p>
+          
         </div>
         
         <div class="demo-content">
@@ -229,32 +248,8 @@
         </div>
       </div>
       
-      <!-- 功能特性 -->
-      <div class="feature-grid">
-        <div class="feature-card">
-          <div class="feature-icon">🗣️</div>
-          <h3>文本转语音</h3>
-          <p>高质量的语音合成技术，支持多种音色</p>
-        </div>
-        
-        <div class="feature-card">
-          <div class="feature-icon">👂</div>
-          <h3>语音识别</h3>
-          <p>准确的语音转文字功能，支持多种语言</p>
-        </div>
-        
-        <div class="feature-card">
-          <div class="feature-icon">🎭</div>
-          <h3>语音克隆</h3>
-          <p>个性化声音模型，克隆任意音色</p>
-        </div>
-        
-        <div class="feature-card">
-          <div class="feature-icon">⚡</div>
-          <h3>实时处理</h3>
-          <p>快速响应，高效的音频处理能力</p>
-        </div>
-      </div>
+  
+      
     </div>
   </div>
 </template>
@@ -336,6 +331,7 @@ const voiceCloning = ref(false)
 const audioInput = ref<HTMLInputElement>()
 const referenceAudioInput = ref<HTMLInputElement>()
 const selectedAudio = ref<File | null>(null)
+const selectedAudioUrl = ref<string>('')
 const selectedReferenceAudio = ref<File | null>(null)
 
 // 结果
@@ -348,6 +344,10 @@ const userStats = ref<UserAudioStats | null>(null)
 const detectedLanguage = ref<string>('')
 
 // 计算属性
+const canGenerateSpeech = computed(() => {
+  return textToSpeechForm.text.trim().length > 0
+})
+
 const canCloneVoice = computed(() => {
   return voiceCloneForm.reference_text.trim() && 
          voiceCloneForm.target_text.trim() && 
@@ -434,6 +434,16 @@ const handleTextInput = () => {
 // 生命周期
 onMounted(() => {
   loadUserStats()
+})
+
+// 组件卸载时清理
+import { onUnmounted } from 'vue'
+
+onUnmounted(() => {
+  // 释放音频 URL 对象，避免内存泄漏
+  if (selectedAudioUrl.value) {
+    URL.revokeObjectURL(selectedAudioUrl.value)
+  }
 })
 
 // 文字转语音
@@ -719,6 +729,12 @@ const handleAudioSelect = (event: Event) => {
   if (target.files && target.files[0]) {
     selectedAudio.value = target.files[0]
     sttResult.value = null // 清除之前的结果
+    
+    // 创建本地 URL 用于预览播放
+    if (selectedAudioUrl.value) {
+      URL.revokeObjectURL(selectedAudioUrl.value) // 释放旧的 URL
+    }
+    selectedAudioUrl.value = URL.createObjectURL(target.files[0])
   }
 }
 
@@ -734,6 +750,12 @@ const handleAudioDrop = (event: DragEvent) => {
   if (event.dataTransfer?.files && event.dataTransfer.files[0]) {
     selectedAudio.value = event.dataTransfer.files[0]
     sttResult.value = null
+    
+    // 创建本地 URL 用于预览播放
+    if (selectedAudioUrl.value) {
+      URL.revokeObjectURL(selectedAudioUrl.value) // 释放旧的 URL
+    }
+    selectedAudioUrl.value = URL.createObjectURL(event.dataTransfer.files[0])
   }
 }
 
@@ -856,6 +878,50 @@ const loadUserStats = async () => {
   display: flex;
   flex-direction: column;
   gap: 1.5rem;
+}
+
+/* 语音转文字：左右两栏布局 */
+.stt-content-wrapper {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2rem;
+  align-items: start;
+}
+
+.stt-left-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.stt-right-panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 400px;
+}
+
+.empty-result-placeholder {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 3rem 2rem;
+  background: var(--input-background);
+  border: 2px dashed var(--color-border);
+  border-radius: 12px;
+  color: var(--color-text-secondary);
+}
+
+.placeholder-icon {
+  font-size: 3rem;
+  margin-bottom: 1rem;
+  opacity: 0.5;
+}
+
+.empty-result-placeholder p {
+  font-size: 1rem;
+  opacity: 0.7;
 }
 
 .input-section label {
@@ -1062,9 +1128,12 @@ const loadUserStats = async () => {
   border: 1px solid var(--color-border);
   border-radius: 8px;
   padding: 1.5rem;
+  height: 100%;
+  min-height: 350px;
 }
 
 .result-text {
+  flex: 1;
   line-height: 1.8;
   color: var(--color-text);
   background: var(--card-background);
@@ -1072,10 +1141,11 @@ const loadUserStats = async () => {
   border-radius: 8px;
   border: 1px solid var(--color-border);
   font-size: 1rem;
-  min-height: 120px;
+  min-height: 250px;
   white-space: pre-wrap;
   word-wrap: break-word;
   position: relative;
+  overflow-y: auto;
 }
 
 .waiting-text {
@@ -1113,18 +1183,33 @@ const loadUserStats = async () => {
 
 .result-actions {
   display: flex;
-  justify-content: space-between;
+  justify-content: center;
   align-items: center;
   gap: 1rem;
-  flex-wrap: wrap;
 }
 
-.result-meta {
-  display: flex;
-  gap: 1.5rem;
+.audio-preview {
+  background: var(--input-background);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: 1rem;
+}
+
+.audio-preview h4 {
   font-size: 0.9rem;
-  color: var(--color-text-secondary);
-  flex: 1;
+  font-weight: 500;
+  color: var(--color-text);
+  margin-bottom: 0.75rem;
+}
+
+.preview-player {
+  display: flex;
+  justify-content: center;
+}
+
+.preview-audio-element {
+  width: 100%;
+  max-width: 100%;
 }
 
 .stats-grid {
@@ -1191,6 +1276,17 @@ const loadUserStats = async () => {
   line-height: 1.5;
 }
 
+@media (max-width: 1024px) {
+  .stt-content-wrapper {
+    grid-template-columns: 1fr;
+    gap: 1.5rem;
+  }
+  
+  .stt-right-panel {
+    min-height: 300px;
+  }
+}
+
 @media (max-width: 768px) {
   .ai-audio-view {
     padding: 1rem;
@@ -1220,6 +1316,14 @@ const loadUserStats = async () => {
 
   .stats-grid {
     grid-template-columns: repeat(2, 1fr);
+  }
+  
+  .stt-right-panel {
+    min-height: 250px;
+  }
+  
+  .empty-result-placeholder {
+    padding: 2rem 1rem;
   }
 }
 </style>

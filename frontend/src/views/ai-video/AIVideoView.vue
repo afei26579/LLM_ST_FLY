@@ -24,69 +24,46 @@
             ></textarea>
           </div>
           
-          <div class="settings-section">
-            <div class="setting-group">
-              <label>生成模型：</label>
-              <select v-model="textToVideoForm.model">
-                <option value="wanx2.1-t2v-turbo">万相2.1 Turbo</option>
-                <option value="wanx2.1-t2v">万相2.1</option>
-              </select>
-            </div>
-
-            <div class="setting-group">
+          <div class="settings-section-horizontal">
+            <div class="setting-row">
               <label>视频分辨率：</label>
-              <select v-model="textToVideoForm.resolution">
-                <option value="1280*720">720P (1280*720)</option>
-                <option value="1920*1080">1080P (1920*1080)</option>
-                <option value="720*1280">竖屏 (720*1280)</option>
-                <option value="1080*1920">竖屏 (1080*1920)</option>
-              </select>
+              <CustomSelect 
+                v-model="textToVideoForm.resolution"
+                :options="resolutionOptions"
+              />
             </div>
             
-            <div class="setting-group">
+            <div class="setting-row">
               <label>视频时长：</label>
-              <select v-model="textToVideoForm.duration">
-                <option :value="1">1秒</option>
-                <option :value="3">3秒</option>
-                <option :value="5">5秒</option>
-                <option :value="10">10秒</option>
-              </select>
+              <CustomSelect 
+                v-model="textToVideoForm.duration"
+                :options="durationOptions"
+              />
             </div>
             
-            <div class="setting-group">
-              <label>帧率：</label>
-              <select v-model="textToVideoForm.fps">
-                <option :value="24">24 FPS</option>
-                <option :value="25">25 FPS</option>
-                <option :value="30">30 FPS</option>
-                <option :value="60">60 FPS</option>
-              </select>
-            </div>
-
-            <div class="setting-group" v-if="stylePresets.length > 0">
-              <label>风格预设：</label>
-              <select v-model="textToVideoForm.style_preset">
-                <option value="">默认风格</option>
-                <option v-for="preset in stylePresets" :key="preset.id" :value="preset.id">
-                  {{ preset.name }}
-                </option>
-              </select>
-            </div>
-          </div>
-
-          <!-- 风格预设展示 -->
-          <div v-if="selectedStylePreset" class="style-preset-info">
-            <h4>{{ selectedStylePreset.name }}</h4>
-            <p>{{ selectedStylePreset.description }}</p>
-            <div class="preset-keywords">
-              <span class="keyword-tag" v-for="keyword in selectedStylePreset.style_keywords.split(', ')" :key="keyword">
-                {{ keyword }}
-              </span>
+            <div class="setting-row seed-row">
+              <label>随机种子：</label>
+              <div class="seed-controls">
+                <input 
+                  type="number" 
+                  v-model.number="textToVideoForm.seed" 
+                  @blur="validateSeed"
+                  @input="validateSeed"
+                  min="0" 
+                  max="2147483647"
+                  step="1"
+                  class="seed-input"
+                  placeholder="0 - 2147483647"
+                >
+                <button class="random-seed-btn" @click="randomizeSeed" type="button" title="生成随机种子">
+                  🎲
+                </button>
+              </div>
             </div>
           </div>
           
           <div class="action-section">
-            <button class="generate-btn" @click="generateVideo" :disabled="t2vGenerating">
+            <button class="generate-btn" @click="generateVideo" :disabled="t2vGenerating || !canGenerateVideo">
               <span v-if="t2vGenerating">生成中...</span>
               <span v-else>生成视频</span>
             </button>
@@ -94,19 +71,16 @@
           
           <div class="result-section" v-if="t2vResult">
             <h3>生成结果</h3>
-            <div class="video-player">
-              <video v-if="t2vResult.result_url" controls class="video-element" preload="metadata">
-                <source :src="t2vResult.result_url" type="video/mp4">
-                您的浏览器不支持视频播放
-              </video>
-              <div v-else class="video-placeholder">
-                🎬 视频生成完成，任务ID: {{ t2vResult.task_id }}
-                <p v-if="t2vResult.status === 'processing'">正在处理中，请稍候...</p>
-              </div>
-              <div class="video-info" v-if="t2vResult.duration || t2vResult.file_size">
-                <span v-if="t2vResult.duration">时长: {{ t2vResult.duration }}秒</span>
-                <span v-if="t2vResult.file_size">大小: {{ formatFileSize(t2vResult.file_size) }}</span>
-                <span v-if="t2vResult.resolution">分辨率: {{ t2vResult.resolution }}</span>
+            <div class="video-player-wrapper">
+              <div class="video-player">
+                <video v-if="t2vResult.result_url" controls class="video-element" preload="metadata">
+                  <source :src="t2vResult.result_url" type="video/mp4">
+                  您的浏览器不支持视频播放
+                </video>
+                <div v-else class="video-placeholder">
+                  🎬 视频生成中，任务ID: {{ t2vResult.task_id }}
+                  <p v-if="t2vResult.status === 'processing'">正在处理中，请稍候...</p>
+                </div>
               </div>
               <div class="video-controls" v-if="t2vResult.result_url">
                 <button class="download-btn" @click="downloadVideo(t2vResult.result_url)">下载视频</button>
@@ -124,93 +98,89 @@
         </div>
         
         <div class="demo-content">
-          <div class="upload-section">
+          <!-- 隐藏的文件输入框 -->
+          <input 
+            ref="imageInput" 
+            type="file" 
+            accept="image/*" 
+            @change="handleImageSelect" 
+            style="display: none"
+          >
+          
+          <!-- 上传区域（未选择图片时显示） -->
+          <div class="upload-section" v-if="!selectedImage">
             <div class="upload-area" @click="triggerImageInput" @dragover.prevent @drop.prevent="handleImageDrop">
-              <input 
-                ref="imageInput" 
-                type="file" 
-                accept="image/*" 
-                @change="handleImageSelect" 
-                style="display: none"
-              >
               <div class="upload-icon">🖼️</div>
-              <p v-if="!selectedImage">点击或拖拽图片文件到此处上传</p>
-              <p v-else class="selected-file">已选择: {{ selectedImage.name }}</p>
+              <p>点击或拖拽图片文件到此处上传</p>
               <small>支持 JPG, PNG, WebP 格式，建议分辨率不超过2048x2048</small>
             </div>
           </div>
 
-          <div v-if="imagePreview" class="image-preview">
-            <img :src="imagePreview" alt="预览图片" />
-          </div>
-
-          <div class="input-section" v-if="selectedImage">
-            <label for="imageVideoPrompt">动态描述（可选）：</label>
-            <textarea 
-              id="imageVideoPrompt" 
-              v-model="imageToVideoForm.prompt" 
-              placeholder="描述图片中的元素应该如何动起来..."
-              rows="3"
-            ></textarea>
-          </div>
-          
-          <div class="settings-section" v-if="selectedImage">
-            <div class="setting-group">
-              <label>生成模型：</label>
-              <select v-model="imageToVideoForm.model">
-                <option value="wanx2.1-i2v">万相2.1 图生视频</option>
-              </select>
-            </div>
-
-            <div class="setting-group">
-              <label>视频分辨率：</label>
-              <select v-model="imageToVideoForm.resolution">
-                <option value="1280*720">720P (1280*720)</option>
-                <option value="1920*1080">1080P (1920*1080)</option>
-              </select>
+          <!-- 图片和设置区域（选择图片后显示，横向布局） -->
+          <div class="i2v-content-wrapper" v-if="selectedImage">
+            <!-- 左侧：图片预览 -->
+            <div class="i2v-left-panel">
+              <div class="image-preview-card" @click="triggerImageInput">
+                <img :src="imagePreview" alt="预览图片" class="preview-image" />
+                <div class="change-image-hint">点击更换图片</div>
+              </div>
             </div>
             
-            <div class="setting-group">
-              <label>视频时长：</label>
-              <select v-model="imageToVideoForm.duration">
-                <option :value="3">3秒</option>
-                <option :value="5">5秒</option>
-                <option :value="10">10秒</option>
-              </select>
+            <!-- 右侧：设置区域 -->
+            <div class="i2v-right-panel">
+              <div class="i2v-settings-container">
+                <div class="input-section">
+                  <label for="imageVideoPrompt">动态描述</label>
+                  <textarea 
+                    id="imageVideoPrompt" 
+                    v-model="imageToVideoForm.prompt" 
+                    placeholder="描述图片中的元素应该如何动起来..."
+                    rows="8"
+                    class="i2v-prompt-textarea"
+                  ></textarea>
+                </div>
+                
+                <div class="settings-section-horizontal">
+                  <div class="setting-row">
+                    <label>视频分辨率：</label>
+                    <CustomSelect 
+                      v-model="imageToVideoForm.resolution"
+                      :options="i2vResolutionOptions"
+                    />
+                  </div>
+                  
+                  <div class="setting-row">
+                    <label>视频时长：</label>
+                    <CustomSelect 
+                      v-model="imageToVideoForm.duration"
+                      :options="i2vDurationOptions"
+                    />
+                  </div>
+                </div>
+              </div>
+              
+              <div class="action-section">
+                <button class="generate-btn" @click="generateImageVideo" :disabled="i2vGenerating">
+                  <span v-if="i2vGenerating">生成中...</span>
+                  <span v-else>生成视频</span>
+                </button>
+              </div>
             </div>
-            
-            <div class="setting-group">
-              <label>帧率：</label>
-              <select v-model="imageToVideoForm.fps">
-                <option :value="24">24 FPS</option>
-                <option :value="25">25 FPS</option>
-                <option :value="30">30 FPS</option>
-              </select>
-            </div>
-          </div>
-          
-          <div class="action-section" v-if="selectedImage">
-            <button class="generate-btn" @click="generateImageVideo" :disabled="i2vGenerating">
-              <span v-if="i2vGenerating">生成中...</span>
-              <span v-else>生成视频</span>
-            </button>
           </div>
 
+          <!-- 生成结果 -->
           <div class="result-section" v-if="i2vResult">
             <h3>生成结果</h3>
-            <div class="video-player">
-              <video v-if="i2vResult.result_url" controls class="video-element" preload="metadata">
-                <source :src="i2vResult.result_url" type="video/mp4">
-                您的浏览器不支持视频播放
-              </video>
-              <div v-else class="video-placeholder">
-                🎬 视频生成完成，任务ID: {{ i2vResult.task_id }}
-                <p v-if="i2vResult.status === 'processing'">正在处理中，请稍候...</p>
-              </div>
-              <div class="video-info" v-if="i2vResult.duration || i2vResult.file_size">
-                <span v-if="i2vResult.duration">时长: {{ i2vResult.duration }}秒</span>
-                <span v-if="i2vResult.file_size">大小: {{ formatFileSize(i2vResult.file_size) }}</span>
-                <span v-if="i2vResult.resolution">分辨率: {{ i2vResult.resolution }}</span>
+            <div class="video-player-wrapper">
+              <div class="video-player">
+                <video v-if="i2vResult.result_url" controls class="video-element" preload="metadata">
+                  <source :src="i2vResult.result_url" type="video/mp4">
+                  您的浏览器不支持视频播放
+                </video>
+                <div v-else class="video-placeholder">
+                  🎬 视频生成中，任务ID: {{ i2vResult.task_id }}
+                  <p v-if="i2vResult.status === 'processing'">正在处理中，请稍候...</p>
+                </div>
               </div>
               <div class="video-controls" v-if="i2vResult.result_url">
                 <button class="download-btn" @click="downloadVideo(i2vResult.result_url)">下载视频</button>
@@ -248,7 +218,7 @@
       </div>
       
       <!-- 功能特性 -->
-      <div class="feature-grid">
+      <!--div class="feature-grid">
         <div class="feature-card">
           <div class="feature-icon">🎬</div>
           <h3>文生视频</h3>
@@ -272,7 +242,7 @@
           <h3>高效处理</h3>
           <p>快速生成，支持多种分辨率</p>
         </div>
-      </div>
+      </div -->
     </div>
   </div>
 </template>
@@ -281,32 +251,58 @@
 import { ref, reactive, computed, onMounted } from 'vue'
 import { useToast } from 'vue-toastification'
 import { apiService } from '@/services/api'
+import CustomSelect from '@/components/CustomSelect.vue'
 import type { 
   TextToVideoRequest, 
   ImageToVideoRequest,
   VideoTaskResponse,
-  UserVideoStats,
-  VideoStylePreset
+  UserVideoStats
 } from '@/services/api'
 
 const toast = useToast()
 
+// 视频分辨率选项
+const resolutionOptions = [
+  { value: '854*480', label: '480P' },
+  { value: '1280*720', label: '720P' },
+  { value: '1920*1080', label: '1080P' }
+]
+
+// 视频时长选项
+const durationOptions = [
+  { value: 5, label: '5秒' },
+  { value: 10, label: '10秒' }
+]
+
+// 图生视频分辨率选项（使用 P 格式，如 720P）
+const i2vResolutionOptions = [
+  { value: '480P', label: '480P' },
+  { value: '720P', label: '720P' },
+  { value: '1080P', label: '1080P' }
+]
+
+// 图生视频时长选项（与文生视频一致）
+const i2vDurationOptions = [
+  { value: 5, label: '5秒' },
+  { value: 10, label: '10秒' }
+]
+
 // 表单数据
-const textToVideoForm = reactive<TextToVideoRequest>({
+const textToVideoForm = reactive<any>({
   prompt: '',
-  model: 'wanx2.1-t2v-turbo',
+  model: 'wan2.5-t2v-preview',
   resolution: '1280*720',
   duration: 5,
-  fps: 25,
-  style_preset: ''
+  fps: 24,
+  seed: Math.floor(Math.random() * 2147483647)
 })
 
-const imageToVideoForm = reactive<ImageToVideoRequest>({
+const imageToVideoForm = reactive<any>({
   prompt: '',
-  model: 'wanx2.1-i2v',
-  resolution: '1280*720',
+  // 不传 model，使用后端默认的 wan2.5-i2v-preview
+  resolution: '720P',  // 使用 P 格式
   duration: 5,
-  fps: 25
+  fps: 24
 })
 
 // 状态
@@ -322,18 +318,38 @@ const imagePreview = ref<string | null>(null)
 const t2vResult = ref<VideoTaskResponse | null>(null)
 const i2vResult = ref<VideoTaskResponse | null>(null)
 const userStats = ref<UserVideoStats | null>(null)
-const stylePresets = ref<VideoStylePreset[]>([])
 
 // 计算属性
-const selectedStylePreset = computed(() => {
-  if (!textToVideoForm.style_preset) return null
-  return stylePresets.value.find(p => p.id.toString() === textToVideoForm.style_preset.toString())
+const canGenerateVideo = computed(() => {
+  return textToVideoForm.prompt.trim().length > 0
 })
+
+// 验证随机种子
+const validateSeed = () => {
+  if (!textToVideoForm.seed) {
+    textToVideoForm.seed = 0
+    return
+  }
+  
+  // 转换为整数
+  textToVideoForm.seed = Math.floor(textToVideoForm.seed)
+  
+  // 确保在有效范围内
+  if (textToVideoForm.seed < 0) {
+    textToVideoForm.seed = 0
+  } else if (textToVideoForm.seed > 2147483647) {
+    textToVideoForm.seed = 2147483647
+  }
+}
+
+// 生成随机种子
+const randomizeSeed = () => {
+  textToVideoForm.seed = Math.floor(Math.random() * 2147483647)
+}
 
 // 生命周期
 onMounted(() => {
   loadUserStats()
-  loadStylePresets()
 })
 
 // 文生视频
@@ -345,18 +361,7 @@ const generateVideo = async () => {
   
   t2vGenerating.value = true
   try {
-    // 应用风格预设
-    let finalForm = { ...textToVideoForm }
-    if (selectedStylePreset.value) {
-      finalForm.resolution = selectedStylePreset.value.default_resolution
-      finalForm.duration = selectedStylePreset.value.default_duration
-      finalForm.fps = selectedStylePreset.value.default_fps
-      
-      // 增强提示词
-      finalForm.prompt = `${textToVideoForm.prompt}, ${selectedStylePreset.value.style_keywords}`
-    }
-    
-    const response = await apiService.textToVideo(finalForm)
+    const response = await apiService.textToVideo(textToVideoForm)
     
     if (response.code === 200) {
       t2vResult.value = response.data
@@ -386,9 +391,14 @@ const generateImageVideo = async () => {
   
   i2vGenerating.value = true
   try {
-    const requestData: ImageToVideoRequest = {
-      ...imageToVideoForm,
+    // 不传 model，使用后端默认值
+    const requestData = {
+      prompt: imageToVideoForm.prompt,
+      resolution: imageToVideoForm.resolution,
+      duration: imageToVideoForm.duration,
+      fps: imageToVideoForm.fps,
       image_file: selectedImage.value
+      // model 不传，后端会使用默认的 wan2.5-i2v-preview
     }
     
     const response = await apiService.imageToVideo(requestData)
@@ -520,16 +530,6 @@ const loadUserStats = async () => {
   }
 }
 
-const loadStylePresets = async () => {
-  try {
-    const response = await apiService.getVideoStylePresets()
-    if (response.code === 200) {
-      stylePresets.value = response.data
-    }
-  } catch (error) {
-    console.error('加载风格预设失败:', error)
-  }
-}
 </script>
 
 <style scoped>
@@ -616,6 +616,29 @@ const loadStylePresets = async () => {
   font-family: inherit;
 }
 
+/* 横向排列的设置区域 */
+.settings-section-horizontal {
+  display: flex;
+  gap: 1.5rem;
+  align-items: flex-start;
+}
+
+.setting-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex: 1;
+}
+
+.setting-row label {
+  font-weight: 500;
+  color: var(--color-text);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* 自定义下拉组件会自动填充剩余空间 */
+
 .settings-section {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -642,36 +665,67 @@ const loadStylePresets = async () => {
   font-size: 1rem;
 }
 
-.style-preset-info {
-  background: var(--input-background);
+/* 种子输入行 */
+.seed-row {
+  flex: 1.2;  /* 种子输入框稍宽一些 */
+}
+
+.seed-controls {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  flex: 1;
+}
+
+.seed-input {
+  flex: 1;
+  padding: 0.75rem;
   border: 1px solid var(--color-border);
   border-radius: 8px;
-  padding: 1rem;
+  background: var(--card-background);
+  color: var(--color-text);
+  font-size: 1rem;
+  transition: border-color 0.2s;
 }
 
-.style-preset-info h4 {
-  color: var(--color-primary);
-  margin-bottom: 0.5rem;
+.seed-input:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 2px rgba(94, 155, 255, 0.1);
 }
 
-.style-preset-info p {
-  color: var(--color-text-secondary);
-  margin-bottom: 1rem;
+.seed-input::-webkit-inner-spin-button,
+.seed-input::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
 }
 
-.preset-keywords {
+.seed-input[type=number] {
+  -moz-appearance: textfield;
+}
+
+.random-seed-btn {
+  background: var(--color-primary);
+  color: white;
+  border: none;
+  padding: 0.75rem;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 1.2rem;
+  width: 42px;
+  height: 42px;
   display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+  flex-shrink: 0;
 }
 
-.keyword-tag {
-  background: var(--color-primary-alpha);
-  color: var(--color-primary);
-  padding: 0.25rem 0.5rem;
-  border-radius: 4px;
-  font-size: 0.8rem;
+.random-seed-btn:hover {
+  background: var(--color-primary-dark);
+  transform: scale(1.05);
 }
+
 
 .action-section {
   display: flex;
@@ -707,16 +761,30 @@ const loadStylePresets = async () => {
   margin-bottom: 1rem;
 }
 
+.video-player-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
 .video-player {
+  display: flex;
+  justify-content: center;
+  align-items: center;
   background: var(--input-background);
   border: 1px solid var(--color-border);
   border-radius: 8px;
   overflow: hidden;
+  min-height: 400px;
+  padding: 1rem;
 }
 
 .video-element {
-  width: 100%;
-  max-height: 400px;
+  max-width: 100%;
+  max-height: 600px;
+  border-radius: 4px;
+  display: block;
+  margin: 0 auto;
 }
 
 .video-placeholder {
@@ -732,22 +800,10 @@ const loadStylePresets = async () => {
   color: var(--color-text);
 }
 
-.video-info {
-  display: flex;
-  justify-content: center;
-  gap: 1rem;
-  padding: 0.5rem;
-  font-size: 0.9rem;
-  color: var(--color-text-secondary);
-  background: var(--card-background);
-}
-
 .video-controls {
   display: flex;
   justify-content: center;
   gap: 1rem;
-  padding: 1rem;
-  background: var(--card-background);
 }
 
 .download-btn {
@@ -788,17 +844,75 @@ const loadStylePresets = async () => {
   font-weight: 500;
 }
 
-.image-preview {
-  display: flex;
-  justify-content: center;
-  margin: 1rem 0;
+/* 图生视频：左右两栏布局 */
+.i2v-content-wrapper {
+  display: grid;
+  grid-template-columns: 400px 1fr;
+  gap: 2rem;
+  align-items: end;  /* 底部对齐 */
 }
 
-.image-preview img {
-  max-width: 100%;
-  max-height: 300px;
-  border-radius: 8px;
-  border: 1px solid var(--color-border);
+.i2v-left-panel {
+  display: flex;
+  flex-direction: column;
+}
+
+.i2v-right-panel {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  height: 100%;
+}
+
+.i2v-settings-container {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.i2v-prompt-textarea {
+  min-height: 180px !important;
+  flex: 1;
+}
+
+.image-preview-card {
+  position: relative;
+  background: var(--input-background);
+  border: 2px solid var(--color-border);
+  border-radius: 12px;
+  overflow: hidden;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.image-preview-card:hover {
+  border-color: var(--color-primary);
+  box-shadow: 0 4px 12px rgba(94, 155, 255, 0.2);
+}
+
+.image-preview-card:hover .change-image-hint {
+  opacity: 1;
+}
+
+.preview-image {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.change-image-hint {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: rgba(0, 0, 0, 0.7);
+  color: white;
+  text-align: center;
+  padding: 0.75rem;
+  font-size: 0.9rem;
+  opacity: 0;
+  transition: opacity 0.3s ease;
 }
 
 .stats-grid {
@@ -865,6 +979,23 @@ const loadStylePresets = async () => {
   line-height: 1.5;
 }
 
+@media (max-width: 1024px) {
+  .i2v-content-wrapper {
+    grid-template-columns: 1fr;
+    gap: 1.5rem;
+    align-items: start;  /* 移动端改为顶部对齐 */
+  }
+  
+  .i2v-right-panel {
+    height: auto;
+  }
+  
+  .image-preview-card {
+    max-width: 500px;
+    margin: 0 auto;
+  }
+}
+
 @media (max-width: 768px) {
   .ai-video-view {
     padding: 1rem;
@@ -881,14 +1012,36 @@ const loadStylePresets = async () => {
   .settings-section {
     grid-template-columns: 1fr;
   }
+  
+  .settings-section-horizontal {
+    flex-direction: column;
+    gap: 1rem;
+  }
+  
+  .setting-row {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  
+  .setting-row label {
+    margin-bottom: 0.5rem;
+  }
+  
+  
+  .seed-row .seed-controls {
+    width: 100%;
+  }
+  
+  .seed-input {
+    width: 100%;
+  }
 
   .stats-grid {
     grid-template-columns: repeat(2, 1fr);
   }
-
-  .video-info {
-    flex-direction: column;
-    gap: 0.5rem;
+  
+  .image-preview-card {
+    max-width: 100%;
   }
 }
 </style>

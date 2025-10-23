@@ -221,7 +221,7 @@ export interface TextToVideoRequest {
   resolution?: string;
   duration?: number;
   fps?: number;
-  style_preset?: string;
+  seed?: number;
 }
 
 export interface ImageToVideoRequest {
@@ -2048,6 +2048,27 @@ class ApiService {
       message: '网络错误，请检查网络连接',
       data: null
     };
+  }
+
+  // 通用HTTP方法
+  async get<T = any>(url: string, config?: any): Promise<AxiosResponse<T>> {
+    return this.instance.get<T>(url, config);
+  }
+
+  async post<T = any>(url: string, data?: any, config?: any): Promise<AxiosResponse<T>> {
+    return this.instance.post<T>(url, data, config);
+  }
+
+  async put<T = any>(url: string, data?: any, config?: any): Promise<AxiosResponse<T>> {
+    return this.instance.put<T>(url, data, config);
+  }
+
+  async delete<T = any>(url: string, config?: any): Promise<AxiosResponse<T>> {
+    return this.instance.delete<T>(url, config);
+  }
+
+  async patch<T = any>(url: string, data?: any, config?: any): Promise<AxiosResponse<T>> {
+    return this.instance.patch<T>(url, data, config);
   }
 }
 

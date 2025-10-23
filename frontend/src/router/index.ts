@@ -47,15 +47,27 @@ const router = createRouter({
     },
     // 智能体路由
     {
-      path: '/agent/travel-assistant', name: 'travel-assistant', component: () => import('@views/agent/TravelAssistantView.vue'),
+      path: '/agent/travel-assistant', 
+      name: 'travel-assistant', 
+      component: () => import('@views/agent/travel-assistant/TravelAssistantView.vue'),
       meta: { requiresAuth: true }
     },
     {
-      path: '/agent/poetry-painting', name: 'poetry-painting', component: () => import('@views/agent/PoetryPaintingView.vue'),
+      path: '/agent/poetry-painting', 
+      name: 'poetry-painting', 
+      component: () => import('@views/agent/poetry-painting/PoetryPaintingView.vue'),
       meta: { requiresAuth: true }
     },
     {
-      path: '/agent/customer-service', name: 'customer-service', component: () => import('@views/agent/CustomerServiceView.vue'),
+      path: '/agent/customer-service', 
+      name: 'customer-service', 
+      component: () => import('@views/agent/customer-service/CustomerServiceView.vue'),
+      meta: { requiresAuth: true }
+    },
+    {
+      path: '/agent/customer-service/manage', 
+      name: 'customer-service-manage', 
+      component: () => import('@views/agent/customer-service/CustomerServiceManageView.vue'),
       meta: { requiresAuth: true }
     },
     // 系统管理 - 用户管理

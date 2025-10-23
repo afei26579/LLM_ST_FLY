@@ -48,10 +48,11 @@ class VideoGenerationTask(models.Model):
     input_image_url = models.URLField(max_length=1000, blank=True, null=True, verbose_name=_('输入图片URL'))
     
     # 生成参数
-    model = models.CharField(max_length=50, default='wanx2.1-t2v-turbo', verbose_name=_('生成模型'))
+    model = models.CharField(max_length=50, default='wan2.5-t2v-preview', verbose_name=_('生成模型'))
     resolution = models.CharField(max_length=20, choices=RESOLUTION_CHOICES, default='1280*720', verbose_name=_('分辨率'))
     duration = models.IntegerField(default=5, verbose_name=_('视频时长(秒)'))
-    fps = models.IntegerField(default=25, verbose_name=_('帧率'))
+    fps = models.IntegerField(default=24, verbose_name=_('帧率'))
+    seed = models.BigIntegerField(blank=True, null=True, verbose_name=_('随机种子'))
     
     # 输出结果
     output_video_url = models.URLField(max_length=1000, blank=True, null=True, verbose_name=_('输出视频URL'))

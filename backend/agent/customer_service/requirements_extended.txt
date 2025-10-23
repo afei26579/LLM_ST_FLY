@@ -1,0 +1,32 @@
+# 智能客服扩展功能依赖
+
+# 向量数据库
+chromadb==0.4.22
+
+# OpenAI SDK (兼容DashScope)
+openai>=1.0.0
+
+# 数据处理
+pandas==2.1.4          # 结构化数据处理（CSV、Excel）
+openpyxl==3.1.2        # Excel文件支持
+
+# OCR识别（可选）
+# pytesseract==0.3.10    # 图片OCR识别
+# Pillow==10.1.0         # 图片处理
+
+# 文档处理
+PyPDF2==3.0.1          # PDF文档处理
+python-docx==1.1.0      # Word文档处理
+python-pptx==0.6.23     # PowerPoint处理（可选）
+
+# 文本处理
+chardet==5.2.0          # 字符编码检测
+python-magic==0.4.27    # 文件类型检测（可选）
+
+# 已有依赖（确保安装）
+# langgraph
+# langchain
+# langchain-openai
+# django
+# djangorestframework
+# psycopg2-binary        # PostgreSQL驱动

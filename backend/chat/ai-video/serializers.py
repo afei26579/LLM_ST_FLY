@@ -12,14 +12,15 @@ from .models import (
 class TextToVideoSerializer(serializers.Serializer):
     """文生视频请求序列化器"""
     prompt = serializers.CharField(max_length=5000, help_text="文本提示词")
-    model = serializers.CharField(max_length=50, default='wanx2.1-t2v-turbo', help_text="生成模型")
+    model = serializers.CharField(max_length=50, default='wan2.5-t2v-preview', help_text="生成模型")
     resolution = serializers.ChoiceField(
-        choices=['720P', '1080P', '1280*720', '1920*1080'],
+        choices=['480P', '720P', '1080P', '854*480', '1280*720', '1920*1080'],
         default='1280*720',
         help_text="分辨率"
     )
-    duration = serializers.IntegerField(default=5, min_value=1, max_value=10, help_text="视频时长(秒)")
-    fps = serializers.IntegerField(default=25, min_value=15, max_value=60, help_text="帧率")
+    duration = serializers.IntegerField(default=5, min_value=5, max_value=10, help_text="视频时长(秒)")
+    fps = serializers.IntegerField(default=24, help_text="帧率")
+    seed = serializers.IntegerField(required=False, min_value=0, max_value=2147483647, help_text="随机种子")
     style_preset_id = serializers.IntegerField(required=False, help_text="风格预设ID")
     
     def validate_prompt(self, value):
@@ -29,35 +30,53 @@ class TextToVideoSerializer(serializers.Serializer):
         if len(value.strip()) > 5000:
             raise serializers.ValidationError("提示词不能超过5000个字符")
         return value.strip()
+    
+    def validate_seed(self, value):
+        """验证随机种子"""
+        if value is not None:
+            if value < 0:
+                return 0
+            if value > 2147483647:
+                return 2147483647
+        return value
 
 
 class ImageToVideoSerializer(serializers.Serializer):
     """图生视频请求序列化器"""
-    prompt = serializers.CharField(max_length=5000, help_text="文本提示词")
-    input_image = serializers.ImageField(required=False, help_text="输入图片文件")
-    input_image_url = serializers.URLField(required=False, help_text="输入图片URL")
-    model = serializers.CharField(max_length=50, default='wan2.2-i2v-plus', help_text="生成模型")
+    prompt = serializers.CharField(max_length=5000, required=False, allow_blank=True, help_text="文本提示词（可选）")
+    image_file = serializers.ImageField(required=False, help_text="输入图片文件")
+    input_image = serializers.ImageField(required=False, help_text="输入图片文件（兼容字段）")
+    image_url = serializers.URLField(required=False, help_text="输入图片URL")
+    input_image_url = serializers.URLField(required=False, help_text="输入图片URL（兼容字段）")
+    model = serializers.CharField(max_length=50, default='wan2.5-i2v-preview', help_text="生成模型")
     resolution = serializers.ChoiceField(
-        choices=['720P', '1080P', '1280*720', '1920*1080'],
-        default='1080P',
+        choices=['480P', '720P', '1080P', '854*480', '1280*720', '1920*1080'],
+        default='1280*720',
         help_text="分辨率"
     )
-    duration = serializers.IntegerField(default=5, min_value=1, max_value=10, help_text="视频时长(秒)")
-    style_preset_id = serializers.IntegerField(required=False, help_text="风格预设ID")
+    duration = serializers.IntegerField(default=5, min_value=5, max_value=10, help_text="视频时长(秒)")
+    fps = serializers.IntegerField(default=24, help_text="帧率")
     
     def validate(self, data):
-        """验证数据"""
+        """验证数据（兼容两种字段名）"""
+        # 兼容处理：image_file 和 input_image
+        if data.get('image_file') and not data.get('input_image'):
+            data['input_image'] = data['image_file']
+        
+        # 兼容处理：image_url 和 input_image_url
+        if data.get('image_url') and not data.get('input_image_url'):
+            data['input_image_url'] = data['image_url']
+        
         if not data.get('input_image') and not data.get('input_image_url'):
             raise serializers.ValidationError("必须提供输入图片或图片URL")
+        
         return data
     
     def validate_prompt(self, value):
         """验证提示词"""
-        if not value.strip():
-            raise serializers.ValidationError("提示词不能为空")
-        if len(value.strip()) > 5000:
+        if value and len(value.strip()) > 5000:
             raise serializers.ValidationError("提示词不能超过5000个字符")
-        return value.strip()
+        return value.strip() if value else ''
 
 
 class VideoGenerationTaskSerializer(serializers.ModelSerializer):

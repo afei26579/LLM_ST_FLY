@@ -61,10 +61,11 @@ def text_to_video(request):
         result = ai_video_service.text_to_video(
             user_id=request.user.id,
             prompt=prompt,
-            model=validated_data.get('model', 'wanx2.1-t2v-turbo'),
+            model=validated_data.get('model', 'wan2.5-t2v-preview'),
             resolution=validated_data.get('resolution', '1280*720'),
             duration=validated_data.get('duration', 5),
-            fps=validated_data.get('fps', 25)
+            fps=validated_data.get('fps', 24),
+            seed=validated_data.get('seed')  # 添加随机种子参数
         )
         
         return StandardResponse.success(
@@ -116,23 +117,16 @@ def image_to_video(request):
         
         validated_data = serializer.validated_data
         
-        # 处理风格预设
-        prompt = validated_data['prompt']
-        if validated_data.get('style_preset_id'):
-            prompt = ai_video_service.apply_style_preset(
-                validated_data['style_preset_id'],
-                prompt
-            )
-        
         # 调用AI视频服务
         result = ai_video_service.image_to_video(
             user_id=request.user.id,
-            prompt=prompt,
+            prompt=validated_data.get('prompt', ''),
             input_image=validated_data.get('input_image'),
             input_image_url=validated_data.get('input_image_url'),
-            model=validated_data.get('model', 'wan2.2-i2v-plus'),
-            resolution=validated_data.get('resolution', '1080P'),
-            duration=validated_data.get('duration', 5)
+            model=validated_data.get('model', 'wan2.5-i2v-preview'),
+            resolution=validated_data.get('resolution', '720P'),  # 使用 P 格式
+            duration=validated_data.get('duration', 5),
+            fps=validated_data.get('fps', 24)
         )
         
         return StandardResponse.success(

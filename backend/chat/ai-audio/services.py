@@ -365,15 +365,14 @@ class AIAudioService:
                 {
                     "role": "user",
                     "content": [
-                        {"audio": audio_file_url},
-                        {"text": "请将音频内容转换为文字，只输出识别的文字内容，不需要额外说明。"}
+                        {"audio": audio_file_url}
                     ]
                 }
             ]
             
             # 调用 MultiModalConversation API（流式）
             responses = dashscope.MultiModalConversation.call(
-                model="qwen-audio-turbo-latest",
+                model="qwen-audio-asr",#qwen-audio-turbo-latest
                 messages=messages,
                 stream=True,
                 incremental_output=True,

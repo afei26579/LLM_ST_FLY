@@ -2,7 +2,7 @@
 智能体URL配置
 """
 
-from django.urls import path
+from django.urls import path, include
 from . import views
 
 app_name = 'agent'
@@ -22,4 +22,13 @@ urlpatterns = [
     
     # 用户统计
     path('stats/', views.get_user_stats, name='get_user_stats'),
+    
+    # 旅游助手（LangGraph）
+    path('travel-assistant/', include('agent.travel_assistant.urls')),
+    
+    # 诗词绘画（LangGraph）
+    path('poetry-painting/', include('agent.poetry_painting.urls')),
+    
+    # 智能客服（LangGraph）
+    path('customer-service/', include('agent.customer_service.urls')),
 ]
