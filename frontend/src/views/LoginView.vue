@@ -238,6 +238,8 @@ const togglePasswordVisibility = () => {
 // 初始化粒子动画
 onMounted(() => {
   initParticles()
+  // 清除登录重定向标记
+  sessionStorage.removeItem('isRedirectingToLogin')
 })
 
 // 粒子动画

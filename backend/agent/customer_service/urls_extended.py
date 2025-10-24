@@ -10,7 +10,8 @@ from .views_extended import (
     get_default_assistant,
     search_knowledge,
     chunk_documents,
-    vectorize_chunks
+    vectorize_chunks,
+    get_recommended_questions
 )
 
 # 创建路由器
@@ -28,6 +29,7 @@ urlpatterns = [
     path('knowledge/search/', search_knowledge, name='search-knowledge'),
     path('knowledge-bases/chunk-documents/', chunk_documents, name='chunk-documents'),
     path('knowledge-bases/vectorize/', vectorize_chunks, name='vectorize-chunks'),
+    path('recommended-questions/', get_recommended_questions, name='recommended-questions'),
     
     # 路由器生成的URLs
     path('', include(router.urls)),

@@ -147,7 +147,7 @@ class AIReadingService:
                         "content": """你是一个专业的文档分析助手。请对上传的文档进行全面分析，并按以下JSON格式返回结果：
 
                         {
-                            "summary": "文档的详细总结",
+                            "summary": "文档的详细总结，100字以内",
                             "keyPoints": ["要点1", "要点2", "要点3"],
                             "keywords": ["关键词1", "关键词2", "关键词3"],
                             "entities": [{"text": "实体名", "type": "实体类型"}],
@@ -155,7 +155,7 @@ class AIReadingService:
                         }
 
                         请确保：
-                        1. summary 是对文档内容的详细总结
+                        1. summary 是对文档内容的详细总结，字数要求100字以内
                         2. keyPoints 是文档的核心要点，3-5个
                         3. keywords 是关键词列表，5-10个
                         4. entities 是识别出的重要实体

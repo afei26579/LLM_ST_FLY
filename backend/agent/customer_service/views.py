@@ -99,10 +99,27 @@ def customer_service_chat(request):
     
     user_message = serializer.validated_data['message']
     session_id = serializer.validated_data.get('session_id') or str(uuid.uuid4())
+    assistant_id = serializer.validated_data.get('assistant_id')
     
-    logger.info(f"收到客服消息: user={request.user.username}, session={session_id}")
+    logger.info(f"收到客服消息: user={request.user.username}, session={session_id}, assistant={assistant_id}")
     
     try:
+        # 获取助手信息（如果提供了assistant_id）
+        assistant = None
+        knowledge_bases = []
+        
+        if assistant_id:
+            from .models_extended import CustomerServiceAssistant
+            try:
+                assistant = CustomerServiceAssistant.objects.prefetch_related('knowledge_bases').get(
+                    id=assistant_id,
+                    user=request.user
+                )
+                knowledge_bases = list(assistant.knowledge_bases.all())
+                logger.info(f"使用助手: {assistant.name}, 关联知识库: {len(knowledge_bases)}")
+            except CustomerServiceAssistant.DoesNotExist:
+                logger.warning(f"助手不存在: {assistant_id}")
+        
         # 获取或创建会话
         session, created = CustomerServiceSession.objects.get_or_create(
             session_id=session_id,
@@ -127,10 +144,12 @@ def customer_service_chat(request):
             content=user_message
         )
         
-        # 初始化 LangGraph 服务
+        # 初始化 LangGraph 服务（传递知识库信息）
         try:
             graph_service = CustomerServiceGraph(
-                api_key=settings.DASHSCOPE_API_KEY
+                api_key=settings.DASHSCOPE_API_KEY,
+                model=assistant.model if assistant else "qwen-plus",
+                knowledge_bases=knowledge_bases
             )
             
             # 运行工作流

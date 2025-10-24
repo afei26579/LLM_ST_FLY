@@ -47,10 +47,17 @@ class KnowledgeBaseViewSet(viewsets.ModelViewSet):
         return KnowledgeBase.objects.filter(user=self.request.user)
     
     def list(self, request, *args, **kwargs):
-        """获取知识库列表"""
+        """获取知识库列表 - 只返回就绪且有内容的知识库"""
         try:
-            queryset = self.get_queryset()
+            # 过滤条件：状态为ready，且文档数>0，切片数>0
+            queryset = self.get_queryset().filter(
+                status='ready',
+                document_count__gt=0,
+                chunk_count__gt=0
+            )
             serializer = self.get_serializer(queryset, many=True)
+            
+            logger.info(f"获取知识库列表: 用户={request.user.username}, 数量={queryset.count()}")
             
             return StandardResponse.success(
                 data=serializer.data,
@@ -75,7 +82,7 @@ class KnowledgeBaseViewSet(viewsets.ModelViewSet):
             return StandardResponse.error(message=f'获取知识库详情失败: {str(e)}')
     
     def create(self, request, *args, **kwargs):
-        """创建知识库"""
+        """创建知识库 - 步骤1：基本信息"""
         try:
             data = request.data.copy()
             data['user'] = request.user.id
@@ -83,10 +90,10 @@ class KnowledgeBaseViewSet(viewsets.ModelViewSet):
             serializer = self.get_serializer(data=data)
             serializer.is_valid(raise_exception=True)
             
-            # 创建知识库
-            kb = serializer.save(status='ready')
+            # 创建知识库，状态为 creating
+            kb = serializer.save(status='creating')
             
-            logger.info(f"用户 {request.user.username} 创建知识库: {kb.name}")
+            logger.info(f"用户 {request.user.username} 创建知识库: {kb.name}, 状态: creating")
             
             return StandardResponse.success(
                 data=KnowledgeBaseSerializer(kb).data,
@@ -575,16 +582,32 @@ def chunk_documents(request):
         remove_spaces = request.data.get('remove_spaces', 'true').lower() == 'true'
         remove_urls = request.data.get('remove_urls', 'false').lower() == 'true'
         
+        # 转换中文分隔符名称为实际符号
+        separator_map = {
+            '换行': '\n',
+            '双换行': '\n\n',
+            '句号': '。',
+            '空格': ' ',
+            'newline': '\n',
+            'double_newline': '\n\n'
+        }
+        chunk_separator = separator_map.get(chunk_separator, chunk_separator)
+        
+        logger.info(f"切片配置: strategy={chunk_strategy}, separator='{repr(chunk_separator)}', "
+                   f"max_length={chunk_max_length}, overlap={chunk_overlap}")
+        
         if not kb_id:
             return StandardResponse.error(message='缺少knowledge_base_id参数')
         
         if not files:
             return StandardResponse.error(message='请上传至少一个文件')
         
-        # 获取知识库
+        # 获取知识库 - 步骤2：开始处理文档切片
         kb = get_object_or_404(KnowledgeBase, id=kb_id, user=request.user)
         kb.status = 'processing'
         kb.save()
+        
+        logger.info(f"开始文档切片: KB={kb.name}, 状态: processing, 文件数: {len(files)}")
         
         processor = DocumentProcessor()
         all_chunks = []
@@ -659,11 +682,13 @@ def chunk_documents(request):
                     document.error_message = str(e)
                     document.save()
         
-        # 更新知识库统计
+        # 更新知识库统计 - 步骤2：切片完成，保持 processing 状态
         kb.document_count = kb.documents.count()
         kb.chunk_count = sum(doc.chunk_count for doc in documents_created)
-        kb.status = 'ready'
+        # 状态保持为 processing，等待向量化
         kb.save()
+        
+        logger.info(f"文档切片完成: KB={kb.name}, 状态: processing, 切片数: {len(all_chunks)}")
         
         return StandardResponse.success(
             data={
@@ -686,10 +711,8 @@ def chunk_documents(request):
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def vectorize_chunks(request):
-    """向量化切片并存储到ChromaDB"""
+    """向量化切片并存储到ChromaDB - 步骤3：向量化（异步处理）"""
     try:
-        from .vector_service import VectorService
-        
         kb_id = request.data.get('knowledge_base_id')
         chunks_data = request.data.get('chunks', [])
         
@@ -699,127 +722,284 @@ def vectorize_chunks(request):
         if not chunks_data:
             return StandardResponse.error(message='缺少切片数据')
         
-        # 获取知识库
+        # 获取知识库 - 步骤3：开始向量化（状态应该是 processing）
         kb = get_object_or_404(KnowledgeBase, id=kb_id, user=request.user)
         
-        vector_service = VectorService()
-        vectorized_count = 0
+        logger.info(f"提交向量化任务: KB={kb.name}, 当前状态: {kb.status}, 切片数: {len(chunks_data)}")
         
-        # 准备批量向量化的数据
-        texts = []
-        chunk_mappings = []
+        # 启动异步向量化线程
+        import threading
         
-        for chunk_data in chunks_data:
-            content = chunk_data.get('content', '')
-            metadata = chunk_data.get('metadata', {})
-            
-            if content:
-                texts.append(content)
-                chunk_mappings.append({
-                    'content': content,
-                    'index': chunk_data.get('index', 0),
-                    'metadata': metadata
-                })
-        
-        # 批量生成向量
-        logger.info(f"开始批量向量化 {len(texts)} 个切片")
-        embeddings = vector_service.get_embeddings_batch(texts)
-        
-        # 准备存储到ChromaDB的数据
-        chroma_chunks = []
-        db_chunks = []
-        chunk_id_mapping = {}  # 用于记录chunk_id和数据库ID的映射
-        
-        for i, (chunk_mapping, embedding) in enumerate(zip(chunk_mappings, embeddings)):
-            metadata = chunk_mapping['metadata']
-            document_id = metadata.get('document_id')
-            
-            if not document_id:
-                continue
-            
-            # 获取文档
+        def async_vectorize():
+            """异步向量化处理"""
             try:
-                document = KnowledgeDocument.objects.get(id=document_id)
-            except KnowledgeDocument.DoesNotExist:
-                logger.warning(f"文档 {document_id} 不存在")
-                continue
-            
-            # 先创建数据库记录，获取真实的chunk_id
-            db_chunk = DocumentChunk(
-                document=document,
-                knowledge_base=kb,
-                content=chunk_mapping['content'],
-                chunk_index=chunk_mapping['index'],
-                embedding='',  # 向量存储在ChromaDB，这里保存ChromaDB的chunk_id作为引用
-                metadata=metadata,
-                token_count=len(chunk_mapping['content']) // 4
-            )
-            db_chunks.append(db_chunk)
+                from .vector_service import VectorService
+                
+                logger.info(f"[异步向量化] 开始处理: KB={kb.name}")
+                
+                vector_service = VectorService()
+                
+                # 准备批量向量化的数据
+                texts = []
+                chunk_mappings = []
+                
+                for chunk_data in chunks_data:
+                    content = chunk_data.get('content', '')
+                    metadata = chunk_data.get('metadata', {})
+                    
+                    if content:
+                        texts.append(content)
+                        chunk_mappings.append({
+                            'content': content,
+                            'index': chunk_data.get('index', 0),
+                            'metadata': metadata
+                        })
+                
+                # 批量生成向量
+                logger.info(f"[异步向量化] 开始批量向量化 {len(texts)} 个切片")
+                embeddings = vector_service.get_embeddings_batch(texts)
+                
+                # 准备存储到ChromaDB的数据
+                chroma_chunks = []
+                db_chunks = []
+                
+                for i, (chunk_mapping, embedding) in enumerate(zip(chunk_mappings, embeddings)):
+                    metadata = chunk_mapping['metadata']
+                    document_id = metadata.get('document_id')
+                    
+                    if not document_id:
+                        continue
+                    
+                    try:
+                        document = KnowledgeDocument.objects.get(id=document_id)
+                    except KnowledgeDocument.DoesNotExist:
+                        logger.warning(f"文档 {document_id} 不存在")
+                        continue
+                    
+                    db_chunk = DocumentChunk(
+                        document=document,
+                        knowledge_base=kb,
+                        content=chunk_mapping['content'],
+                        chunk_index=chunk_mapping['index'],
+                        embedding='',
+                        metadata=metadata,
+                        token_count=len(chunk_mapping['content']) // 4
+                    )
+                    db_chunks.append(db_chunk)
+                
+                # 批量创建数据库记录
+                created_chunks = DocumentChunk.objects.bulk_create(db_chunks)
+                logger.info(f"[异步向量化] 数据库记录创建完成: {len(created_chunks)} 条")
+                
+                # 准备ChromaDB数据
+                for db_chunk in created_chunks:
+                    chunk_id = f"chunk_{db_chunk.id}"
+                    db_chunk.embedding = chunk_id
+                    
+                    enhanced_metadata = {
+                        **db_chunk.metadata,
+                        'db_chunk_id': db_chunk.id,
+                        'kb_id': kb.id,
+                        'kb_name': kb.name,
+                        'document_id': db_chunk.document.id,
+                        'document_name': db_chunk.document.filename,
+                        'chunk_index': db_chunk.chunk_index
+                    }
+                    
+                    chroma_chunks.append({
+                        'id': chunk_id,
+                        'content': db_chunk.content,
+                        'embedding': None,
+                        'metadata': enhanced_metadata,
+                        'index': db_chunk.chunk_index
+                    })
+                
+                DocumentChunk.objects.bulk_update(created_chunks, ['embedding'])
+                
+                for i, chunk in enumerate(chroma_chunks):
+                    chunk['embedding'] = embeddings[i]
+                
+                # 批量存储到ChromaDB
+                logger.info(f"[异步向量化] 存储 {len(chroma_chunks)} 个切片到ChromaDB")
+                vector_service.add_chunks_to_collection(
+                    kb_id=kb.id,
+                    kb_name=kb.name,
+                    chunks=chroma_chunks
+                )
+                
+                # 更新知识库统计和状态
+                kb.chunk_count = DocumentChunk.objects.filter(knowledge_base=kb).count()
+                kb.total_tokens = sum(chunk.token_count for chunk in DocumentChunk.objects.filter(knowledge_base=kb))
+                kb.status = 'ready'
+                kb.save()
+                
+                logger.info(f"[异步向量化] 向量化完成: KB={kb.name}, 状态: ready, 处理 {len(created_chunks)} 个切片")
+                
+                # 异步执行文档分析
+                def async_analyze_documents():
+                    try:
+                        logger.info(f"[异步分析] 开始分析知识库文档: KB={kb.name}")
+                        from .document_analyzer import DocumentAnalyzerGraph
+                        
+                        chunks_data_for_analysis = [
+                            {
+                                'content': chunk.content,
+                                'metadata': chunk.metadata
+                            }
+                            for chunk in DocumentChunk.objects.filter(knowledge_base=kb)[:50]
+                        ]
+                        
+                        analyzer = DocumentAnalyzerGraph()
+                        analysis_result = analyzer.run(chunks_data_for_analysis)
+                        
+                        kb.domain = analysis_result.get('domain', '')
+                        kb.summary = analysis_result.get('summary', '')
+                        kb.key_points = analysis_result.get('key_points', [])
+                        kb.keywords = analysis_result.get('keywords', [])
+                        kb.suggested_questions = analysis_result.get('suggested_questions', [])
+                        kb.intent_prompt = analysis_result.get('intent_prompt', '')
+                        kb.save()
+                        
+                        logger.info(f"[异步分析] 文档分析完成: KB={kb.name}, 领域={kb.domain}")
+                        
+                    except Exception as e:
+                        logger.error(f"[异步分析] 文档分析失败: {e}", exc_info=True)
+                
+                analysis_thread = threading.Thread(target=async_analyze_documents)
+                analysis_thread.daemon = True
+                analysis_thread.start()
+                
+            except Exception as e:
+                logger.error(f"[异步向量化] 向量化失败: {e}", exc_info=True)
+                kb.status = 'error'
+                kb.error_message = str(e)
+                kb.save()
         
-        # 批量创建数据库记录
-        created_chunks = DocumentChunk.objects.bulk_create(db_chunks)
+        # 启动异步向量化线程
+        vectorize_thread = threading.Thread(target=async_vectorize)
+        vectorize_thread.daemon = True
+        vectorize_thread.start()
         
-        # 准备ChromaDB数据（使用数据库生成的ID）
-        for db_chunk in created_chunks:
-            # ChromaDB的ID使用数据库chunk的ID，确保唯一性和可追溯性
-            chunk_id = f"chunk_{db_chunk.id}"
-            
-            # 更新数据库记录，保存ChromaDB的引用ID
-            db_chunk.embedding = chunk_id
-            
-            # 增强元数据，添加数据库关联信息
-            enhanced_metadata = {
-                **db_chunk.metadata,
-                'db_chunk_id': db_chunk.id,
-                'kb_id': kb.id,
-                'kb_name': kb.name,
-                'document_id': db_chunk.document.id,
-                'document_name': db_chunk.document.filename,
-                'chunk_index': db_chunk.chunk_index
-            }
-            
-            chroma_chunks.append({
-                'id': chunk_id,
-                'content': db_chunk.content,
-                'embedding': None,  # 稍后批量添加
-                'metadata': enhanced_metadata,
-                'index': db_chunk.chunk_index
-            })
+        logger.info(f"向量化任务已提交，后台异步处理中: KB={kb.name}")
         
-        # 批量更新数据库记录的embedding字段
-        DocumentChunk.objects.bulk_update(created_chunks, ['embedding'])
-        
-        # 提取embeddings
-        for i, chunk in enumerate(chroma_chunks):
-            chunk['embedding'] = embeddings[i]
-        
-        # 批量存储到ChromaDB
-        logger.info(f"存储 {len(chroma_chunks)} 个切片到ChromaDB")
-        vector_service.add_chunks_to_collection(
-            kb_id=kb.id,
-            kb_name=kb.name,
-            chunks=chroma_chunks
-        )
-        
-        vectorized_count = len(created_chunks)
-        
-        # 更新知识库统计
-        kb.chunk_count = DocumentChunk.objects.filter(knowledge_base=kb).count()
-        kb.total_tokens = sum(chunk.token_count for chunk in DocumentChunk.objects.filter(knowledge_base=kb))
-        kb.status = 'ready'
-        kb.save()
-        
-        logger.info(f"向量化完成: KB={kb.name}, 处理 {vectorized_count} 个切片")
-        
+        # 立即返回成功响应，不等待向量化完成
         return StandardResponse.success(
             data={
-                'vectorized_count': vectorized_count,
-                'total_chunks': kb.chunk_count,
-                'total_tokens': kb.total_tokens
+                'message': '向量化任务已提交，正在后台处理',
+                'knowledge_base_id': kb.id,
+                'chunks_count': len(chunks_data)
             },
-            message=f'向量化完成，处理 {vectorized_count} 个切片'
+            message=f'向量化任务已提交，正在后台处理 {len(chunks_data)} 个切片'
         )
         
     except Exception as e:
         logger.error(f"向量化失败: {str(e)}", exc_info=True)
         return StandardResponse.error(message=f'向量化失败: {str(e)}')
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def get_recommended_questions(request):
+    """根据知识库获取推荐问题"""
+    try:
+        kb_ids = request.data.get('knowledge_base_ids', [])
+        limit = request.data.get('limit', 4)
+        
+        logger.info(f"获取推荐问题: kb_ids={kb_ids}, limit={limit}, user={request.user.username}")
+        
+        if not kb_ids:
+            # 没有知识库ID时返回通用问题
+            logger.info("没有知识库ID，返回通用问题")
+            return StandardResponse.success(
+                data=[
+                    '你能做什么？',
+                    '有哪些功能？',
+                    '如何开始使用？',
+                    '常见问题有哪些？'
+                ],
+                message='获取推荐问题成功'
+            )
+        
+        # 从知识库中获取AI生成的推荐问题
+        knowledge_bases = KnowledgeBase.objects.filter(
+            id__in=kb_ids,
+            user=request.user
+        )
+        
+        logger.info(f"找到 {knowledge_bases.count()} 个知识库")
+        
+        questions = []
+        seen_questions = set()
+        
+        # 优先使用AI分析生成的推荐问题
+        for kb in knowledge_bases:
+            logger.info(f"知识库 {kb.name}: suggested_questions={kb.suggested_questions}")
+            if kb.suggested_questions:
+                logger.info(f"  - 有 {len(kb.suggested_questions)} 个AI生成的推荐问题")
+                for q in kb.suggested_questions:
+                    q = q.strip()
+                    if q and q not in seen_questions:
+                        questions.append(q)
+                        seen_questions.add(q)
+                        if len(questions) >= limit:
+                            break
+            else:
+                logger.warning(f"  - suggested_questions 为空")
+            
+            if len(questions) >= limit:
+                break
+        
+        # 如果AI生成的问题不够，从文档切片中提取
+        if len(questions) < limit:
+            from .models_extended import DocumentChunk
+            
+            chunks = DocumentChunk.objects.filter(
+                knowledge_base_id__in=kb_ids
+            ).filter(
+                content__contains='？'
+            ).order_by('?')[:limit * 2]
+            
+            for chunk in chunks:
+                content = chunk.content.strip()
+                sentences = content.split('\n')
+                
+                for sentence in sentences:
+                    sentence = sentence.strip()
+                    if sentence.endswith('？') and 5 <= len(sentence) <= 50:
+                        if sentence not in seen_questions:
+                            questions.append(sentence)
+                            seen_questions.add(sentence)
+                            if len(questions) >= limit:
+                                break
+                
+                if len(questions) >= limit:
+                    break
+        
+        # 如果从文档中提取的问题不够，补充通用问题
+        if len(questions) < limit:
+            logger.info(f"问题数量不足({len(questions)})，补充通用问题")
+            default_questions = [
+                '介绍一下主要功能',
+                '有什么使用技巧？',
+                '常见问题有哪些？',
+                '如何快速上手？',
+                '有哪些注意事项？',
+                '如何解决常见问题？'
+            ]
+            for dq in default_questions:
+                if dq not in questions:
+                    questions.append(dq)
+                if len(questions) >= limit:
+                    break
+        
+        final_questions = questions[:limit]
+        logger.info(f"✅ 返回推荐问题: {final_questions}")
+        
+        return StandardResponse.success(
+            data=final_questions,
+            message='获取推荐问题成功'
+        )
+        
+    except Exception as e:
+        logger.error(f"获取推荐问题失败: {str(e)}", exc_info=True)
+        return StandardResponse.error(message=f'获取推荐问题失败: {str(e)}')

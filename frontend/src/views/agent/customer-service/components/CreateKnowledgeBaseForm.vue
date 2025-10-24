@@ -178,34 +178,43 @@
           <div v-if="chunkConfig.strategy === 'custom'" class="custom-config">
             <div class="config-row">
               <label>分段标识符</label>
-              <input 
-                v-model="chunkConfig.separator" 
-                type="text"
-                placeholder="换行"
-                class="config-input"
+              <CustomSelect 
+                v-model="chunkConfig.separator"
+                :options="separatorOptions"
               />
+              <small class="config-hint">💡 建议：文档类使用"双换行"，对话类使用"换行符"</small>
             </div>
 
             <div class="config-row">
-              <label>分段最大长度</label>
+              <label>分段最大长度: {{ chunkConfig.maxLength }} 字符</label>
               <input 
                 v-model.number="chunkConfig.maxLength" 
-                type="number"
-                min="100"
-                max="5000"
-                class="config-input"
+                type="range"
+                min="200"
+                max="1200"
+                step="50"
+                class="config-range"
               />
+              <div class="range-labels">
+                <span>200</span>
+                <span>1200</span>
+              </div>
             </div>
 
             <div class="config-row">
-              <label>分段重叠度 %</label>
+              <label>分段重叠度: {{ chunkConfig.overlap }}% (约 {{ Math.round(chunkConfig.maxLength * chunkConfig.overlap / 100) }} 字符)</label>
               <input 
                 v-model.number="chunkConfig.overlap" 
-                type="number"
-                min="0"
-                max="50"
-                class="config-input"
+                type="range"
+                min="10"
+                max="30"
+                step="5"
+                class="config-range"
               />
+              <div class="range-labels">
+                <span>10%</span>
+                <span>30%</span>
+              </div>
             </div>
 
             <div class="config-row">
@@ -261,28 +270,19 @@
       <!-- 步骤4：向量化 -->
       <div v-else-if="currentStep === 4" class="step-content">
         <div class="processing-view">
-          <div v-if="isVectorizing" class="processing-status">
+          <div class="processing-status">
             <div class="spinner-large"></div>
             <h3>正在向量化...</h3>
             <p>{{ vectorizingProgress }}%</p>
             <div class="progress-bar">
               <div class="progress-fill" :style="{ width: vectorizingProgress + '%' }"></div>
             </div>
-          </div>
-          
-          <div v-else class="complete-view">
-            <div class="complete-icon">✅</div>
-            <h3>知识库创建完成！</h3>
-            <p>已向量化 {{ chunks.length }} 个文档切片</p>
-            <div class="final-stats">
-              <div class="stat-box">
-                <div class="stat-value">{{ uploadedFiles.length }}</div>
-                <div class="stat-label">文档数</div>
-              </div>
-              <div class="stat-box">
-                <div class="stat-value">{{ chunks.length }}</div>
-                <div class="stat-label">切片数</div>
-              </div>
+            <div class="async-notice">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10"></circle>
+                <path d="M12 16v-4M12 8h.01"></path>
+              </svg>
+              <span>向量化正在后台进行，您可以点击"完成"按钮离开</span>
             </div>
           </div>
         </div>
@@ -317,15 +317,15 @@
       <button
         v-else-if="currentStep === 3"
         @click="handleVectorize"
-        :disabled="loading || isVectorizing"
+        :disabled="loading"
         class="btn-primary"
       >
         <span v-if="!loading">下一步：向量化</span>
-        <span v-else>处理中...</span>
+        <span v-else>提交中...</span>
       </button>
       <button
-        v-else-if="currentStep === 4 && !isVectorizing"
-        @click="$emit('cancel')"
+        v-else-if="currentStep === 4"
+        @click="handleComplete"
         class="btn-primary"
       >
         完成
@@ -335,7 +335,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onUnmounted } from 'vue'
+import CustomSelect from '@/components/CustomSelect.vue'
 
 interface ChunkConfig {
   strategy: string
@@ -375,9 +376,9 @@ const formData = ref({
 
 const chunkConfig = ref({
   strategy: 'auto',
-  separator: '换行',
+  separator: '\n',
   maxLength: 800,
-  overlap: 10,
+  overlap: 15,  // 百分比（15%）
   removeSpaces: true,
   removeUrls: false
 })
@@ -387,6 +388,14 @@ const avgChunkLength = computed(() => {
   const total = chunks.value.reduce((sum, chunk) => sum + chunk.content.length, 0)
   return Math.round(total / chunks.value.length)
 })
+
+// 分段标识符选项
+const separatorOptions = [
+  { value: '\n', label: '换行符 - 按行分段' },
+  { value: '\n\n', label: '双换行 - 按段落分段' },
+  { value: '。', label: '句号 - 按句子分段' },
+  { value: ' ', label: '空格 - 按词分段' }
+]
 
 // 格式选项
 const formatOptions = [
@@ -526,6 +535,9 @@ const handleChunkDocuments = async () => {
   
   loading.value = true
   
+  const { useToast } = await import('vue-toastification')
+  const toast = useToast()
+  
   try {
     const { apiService } = await import('@/services/api')
     const formData = new FormData()
@@ -540,68 +552,118 @@ const handleChunkDocuments = async () => {
     formData.append('chunk_strategy', chunkConfig.value.strategy)
     formData.append('chunk_separator', chunkConfig.value.separator)
     formData.append('chunk_max_length', chunkConfig.value.maxLength.toString())
-    formData.append('chunk_overlap', chunkConfig.value.overlap.toString())
+    
+    // 将百分比转换为实际字符数
+    const overlapChars = Math.round(chunkConfig.value.maxLength * chunkConfig.value.overlap / 100)
+    formData.append('chunk_overlap', overlapChars.toString())
+    
     formData.append('remove_spaces', chunkConfig.value.removeSpaces.toString())
     formData.append('remove_urls', chunkConfig.value.removeUrls.toString())
     
     const response = await apiService.post('/agent/customer-service/knowledge-bases/chunk-documents/', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' }
+      headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: 60000  // 文档切片超时时间设置为60秒
     })
+    
+    console.log('切片响应:', response.data)
     
     if (response.data?.code === 200) {
       chunks.value = response.data.data.chunks || []
+      console.log('切片数据:', chunks.value.length, '个切片')
+      toast.success(`文档切片完成，共生成 ${chunks.value.length} 个切片`)
       currentStep.value = 3
+      console.log('切换到步骤3，currentStep =', currentStep.value)
+    } else {
+      console.error('切片失败，返回码:', response.data?.code, '消息:', response.data?.message)
+      toast.error(response.data?.message || '文档切片失败')
     }
   } catch (error: any) {
     console.error('文档切片失败:', error)
+    console.error('错误详情:', error.response?.data)
+    const errorMessage = error.response?.data?.message || error.message || '文档切片失败'
+    toast.error(errorMessage)
   } finally {
     loading.value = false
   }
 }
 
-// 步骤3：向量化
+// 步骤3：向量化（异步处理，显示模拟进度，用户可随时离开）
 const handleVectorize = async () => {
-  if (loading.value || isVectorizing.value) return
+  if (loading.value) return
   
-  isVectorizing.value = true
-  vectorizingProgress.value = 0
-  currentStep.value = 4
+  loading.value = true
+  
+  const { useToast } = await import('vue-toastification')
+  const toast = useToast()
   
   try {
     const { apiService } = await import('@/services/api')
     
-    // 模拟进度更新
-    const progressInterval = setInterval(() => {
-      if (vectorizingProgress.value < 90) {
-        vectorizingProgress.value += 10
-      }
-    }, 500)
-    
+    // 提交向量化任务到后台
     const response = await apiService.post('/agent/customer-service/knowledge-bases/vectorize/', {
       knowledge_base_id: knowledgeBaseId.value,
       chunks: chunks.value
     })
     
-    clearInterval(progressInterval)
-    vectorizingProgress.value = 100
+    console.log('向量化任务提交响应:', response.data)
     
     if (response.data?.code === 200) {
-      setTimeout(() => {
-        isVectorizing.value = false
-        emit('submit', {
-          name: formData.value.name.trim(),
-          description: formData.value.description.trim(),
-          format: formData.value.format,
-          files: uploadedFiles.value,
-          chunkConfig: chunkConfig.value
-        })
-      }, 500)
+      // 跳转到步骤4，显示进度
+      currentStep.value = 4
+      isVectorizing.value = true
+      vectorizingProgress.value = 0
+      
+      toast.success('向量化任务已提交，正在后台处理')
+      console.log('向量化任务已提交，后台处理中')
+      
+      // 模拟进度更新（仅用于UI反馈，后台实际异步处理）
+      const progressInterval = setInterval(() => {
+        if (vectorizingProgress.value < 95) {
+          vectorizingProgress.value += 5
+        } else {
+          clearInterval(progressInterval)
+        }
+      }, 1000)
+      
+      // 存储 interval ID 以便清理
+      ;(window as any).__vectorizeProgressInterval = progressInterval
+    } else {
+      toast.error(response.data?.message || '提交向量化任务失败')
     }
   } catch (error: any) {
-    console.error('向量化失败:', error)
-    isVectorizing.value = false
+    console.error('提交向量化任务失败:', error)
+    toast.error(error.message || '提交向量化任务失败')
+  } finally {
+    loading.value = false
   }
 }
+
+// 完成操作
+const handleComplete = async () => {
+  // 清理进度更新定时器
+  const progressInterval = (window as any).__vectorizeProgressInterval
+  if (progressInterval) {
+    clearInterval(progressInterval)
+    delete (window as any).__vectorizeProgressInterval
+  }
+  
+  // 提示用户
+  const { useToast } = await import('vue-toastification')
+  const toast = useToast()
+  toast.info('知识库创建已提交，向量化将在后台完成')
+  
+  // 触发取消事件，关闭表单
+  emit('cancel')
+}
+
+// 组件卸载时清理定时器
+onUnmounted(() => {
+  const progressInterval = (window as any).__vectorizeProgressInterval
+  if (progressInterval) {
+    clearInterval(progressInterval)
+    delete (window as any).__vectorizeProgressInterval
+  }
+})
 </script>
 
 <style scoped>
@@ -1192,12 +1254,15 @@ const handleVectorize = async () => {
 
 /* 自定义配置 */
 .custom-config {
-  padding-top: 12px;
-  border-top: 1px solid var(--color-border);
+  padding: 16px;
+  margin-top: 12px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
 }
 
 .config-row {
-  margin-bottom: 12px;
+  margin-bottom: 16px;
 }
 
 .config-row:last-child {
@@ -1206,46 +1271,142 @@ const handleVectorize = async () => {
 
 .config-row label {
   display: block;
-  margin-bottom: 6px;
-  font-size: 12px;
-  font-weight: 500;
+  margin-bottom: 8px;
+  font-size: 13px;
+  font-weight: 600;
   color: var(--color-text);
 }
 
 .config-input {
   width: 100%;
-  padding: 8px 12px;
+  padding: 10px 14px;
   background: var(--input-background);
-  border: 1px solid var(--input-border);
-  border-radius: 6px;
-  font-size: 13px;
+  border: 2px solid var(--color-border);
+  border-radius: 8px;
+  font-size: 14px;
   color: var(--color-text);
+  transition: all 0.3s;
+}
+
+.config-input:hover {
+  border-color: var(--button-primary);
 }
 
 .config-input:focus {
   outline: none;
   border-color: var(--button-primary);
+  box-shadow: 0 0 0 3px var(--input-focus-shadow);
+}
+
+.config-hint {
+  display: block;
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  font-style: italic;
 }
 
 .checkbox-group {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
+  padding: 12px;
+  background: var(--input-background);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
 }
 
 .checkbox-item {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   cursor: pointer;
-  font-size: 12px;
+  font-size: 13px;
   color: var(--color-text);
+  padding: 6px 8px;
+  border-radius: 4px;
+  transition: background 0.2s;
+}
+
+.checkbox-item:hover {
+  background: var(--color-background);
 }
 
 .checkbox-item input[type="checkbox"] {
-  width: 16px;
-  height: 16px;
+  width: 18px;
+  height: 18px;
   cursor: pointer;
+  accent-color: var(--button-primary);
+}
+
+/* 滑块样式 */
+.config-range {
+  width: 100%;
+  height: 6px;
+  background: linear-gradient(to right, 
+    var(--color-primary-alpha) 0%, 
+    var(--color-border) 100%);
+  border-radius: 3px;
+  outline: none;
+  -webkit-appearance: none;
+  appearance: none;
+  cursor: pointer;
+  position: relative;
+}
+
+.config-range::-webkit-slider-runnable-track {
+  width: 100%;
+  height: 6px;
+  background: var(--color-primary-alpha);
+  border-radius: 3px;
+}
+
+.config-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 20px;
+  height: 20px;
+  background: var(--button-primary);
+  border-radius: 50%;
+  cursor: pointer;
+  transition: all 0.2s;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.config-range::-webkit-slider-thumb:hover {
+  transform: scale(1.2);
+  box-shadow: 0 0 0 4px var(--input-focus-shadow);
+}
+
+.config-range::-moz-range-track {
+  width: 100%;
+  height: 6px;
+  background: var(--color-primary-alpha);
+  border-radius: 3px;
+}
+
+.config-range::-moz-range-thumb {
+  width: 20px;
+  height: 20px;
+  background: var(--button-primary);
+  border-radius: 50%;
+  cursor: pointer;
+  border: none;
+  transition: all 0.2s;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.config-range::-moz-range-thumb:hover {
+  transform: scale(1.2);
+  box-shadow: 0 0 0 4px var(--input-focus-shadow);
+}
+
+.range-labels {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--color-text-secondary);
 }
 
 /* 切片预览 */
@@ -1408,6 +1569,32 @@ const handleVectorize = async () => {
 .stat-label {
   font-size: 13px;
   color: var(--color-text-secondary);
+}
+
+/* 异步处理提示 */
+.async-notice {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 24px;
+  padding: 12px 16px;
+  background: rgba(59, 130, 246, 0.1);
+  border: 1px solid rgba(59, 130, 246, 0.3);
+  border-radius: 8px;
+  color: var(--color-text);
+  font-size: 13px;
+  max-width: 400px;
+}
+
+.async-notice svg {
+  flex-shrink: 0;
+  color: var(--button-primary);
+}
+
+.processing-status .async-notice {
+  margin-top: 24px;
+  background: rgba(59, 130, 246, 0.08);
 }
 </style>
 

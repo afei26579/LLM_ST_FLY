@@ -65,6 +65,7 @@ class ChatRequestSerializer(serializers.Serializer):
     """聊天请求序列化器"""
     message = serializers.CharField(required=True, max_length=2000)
     session_id = serializers.CharField(required=False, allow_blank=True)
+    assistant_id = serializers.IntegerField(required=False)
     
     def validate_message(self, value):
         """验证消息内容"""

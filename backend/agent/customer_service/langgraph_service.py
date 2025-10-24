@@ -8,11 +8,12 @@ import operator
 from datetime import datetime
 
 from langgraph.graph import StateGraph, END
-from langchain_community.chat_models import ChatOpenAI
+from langchain_openai import ChatOpenAI
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage, BaseMessage
 from langchain_core.prompts import ChatPromptTemplate
 
 from django.conf import settings
+from django.db import models as django_models
 from .models import CustomerServiceKnowledgeBase
 
 logger = logging.getLogger(__name__)
@@ -35,15 +36,17 @@ class CustomerServiceState(TypedDict):
 class CustomerServiceGraph:
     """智能客服 LangGraph 工作流"""
     
-    def __init__(self, api_key: str = None, model: str = "qwen-plus"):
+    def __init__(self, api_key: str = None, model: str = "qwen-plus", knowledge_bases: list = None):
         """
         初始化客服图
         
         Args:
             api_key: DashScope API Key
             model: 使用的模型名称
+            knowledge_bases: 助手关联的知识库列表
         """
         self.api_key = api_key or settings.DASHSCOPE_API_KEY
+        self.knowledge_bases = knowledge_bases or []
         
         # 初始化 LLM
         self.llm = ChatOpenAI(
@@ -58,65 +61,44 @@ class CustomerServiceGraph:
         self.graph = self._build_graph()
     
     def _build_graph(self) -> StateGraph:
-        """构建 LangGraph 状态图"""
+        """构建 LangGraph 状态图 - 简化版：只做知识库检索"""
         workflow = StateGraph(CustomerServiceState)
         
         # 添加节点
         workflow.add_node("intent_classifier", self.classify_intent)
-        workflow.add_node("entity_extractor", self.extract_entities)
         workflow.add_node("knowledge_retrieval", self.retrieve_knowledge)
-        workflow.add_node("order_handler", self.handle_order_query)
-        workflow.add_node("product_advisor", self.advise_product)
-        workflow.add_node("tech_support", self.provide_tech_support)
         workflow.add_node("response_generator", self.generate_response)
-        workflow.add_node("human_handoff_check", self.check_human_handoff)
         
         # 设置入口点
         workflow.set_entry_point("intent_classifier")
         
-        # 添加边
-        workflow.add_edge("intent_classifier", "entity_extractor")
-        
-        # 添加条件路由：根据意图分发到不同处理器
+        # 意图分类后，根据是否需要检索进行路由
         workflow.add_conditional_edges(
-            "entity_extractor",
+            "intent_classifier",
             self.route_to_handler,
             {
-                "order": "order_handler",
-                "product": "product_advisor",
-                "technical": "tech_support",
-                "general": "knowledge_retrieval",
-                "complaint": "knowledge_retrieval",
+                "retrieval": "knowledge_retrieval",
+                "reject": "response_generator",
             }
         )
         
-        # 所有处理器都流向响应生成
-        for node in ["order_handler", "product_advisor", "tech_support", "knowledge_retrieval"]:
-            workflow.add_edge(node, "response_generator")
+        # 知识库检索后生成响应
+        workflow.add_edge("knowledge_retrieval", "response_generator")
         
-        # 响应生成后检查是否需要转人工
-        workflow.add_edge("response_generator", "human_handoff_check")
-        
-        # 人工转接判断后结束
-        workflow.add_edge("human_handoff_check", END)
+        # 响应生成后结束
+        workflow.add_edge("response_generator", END)
         
         return workflow.compile()
     
     def classify_intent(self, state: CustomerServiceState) -> CustomerServiceState:
-        """意图分类节点"""
+        """意图分类节点 - 使用知识库分析结果判断"""
         logger.info("开始意图分类")
         
+        # 构建意图识别提示词
+        system_prompt = self._build_intent_prompt()
+        print(system_prompt, 'system_prompt')
         prompt = ChatPromptTemplate.from_messages([
-            ("system", """你是专业的意图分类专家。分析用户消息，返回以下类别之一：
-
-分类规则：
-- order_query: 订单查询、物流跟踪、退换货、订单状态
-- product_consult: 产品咨询、价格查询、功能对比、产品推荐
-- technical_issue: 技术问题、故障报修、使用教程、配置帮助
-- complaint: 投诉建议、质量问题、服务不满
-- general: 通用咨询、闲聊、问候、其他
-
-只返回类别名称，不要解释。"""),
+            ("system", system_prompt),
             ("user", "{message}")
         ])
         
@@ -126,149 +108,94 @@ class CustomerServiceGraph:
             intent = result.content.strip().lower()
             
             # 验证意图是否有效
-            valid_intents = ["order_query", "product_consult", "technical_issue", "complaint", "general"]
-            if intent not in valid_intents:
-                intent = "general"
+            if intent not in ["retrieval", "reject"]:
+                # 默认当作检索需求
+                intent = "retrieval"
             
             state["intent"] = intent
-            state["confidence"] = 0.8
+            state["confidence"] = 0.9
             logger.info(f"意图分类结果: {intent}")
             
         except Exception as e:
             logger.error(f"意图分类失败: {e}")
-            state["intent"] = "general"
+            state["intent"] = "reject"
             state["confidence"] = 0.3
         
         return state
     
-    def extract_entities(self, state: CustomerServiceState) -> CustomerServiceState:
-        """实体提取节点"""
-        logger.info("开始实体提取")
+    def _build_intent_prompt(self) -> str:
+        """构建意图识别提示词（基于知识库分析结果）"""
+        # 如果有知识库且有自定义的 intent_prompt，使用它
+        if self.knowledge_bases:
+            for kb in self.knowledge_bases:
+                if kb.intent_prompt:
+                    logger.info(f"使用知识库 {kb.name} 的自定义意图提示词")
+                    return kb.intent_prompt
         
-        prompt = ChatPromptTemplate.from_messages([
-            ("system", """从用户消息中提取关键实体信息，以JSON格式返回：
+        # 否则使用通用提示词
+        return """你是专业的意图分类专家。判断用户消息是否为知识检索需求。
 
-{{
-    "order_number": "订单号（如：202510210001）",
-    "product_name": "产品名称",
-    "date": "日期（YYYY-MM-DD格式）",
-    "amount": "金额（数字）",
-    "phone": "手机号",
-    "email": "邮箱",
-    "issue_type": "问题类型"
-}}
+知识检索需求包括：
+- 询问产品信息、功能、特性、使用方法
+- 询问技术问题、故障排查、配置说明
+- 询问公司政策、规章制度、流程说明
+- 询问业务相关的专业知识
+- 寻求具体问题的解答或建议
 
-只返回提取到的实体，没有的字段不返回。确保返回有效的JSON格式。"""),
-            ("user", "{message}")
-        ])
-        
-        try:
-            last_message = state["messages"][-1].content
-            result = self.llm.invoke(prompt.format_messages(message=last_message))
-            
-            # 解析 JSON
-            content = result.content.strip()
-            # 移除可能的 markdown 代码块标记
-            if content.startswith("```"):
-                content = content.split("```")[1]
-                if content.startswith("json"):
-                    content = content[4:]
-            
-            entities = json.loads(content)
-            state["entities"] = entities
-            logger.info(f"实体提取结果: {entities}")
-            
-        except Exception as e:
-            logger.error(f"实体提取失败: {e}")
-            state["entities"] = {}
-        
-        return state
+非知识检索需求包括：
+- 闲聊、问候、寒暄（如"你好"、"在吗"）
+- 无关话题（天气、新闻、娱乐等）
+- 情感表达（如"谢谢"、"再见"）
+- 与业务无关的问题
+
+只返回 "retrieval" 或 "reject"，不要解释。
+- retrieval: 是知识检索需求
+- reject: 不是知识检索需求"""
     
     def route_to_handler(self, state: CustomerServiceState) -> str:
-        """路由到具体处理器"""
-        intent_map = {
-            "order_query": "order",
-            "product_consult": "product",
-            "technical_issue": "technical",
-            "complaint": "general",
-            "general": "general"
-        }
+        """路由到具体处理器 - 简化版"""
+        intent = state["intent"]
         
-        route = intent_map.get(state["intent"], "general")
+        if intent == "retrieval":
+            route = "retrieval"
+        else:
+            route = "reject"
+        
         logger.info(f"路由到: {route}")
         return route
     
-    def handle_order_query(self, state: CustomerServiceState) -> CustomerServiceState:
-        """处理订单查询"""
-        logger.info("处理订单查询")
-        
-        order_number = state["entities"].get("order_number")
-        
-        if order_number:
-            # 模拟调用订单系统API
-            order_info = self._query_order_system(order_number)
-            state["tools_result"]["order"] = order_info
-            logger.info(f"订单查询成功: {order_number}")
-        else:
-            state["tools_result"]["order"] = {
-                "status": "need_order_number",
-                "message": "未找到订单号，请提供您的订单号以便查询"
-            }
-            logger.info("未提供订单号")
-        
-        return state
-    
-    def advise_product(self, state: CustomerServiceState) -> CustomerServiceState:
-        """产品咨询顾问"""
-        logger.info("处理产品咨询")
-        
-        product_name = state["entities"].get("product_name", "")
-        user_message = state["messages"][-1].content
-        
-        # 从知识库检索产品信息
-        product_info = self._search_product_knowledge(product_name or user_message)
-        state["tools_result"]["product"] = product_info
-        
-        logger.info(f"产品咨询处理完成: {product_name}")
-        return state
-    
-    def provide_tech_support(self, state: CustomerServiceState) -> CustomerServiceState:
-        """技术支持"""
-        logger.info("提供技术支持")
-        
-        issue_type = state["entities"].get("issue_type", "")
-        user_message = state["messages"][-1].content
-        
-        # 检索技术文档
-        tech_docs = self._search_tech_docs(issue_type or user_message)
-        state["tools_result"]["technical"] = tech_docs
-        
-        logger.info("技术支持处理完成")
-        return state
-    
     def retrieve_knowledge(self, state: CustomerServiceState) -> CustomerServiceState:
-        """知识库检索"""
+        """知识库检索 - 从向量数据库搜索"""
         logger.info("检索知识库")
         
         query = state["messages"][-1].content
-        intent = state["intent"]
         
-        # 根据意图选择知识库分类
-        category_map = {
-            "complaint": "policy",
-            "general": "faq"
-        }
-        category = category_map.get(intent, "faq")
-        
-        knowledge = self._search_knowledge_base(query, category)
+        # 从知识库搜索（不限制分类，搜索所有相关内容）
+        knowledge = self._search_knowledge_base(query, category=None)
         state["tools_result"]["knowledge"] = knowledge
         
         logger.info(f"知识库检索完成: {len(knowledge)} 条结果")
         return state
     
     def generate_response(self, state: CustomerServiceState) -> CustomerServiceState:
-        """生成最终响应"""
+        """生成最终响应 - 简化版"""
         logger.info("生成响应")
+        
+        intent = state["intent"]
+        
+        # 如果不是检索需求，直接返回拒绝消息
+        if intent == "reject":
+            state["response"] = "抱歉，我无法回答这个问题。我是专业的知识库助手，只能回答与业务相关的专业问题。"
+            logger.info("非检索需求，返回拒绝消息")
+            return state
+        
+        # 检索需求：基于知识库内容生成回复
+        knowledge_results = state["tools_result"].get("knowledge", [])
+        
+        if not knowledge_results:
+            state["response"] = "抱歉，我在知识库中没有找到相关信息。请您换个方式描述问题，或提供更多细节。"
+            logger.info("知识库无结果")
+            return state
         
         # 构建对话历史
         history_text = "\n".join([
@@ -276,32 +203,37 @@ class CustomerServiceGraph:
             for msg in state["messages"][:-1]
         ]) if len(state["messages"]) > 1 else "无历史对话"
         
+        # 构建知识库内容（支持向量检索格式）
+        knowledge_text = "\n\n".join([
+            f"【来源：{item.get('category', '知识库')} - {item.get('title', '文档')}】\n{item['content']}"
+            for item in knowledge_results
+        ])
+        
+        logger.info(f"构建知识库上下文，共 {len(knowledge_results)} 条结果")
+        
         prompt = ChatPromptTemplate.from_messages([
-            ("system", """你是专业、友好的智能客服助手。基于以下信息生成回复：
+            ("system", """你是专业的知识库助手。基于检索到的知识库内容回答用户问题。
 
-意图：{intent}
-提取的实体：{entities}
-工具查询结果：{tools_result}
+知识库内容：
+{knowledge}
+
 对话历史：
 {history}
 
 回复要求：
-1. 语气友好、专业、有同理心
-2. 针对性解答用户问题
-3. 如信息不足，礼貌地询问具体细节
-4. 提供后续建议或帮助
-5. 如果是投诉，表达歉意并说明解决方案
-6. 回复简洁明了，200字以内
+1. 严格基于知识库内容回答，不要编造信息
+2. 如果知识库内容不完全匹配问题，选择最相关的内容回答
+3. 语气专业、准确、简洁
+4. 回复控制在200字以内
+5. 如果需要补充说明，可以适当展开
 
 请直接生成回复内容，不要包含其他说明。"""),
-            ("user", "当前用户消息：{current_message}")
+            ("user", "用户问题：{current_message}")
         ])
         
         try:
             result = self.llm.invoke(prompt.format_messages(
-                intent=state["intent"],
-                entities=json.dumps(state["entities"], ensure_ascii=False),
-                tools_result=json.dumps(state["tools_result"], ensure_ascii=False, indent=2),
+                knowledge=knowledge_text,
                 history=history_text,
                 current_message=state["messages"][-1].content
             ))
@@ -311,34 +243,7 @@ class CustomerServiceGraph:
             
         except Exception as e:
             logger.error(f"响应生成失败: {e}")
-            state["response"] = "抱歉，我遇到了一些问题。请稍后再试，或者让我为您转接人工客服。"
-        
-        return state
-    
-    def check_human_handoff(self, state: CustomerServiceState) -> CustomerServiceState:
-        """判断是否需要人工"""
-        logger.info("检查是否需要转人工")
-        
-        user_message = state["messages"][-1].content.lower()
-        
-        # 判断条件
-        needs_human = (
-            state["intent"] == "complaint" or  # 投诉类自动转人工
-            "人工" in user_message or
-            "转接" in user_message or
-            "客服" in user_message and "人" in user_message or
-            state["confidence"] < 0.5  # 置信度低
-        )
-        
-        state["need_human"] = needs_human
-        
-        if needs_human:
-            logger.info("需要转人工")
-            # 在响应中添加转人工提示
-            if not any(keyword in state["response"] for keyword in ["转接", "人工客服"]):
-                state["response"] += "\n\n正在为您转接人工客服，请稍候..."
-        else:
-            logger.info("无需转人工")
+            state["response"] = "抱歉，我遇到了一些问题。请稍后再试。"
         
         return state
     
@@ -372,8 +277,8 @@ class CustomerServiceGraph:
             category='product',
             is_active=True
         ).filter(
-            models.Q(question__icontains=query) | 
-            models.Q(answer__icontains=query)
+            django_models.Q(question__icontains=query) | 
+            django_models.Q(answer__icontains=query)
         )[:3]
         
         if knowledge_items.exists():
@@ -448,39 +353,48 @@ class CustomerServiceGraph:
         ]
     
     def _search_knowledge_base(self, query: str, category: str = None) -> List[Dict[str, str]]:
-        """通用知识库检索"""
+        """通用知识库检索 - 从 ChromaDB 向量数据库检索"""
         logger.info(f"检索知识库: {query}, category: {category}")
         
-        from django.db.models import Q
+        # 检查是否有关联的知识库
+        if not self.knowledge_bases:
+            logger.warning("助手未关联任何知识库")
+            return []
         
-        # 构建查询
-        queryset = CustomerServiceKnowledgeBase.objects.filter(is_active=True)
+        # 获取知识库 IDs
+        kb_ids = [kb.id for kb in self.knowledge_bases]
+        logger.info(f"从 {len(kb_ids)} 个知识库中检索: {kb_ids}")
         
-        if category:
-            queryset = queryset.filter(category=category)
-        
-        queryset = queryset.filter(
-            Q(question__icontains=query) | 
-            Q(answer__icontains=query)
-        )[:5]
-        
-        if queryset.exists():
-            # 更新使用次数
-            for item in queryset:
-                item.use_count += 1
-                item.save(update_fields=['use_count'])
+        try:
+            # 使用向量检索服务
+            from .vector_service import VectorRetriever
             
-            return [
-                {
-                    "question": item.question,
-                    "answer": item.answer,
-                    "category": item.get_category_display()
-                }
-                for item in queryset
-            ]
-        
-        # 返回空列表
-        return []
+            retriever = VectorRetriever()
+            results = retriever.search_similar_chunks(
+                query=query,
+                knowledge_base_ids=kb_ids,
+                top_k=5,
+                similarity_threshold=0.5  # 降低阈值，提高召回率
+            )
+            
+            logger.info(f"向量检索完成: 找到 {len(results)} 条相似结果")
+            
+            # 格式化结果
+            formatted_results = []
+            for result in results:
+                formatted_results.append({
+                    "title": result.get('metadata', {}).get('document_name', '未知文档'),
+                    "content": result['content'],
+                    "category": result.get('metadata', {}).get('kb_name', '知识库'),
+                    "similarity": f"{result['similarity']:.2f}"
+                })
+                logger.info(f"  - {result.get('metadata', {}).get('document_name', '未知')}: 相似度 {result['similarity']:.2f}")
+            
+            return formatted_results
+            
+        except Exception as e:
+            logger.error(f"向量检索失败: {e}", exc_info=True)
+            return []
     
     def run(self, user_message: str, user_id: int, session_id: str, 
             history: List[Dict[str, str]] = None) -> Dict[str, Any]:

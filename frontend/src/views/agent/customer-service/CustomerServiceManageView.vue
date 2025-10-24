@@ -53,9 +53,7 @@
           <div class="current-assistant-info" v-if="currentAssistant">
             <span class="assistant-avatar-small">{{ currentAssistant.avatar }}</span>
             <span class="assistant-name-small">{{ currentAssistant.name }}</span>
-            <button @click="switchAssistant" class="btn-switch" title="切换助手">
-              🔄
-            </button>
+            
           </div>
           <div v-else class="no-assistant">
             <span>请先选择或创建助手</span>
@@ -143,59 +141,38 @@
         </div>
       </div>
 
-      <!-- 右侧：管理面板（标签页） - 始终显示 -->
+      <!-- 右侧：列表切换面板 -->
       <div class="manage-panel">
-        <!-- 标签页切换 -->
-        <div class="tabs-header">
-          <button
-            :class="['tab-btn', { active: activeTab === 'assistants' }]"
-            @click="activeTab = 'assistants'"
-          >
-            <span class="tab-icon">🤖</span>
-            <span>助手</span>
-            <span class="tab-count">{{ assistants.length }}</span>
-          </button>
-          <button
-            :class="['tab-btn', { active: activeTab === 'knowledge' }]"
-            @click="activeTab = 'knowledge'"
-          >
-            <span class="tab-icon">📚</span>
-            <span>知识库</span>
-            <span class="tab-count">{{ knowledgeBases.length }}</span>
-          </button>
-        </div>
-
-        <!-- 标签页内容 -->
-        <div class="tabs-content">
+        <div class="panel-content">
           <!-- 助手列表 -->
-          <div v-show="activeTab === 'assistants'" class="tab-pane">
-            <AssistantList
-              :assistants="assistants"
-              :loading="assistantsLoading"
-              :selectedId="currentAssistant?.id"
-              @create="handleCreateAssistantClick"
-              @edit="handleEditAssistant"
-              @delete="handleDeleteAssistant"
-              @select="handleSelectAssistant"
-              @use="handleUseAssistant"
-              @test="handleTestAssistant"
-            />
-          </div>
-
+          <AssistantList
+            v-if="rightPanelView === 'assistants'"
+            :assistants="assistants"
+            :loading="assistantsLoading"
+            :selectedId="currentAssistant?.id"
+            @create="handleCreateAssistantClick"
+            @edit="handleEditAssistant"
+            @delete="handleDeleteAssistant"
+            @select="handleSelectAssistant"
+            @use="handleUseAssistant"
+            @test="handleTestAssistant"
+            @switch-view="rightPanelView = 'knowledge'"
+          />
+          
           <!-- 知识库列表 -->
-          <div v-show="activeTab === 'knowledge'" class="tab-pane">
-            <KnowledgeBaseList
-              :knowledge-bases="knowledgeBases"
-              :loading="kbLoading"
-              :selectedId="selectedKBId"
-              @create="handleCreateKBClick"
-              @edit="handleEditKB"
-              @delete="handleDeleteKB"
-              @select="handleSelectKB"
-              @view-documents="handleViewDocuments"
-              @upload-document="handleUploadDocument"
-            />
-          </div>
+          <KnowledgeBaseList
+            v-else-if="rightPanelView === 'knowledge'"
+            :knowledge-bases="knowledgeBases"
+            :loading="kbLoading"
+            :selectedId="selectedKBId"
+            @create="handleCreateKBClick"
+            @edit="handleEditKB"
+            @delete="handleDeleteKB"
+            @select="handleSelectKB"
+            @view-documents="handleViewDocuments"
+            @upload-document="handleUploadDocument"
+            @switch-view="rightPanelView = 'assistants'"
+          />
         </div>
       </div>
     </div>
@@ -218,8 +195,8 @@ const toast = useToast()
 type LeftViewType = 'empty' | 'create-kb' | 'create-assistant' | 'chat'
 const leftView = ref<LeftViewType>('empty')
 
-// 标签页状态
-const activeTab = ref<'assistants' | 'knowledge'>('assistants')
+// 右侧面板视图状态：assistants | knowledge
+const rightPanelView = ref<'assistants' | 'knowledge'>('assistants')
 
 // 聊天相关状态
 const messages = ref<any[]>([])
@@ -242,13 +219,62 @@ const kbLoading = ref(false)
 const deleteTarget = ref<any>(null)
 const deleteType = ref<'kb' | 'assistant'>('kb')
 
-// 快捷问题
-const quickQuestions = [
-  '如何查询订单？',
-  '退换货流程',
-  '产品保修政策',
-  '联系人工客服'
-]
+// 快捷问题 - 动态生成
+const quickQuestions = ref<string[]>([])
+
+// 加载推荐问题
+const loadRecommendedQuestions = async () => {
+  console.log('=== 加载推荐问题 ===')
+  console.log('当前助手:', currentAssistant.value)
+  console.log('关联知识库信息:', currentAssistant.value?.knowledge_bases_info)
+  
+  if (!currentAssistant.value || !currentAssistant.value.knowledge_bases_info?.length) {
+    // 没有关联知识库时的默认问题
+    console.log('❌ 没有关联知识库，使用默认问题')
+    quickQuestions.value = [
+      '你好，请问你能帮我什么？',
+      '你有哪些功能？',
+      '如何使用你的服务？'
+    ]
+    return
+  }
+
+  try {
+    // 从助手关联的知识库中获取推荐问题
+    const kbIds = currentAssistant.value.knowledge_bases_info.map((kb: any) => kb.id)
+    console.log('📚 知识库IDs:', kbIds)
+    
+    const response = await apiService.post('/agent/customer-service/recommended-questions/', {
+      knowledge_base_ids: kbIds,
+      limit: 4
+    })
+    
+    console.log('API 响应:', response.data)
+
+    if (response.data?.code === 200 && response.data.data?.length > 0) {
+      quickQuestions.value = response.data.data
+      console.log('✅ 加载推荐问题成功:', quickQuestions.value)
+    } else {
+      // 后端没有返回问题时的备选方案
+      console.log('⚠️ 后端未返回推荐问题，使用备选方案')
+      quickQuestions.value = [
+        '介绍一下主要功能',
+        '有什么使用技巧？',
+        '常见问题有哪些？',
+        '如何快速上手？'
+      ]
+    }
+  } catch (error) {
+    console.error('❌ 加载推荐问题失败:', error)
+    // 失败时使用通用问题
+    quickQuestions.value = [
+      '你能做什么？',
+      '有哪些功能？',
+      '如何开始使用？',
+      '常见问题'
+    ]
+  }
+}
 
 const messagesContainer = ref<HTMLElement>()
 
@@ -269,6 +295,10 @@ onMounted(async () => {
   // 设置初始视图
   if (assistants.value.length > 0) {
     leftView.value = 'chat'
+    // 加载当前助手的推荐问题
+    if (currentAssistant.value) {
+      await loadRecommendedQuestions()
+    }
   } else {
     leftView.value = 'empty'
   }
@@ -371,12 +401,14 @@ const handleCreateAssistant = async (data: any) => {
 // 选择助手
 const handleSelectAssistant = (assistant: any) => {
   currentAssistant.value = assistant
+  loadRecommendedQuestions()
 }
 
 // 使用助手
 const handleUseAssistant = (assistant: any) => {
   currentAssistant.value = assistant
   newSession()
+  loadRecommendedQuestions()
   toast.success(`已切换到助手: ${assistant.name}`)
 }
 
@@ -411,7 +443,7 @@ const confirmDeleteAssistant = async (assistant: any) => {
 const handleTestAssistant = (assistant: any) => {
   currentAssistant.value = assistant
   newSession()
-  activeTab.value = 'assistants'
+  loadRecommendedQuestions()
   toast.info(`测试模式: ${assistant.name}`)
 }
 
@@ -461,7 +493,6 @@ const handleUploadDocument = (kb: any) => {
 
 // 切换助手
 const switchAssistant = () => {
-  activeTab.value = 'assistants'
   toast.info('请在右侧选择助手')
 }
 
@@ -560,11 +591,8 @@ const formatTime = (timeStr: string) => {
 // 获取意图文本
 const getIntentText = (intent: string) => {
   const intentMap: Record<string, string> = {
-    order_query: '订单查询',
-    product_consult: '产品咨询',
-    technical_issue: '技术支持',
-    complaint: '投诉建议',
-    general: '通用咨询'
+    retrieval: '知识检索',
+    reject: '非业务问题'
   }
   return intentMap[intent] || intent
 }
@@ -947,70 +975,9 @@ const getIntentText = (intent: string) => {
   background: var(--color-background);
 }
 
-.tabs-header {
-  display: flex;
-  background: var(--color-surface);
-  border-bottom: 2px solid var(--color-border);
-}
-
-.tab-btn {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  padding: 16px 12px;
-  background: transparent;
-  border: none;
-  cursor: pointer;
-  font-size: 15px;
-  font-weight: 500;
-  color: var(--color-text-secondary);
-  transition: all 0.3s;
-  position: relative;
-}
-
-.tab-btn:hover {
-  background: var(--color-background);
-  color: var(--color-text);
-}
-
-.tab-btn.active {
-  color: var(--button-primary);
-  background: var(--color-background);
-}
-
-.tab-btn.active::after {
-  content: '';
-  position: absolute;
-  bottom: -2px;
-  left: 0;
-  right: 0;
-  height: 2px;
-  background: var(--button-primary);
-}
-
-.tab-icon {
-  font-size: 20px;
-}
-
-.tab-count {
-  padding: 2px 8px;
-  background: var(--color-primary-alpha);
-  color: var(--button-primary);
-  border-radius: 10px;
-  font-size: 12px;
-  font-weight: 600;
-}
-
-.tabs-content {
+.panel-content {
   flex: 1;
   overflow: hidden;
-}
-
-.tab-pane {
-  height: 100%;
-  padding: 16px;
 }
 
 /* 响应式设计 */

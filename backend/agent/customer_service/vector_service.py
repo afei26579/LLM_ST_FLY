@@ -87,12 +87,17 @@ class VectorService:
             向量列表的列表
         """
         try:
-            # 分批处理，每批最多25个（DashScope限制）
-            batch_size = 25
+            # 分批处理，每批最多10个（DashScope限制）
+            batch_size = 10
             all_embeddings = []
             
-            for i in range(0, len(texts), batch_size):
+            total_batches = (len(texts) + batch_size - 1) // batch_size
+            logger.info(f"开始批量向量化: 总数={len(texts)}, 批次数={total_batches}, 每批={batch_size}")
+            
+            for batch_num, i in enumerate(range(0, len(texts), batch_size), 1):
                 batch = texts[i:i + batch_size]
+                logger.info(f"处理批次 {batch_num}/{total_batches}: {len(batch)} 个文本")
+                
                 response = self.client.embeddings.create(
                     model=self.embedding_model,
                     input=batch
@@ -100,6 +105,7 @@ class VectorService:
                 embeddings = [data.embedding for data in response.data]
                 all_embeddings.extend(embeddings)
             
+            logger.info(f"批量向量化完成: 共生成 {len(all_embeddings)} 个向量")
             return all_embeddings
         except Exception as e:
             logger.error(f"批量获取嵌入失败: {e}")
@@ -203,28 +209,45 @@ class VectorRetriever:
         """
         try:
             # 1. 获取查询向量
+            logger.info(f"生成查询向量: {query[:50]}...")
             query_embedding = self.vector_service.get_embedding(query)
+            logger.info(f"查询向量生成成功，维度: {len(query_embedding)}")
             
             all_results = []
             
             # 2. 在每个知识库中搜索
             for kb_id in knowledge_base_ids:
                 try:
+                    collection_name = f"kb_{kb_id}"
+                    logger.info(f"查询集合: {collection_name}")
+                    
                     collection = self.vector_service.chroma_client.get_collection(
-                        name=f"kb_{kb_id}"
+                        name=collection_name
                     )
+                    
+                    # 检查集合中的文档数量
+                    collection_count = collection.count()
+                    logger.info(f"  集合 {collection_name} 包含 {collection_count} 个文档")
+                    
+                    if collection_count == 0:
+                        logger.warning(f"  集合 {collection_name} 为空，跳过")
+                        continue
                     
                     # 使用ChromaDB查询
                     results = collection.query(
                         query_embeddings=[query_embedding],
-                        n_results=top_k
+                        n_results=min(top_k, collection_count)  # 不要超过集合中的文档数
                     )
                     
+                    logger.info(f"  ChromaDB 查询结果: {len(results.get('ids', [[]])[0])} 条")
+                    
                     # 处理结果
-                    if results and results['ids']:
+                    if results and results['ids'] and len(results['ids'][0]) > 0:
                         for i in range(len(results['ids'][0])):
                             distance = results['distances'][0][i]
                             similarity = 1 - distance  # ChromaDB返回的是距离，转换为相似度
+                            
+                            logger.info(f"    [{i+1}] 相似度: {similarity:.3f}, 距离: {distance:.3f}")
                             
                             if similarity >= similarity_threshold:
                                 all_results.append({
@@ -234,19 +257,29 @@ class VectorRetriever:
                                     'similarity': similarity,
                                     'kb_id': kb_id
                                 })
+                                logger.info(f"      ✅ 通过阈值 {similarity_threshold}")
+                            else:
+                                logger.info(f"      ❌ 未通过阈值 {similarity_threshold}")
+                    else:
+                        logger.warning(f"  集合 {collection_name} 查询无结果")
                     
                 except Exception as e:
-                    logger.warning(f"在知识库 {kb_id} 中搜索失败: {e}")
+                    logger.error(f"在知识库 {kb_id} 中搜索失败: {e}", exc_info=True)
                     continue
             
             # 按相似度排序
             all_results.sort(key=lambda x: x['similarity'], reverse=True)
             
-            logger.info(f"找到 {len(all_results)} 个相似切片")
-            return all_results[:top_k]
+            logger.info(f"✅ 向量检索完成: 找到 {len(all_results)} 个相似切片（阈值 {similarity_threshold}）")
+            
+            final_results = all_results[:top_k]
+            for i, result in enumerate(final_results, 1):
+                logger.info(f"  [{i}] KB{result['kb_id']}, 相似度: {result['similarity']:.3f}, 内容: {result['content'][:50]}...")
+            
+            return final_results
             
         except Exception as e:
-            logger.error(f"向量检索失败: {e}")
+            logger.error(f"向量检索失败: {e}", exc_info=True)
             return []
     
     def search_hybrid(

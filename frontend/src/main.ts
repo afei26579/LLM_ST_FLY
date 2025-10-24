@@ -12,7 +12,7 @@ import router from './router'
 import { useThemeStore } from './stores/theme'
 
 // 导入 Toast 通知组件
-import Toast from 'vue-toastification'
+import Toast, { useToast } from 'vue-toastification'
 import "vue-toastification/dist/index.css"
 
 // Toast 配置选项
@@ -37,3 +37,6 @@ app.use(router)
 app.use(Toast, toastOptions)
 
 app.mount('#app')
+
+// 挂载后，将 toast 实例暴露到全局（供 API 拦截器使用）
+;(window as any).__toast = useToast()

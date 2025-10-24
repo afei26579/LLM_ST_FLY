@@ -498,11 +498,43 @@ class ApiService {
       (error: any) => {
         // 处理响应错误
         if (error.response) {
-          // 如果响应状态码为401（未授权），可能是token过期
+          // 如果响应状态码为401（未授权），token过期或无效
           if (error.response.status === 401) {
-            // 清除本地token
+            // 避免重复跳转
+            const isRedirecting = sessionStorage.getItem('isRedirectingToLogin');
+            if (isRedirecting) {
+              return Promise.reject(error);
+            }
+            
+            console.warn('⚠️ 登录已过期，正在跳转到登录页...');
+            sessionStorage.setItem('isRedirectingToLogin', 'true');
+            
+            // 清除本地存储的认证信息
             localStorage.removeItem('token');
-            // 可以在这里添加重定向到登录页的逻辑
+            localStorage.removeItem('user');
+            
+            // 显示提示（如果 toast 可用）
+            try {
+              const toast = (window as any).__toast;
+              if (toast && typeof toast.warning === 'function') {
+                toast.warning('登录已过期，请重新登录', {
+                  timeout: 2000,
+                  onClose: () => {
+                    // toast 关闭后跳转
+                    sessionStorage.removeItem('isRedirectingToLogin');
+                    window.location.href = '/login';
+                  }
+                });
+              } else {
+                // 如果 toast 不可用，直接跳转
+                sessionStorage.removeItem('isRedirectingToLogin');
+                window.location.href = '/login';
+              }
+            } catch (e) {
+              console.log('Toast 不可用，直接跳转');
+              sessionStorage.removeItem('isRedirectingToLogin');
+              window.location.href = '/login';
+            }
           }
         }
         return Promise.reject(error);

@@ -111,6 +111,34 @@ class DocumentChunker:
             
             para_size = len(para)
             
+            # 如果单个段落超过chunk_size，需要强制分割
+            if para_size > chunk_size:
+                # 先保存当前已积累的内容
+                if current_chunk:
+                    chunk_text = separator.join(current_chunk)
+                    chunks.append(DocumentChunk(
+                        content=chunk_text,
+                        index=chunk_index,
+                        metadata={'paragraphs': len(current_chunk)},
+                        token_count=len(chunk_text) // 4
+                    ))
+                    chunk_index += 1
+                    current_chunk = []
+                    current_size = 0
+                
+                # 将长段落按字符强制分割
+                for i in range(0, para_size, chunk_size - overlap):
+                    chunk_text = para[i:i + chunk_size]
+                    chunks.append(DocumentChunk(
+                        content=chunk_text,
+                        index=chunk_index,
+                        metadata={'paragraphs': 1, 'force_split': True},
+                        token_count=len(chunk_text) // 4
+                    ))
+                    chunk_index += 1
+                
+                continue
+            
             # 如果当前段落加上累积大小超过chunk_size
             if current_size + para_size > chunk_size and current_chunk:
                 # 保存当前chunk
@@ -119,16 +147,27 @@ class DocumentChunker:
                     content=chunk_text,
                     index=chunk_index,
                     metadata={'paragraphs': len(current_chunk)},
-                    token_count=len(chunk_text) // 4  # 粗略估计
+                    token_count=len(chunk_text) // 4
                 ))
                 chunk_index += 1
                 
                 # 处理重叠
-                if overlap > 0:
-                    # 保留最后几个段落作为重叠
-                    overlap_text = separator.join(current_chunk[-2:])
-                    current_chunk = current_chunk[-2:] if len(current_chunk) > 2 else []
-                    current_size = len(overlap_text)
+                if overlap > 0 and current_chunk:
+                    # 保留最后的一些段落，使总长度接近overlap大小
+                    overlap_chunks = []
+                    overlap_size = 0
+                    
+                    # 从后往前累积段落，直到达到overlap大小
+                    for i in range(len(current_chunk) - 1, -1, -1):
+                        para_len = len(current_chunk[i])
+                        if overlap_size + para_len <= overlap * 2:  # 允许稍微超出
+                            overlap_chunks.insert(0, current_chunk[i])
+                            overlap_size += para_len
+                        else:
+                            break
+                    
+                    current_chunk = overlap_chunks
+                    current_size = overlap_size
                 else:
                     current_chunk = []
                     current_size = 0
@@ -493,33 +532,89 @@ class DocumentProcessor:
     def _process_image_document(
         self, file_path: str, file_type: str, chunk_size: int
     ) -> List[Dict[str, Any]]:
-        """处理图片文档 - 使用OCR识别"""
+        """处理图片文档 - 使用 DashScope 多模态 API 进行 OCR 识别"""
         try:
-            # 尝试使用OCR识别图片文字
+            # 使用 DashScope 多模态 API 进行 OCR 识别
             try:
                 from PIL import Image
-                import pytesseract
+                import dashscope
+                from http import HTTPStatus
                 
-                image = Image.open(file_path)
-                text = pytesseract.image_to_string(image, lang='chi_sim+eng')
+                logger.info(f"开始OCR识别图片: {file_path}")
                 
-                # 获取图片信息
-                width, height = image.size
+                # 构建多模态消息
+                image_path = f"file://{file_path}"
+                ocr_prompt = '你是一个专门用于识别和提取图像中文本的AI。请识别图片中的所有文字内容，按原文输出，保持原有格式和换行。'
                 
-                metadata_base = {
-                    'file_type': file_type,
-                    'image_width': width,
-                    'image_height': height,
-                    'ocr_processed': True
-                }
+                messages = [
+                    {
+                        'role': 'user',
+                        'content': [
+                            {'image': image_path},
+                            {'text': ocr_prompt}
+                        ]
+                    }
+                ]
                 
-            except ImportError:
-                logger.warning("OCR库未安装，使用文件名作为内容")
+                # 调用 DashScope 多模态对话 API
+                response = dashscope.MultiModalConversation.call(
+                    model='qwen-vl-plus',
+                    messages=messages
+                )
+                
+                # 提取识别的文本
+                if response.status_code == HTTPStatus.OK:
+                    text = response.output.choices[0].message.content
+                    
+                    # 获取图片信息
+                    image = Image.open(file_path)
+                    width, height = image.size
+                    
+                    metadata_base = {
+                        'file_type': file_type,
+                        'image_width': width,
+                        'image_height': height,
+                        'ocr_processed': True,
+                        'ocr_engine': 'DashScope-QwenVL',
+                        'confidence': 0.9
+                    }
+                    
+                    logger.info(f"OCR识别完成: 总计 {len(text)} 字符")
+                else:
+                    raise Exception(f"DashScope API调用失败: {response.code} - {response.message}")
+                
+            except ImportError as e:
+                logger.warning(f"DashScope未安装: {e}，使用文件名作为内容")
                 text = f"图片文件: {file_path}"
                 metadata_base = {
                     'file_type': file_type,
-                    'ocr_processed': False
+                    'ocr_processed': False,
+                    'ocr_engine': None
                 }
+            except Exception as e:
+                logger.error(f"OCR识别失败: {e}，使用文件名作为内容")
+                text = f"图片文件: {file_path} (OCR识别失败)"
+                
+                # 获取图片基本信息
+                try:
+                    from PIL import Image
+                    image = Image.open(file_path)
+                    width, height = image.size
+                    metadata_base = {
+                        'file_type': file_type,
+                        'image_width': width,
+                        'image_height': height,
+                        'ocr_processed': False,
+                        'ocr_engine': 'DashScope-QwenVL',
+                        'ocr_error': str(e)
+                    }
+                except:
+                    metadata_base = {
+                        'file_type': file_type,
+                        'ocr_processed': False,
+                        'ocr_engine': None,
+                        'ocr_error': str(e)
+                    }
             
             # 切片识别的文本
             if text and len(text) > chunk_size:

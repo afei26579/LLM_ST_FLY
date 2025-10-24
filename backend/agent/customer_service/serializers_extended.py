@@ -18,13 +18,16 @@ class KnowledgeBaseSerializer(serializers.ModelSerializer):
     class Meta:
         model = KnowledgeBase
         fields = [
-            'id', 'name', 'description', 'status', 'error_message',
+            'id', 'name', 'description', 'format', 'status', 'error_message',
             'document_count', 'chunk_count', 'total_tokens',
+            'domain', 'summary', 'key_points', 'keywords', 'suggested_questions',
             'user', 'user_name', 'created_at', 'updated_at'
         ]
         read_only_fields = [
             'id', 'status', 'error_message', 'document_count',
-            'chunk_count', 'total_tokens', 'created_at', 'updated_at'
+            'chunk_count', 'total_tokens', 'domain', 'summary',
+            'key_points', 'keywords', 'suggested_questions',
+            'created_at', 'updated_at'
         ]
 
 
@@ -119,15 +122,21 @@ class CustomerServiceAssistantSerializer(serializers.ModelSerializer):
 
 class AssistantCreateSerializer(serializers.ModelSerializer):
     """助手创建序列化器"""
+    knowledge_base_ids = serializers.ListField(
+        child=serializers.IntegerField(),
+        write_only=True,
+        required=False,
+        allow_empty=True
+    )
     
     class Meta:
         model = CustomerServiceAssistant
         fields = [
             'name', 'description', 'avatar', 'greeting_message',
-            'system_prompt', 'knowledge_bases',
+            'system_prompt', 'knowledge_base_ids',
             'model', 'temperature', 'top_k',
             'enable_knowledge_base', 'enable_order_query', 'enable_human_handoff',
-            'is_active', 'is_default'
+            'is_active', 'is_default', 'user'
         ]
     
     def validate_temperature(self, value):
@@ -141,6 +150,19 @@ class AssistantCreateSerializer(serializers.ModelSerializer):
         if not 1 <= value <= 20:
             raise serializers.ValidationError("检索数量必须在1-20之间")
         return value
+    
+    def create(self, validated_data):
+        """创建助手并关联知识库"""
+        knowledge_base_ids = validated_data.pop('knowledge_base_ids', [])
+        
+        # 创建助手
+        assistant = CustomerServiceAssistant.objects.create(**validated_data)
+        
+        # 关联知识库
+        if knowledge_base_ids:
+            assistant.knowledge_bases.set(knowledge_base_ids)
+        
+        return assistant
 
 
 class AssistantTestSerializer(serializers.Serializer):

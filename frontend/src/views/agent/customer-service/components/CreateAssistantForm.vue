@@ -1,19 +1,38 @@
 <template>
   <div class="create-assistant-form">
     <div class="form-header">
-      <button @click="$emit('cancel')" class="btn-back">
-        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M19 12H5M12 19l-7-7 7-7"/>
-        </svg>
-        返回
-      </button>
-      <h2>🤖 创建智能助手</h2>
+      <div class="header-left">
+        <button @click="$emit('cancel')" class="btn-back">
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M19 12H5M12 19l-7-7 7-7"/>
+          </svg>
+          返回
+        </button>
+        <h2>🤖 创建智能助手</h2>
+      </div>
+
+      <!-- 步骤导航 -->
+      <div class="steps-nav">
+        <div :class="['step-item', { active: currentStep === 'basic', completed: currentStep === 'ai-params' || currentStep === 'conversation' }]">
+          <div class="step-circle">{{ currentStep === 'ai-params' || currentStep === 'conversation' ? '✓' : '1' }}</div>
+          <div class="step-label">基本信息</div>
+        </div>
+        <div class="step-line"></div>
+        <div :class="['step-item', { active: currentStep === 'ai-params', completed: currentStep === 'conversation' }]">
+          <div class="step-circle">{{ currentStep === 'conversation' ? '✓' : '2' }}</div>
+          <div class="step-label">AI参数</div>
+        </div>
+        <div class="step-line"></div>
+        <div :class="['step-item', { active: currentStep === 'conversation' }]">
+          <div class="step-circle">3</div>
+          <div class="step-label">对话配置</div>
+        </div>
+      </div>
     </div>
 
     <div class="form-content">
-      <!-- 基本信息 -->
-      <div class="form-section">
-        <h3>基本信息</h3>
+      <!-- 第一步：基本信息 -->
+      <div v-if="currentStep === 'basic'" class="form-section">
         
         <div class="form-group">
           <label class="required">助手名称</label>
@@ -42,6 +61,41 @@
           </div>
         </div>
 
+        <!-- 知识库关联 -->
+        <div class="form-group">
+          <label>关联知识库</label>
+          <div class="kb-selector-box">
+            <div v-if="availableKnowledgeBases.length > 0" class="kb-list">
+              <div
+                v-for="kb in availableKnowledgeBases"
+                :key="kb.id"
+                class="kb-item"
+              >
+                <label class="kb-checkbox">
+                  <input
+                    type="checkbox"
+                    :value="kb.id"
+                    v-model="formData.knowledge_base_ids"
+                  />
+                  <span class="checkbox-custom"></span>
+                  <div class="kb-info">
+                    <div class="kb-name">📚 {{ kb.name }}</div>
+                    <div class="kb-meta">
+                      文档: {{ kb.document_count || 0 }} | 切片: {{ kb.chunk_count || 0 }}
+                    </div>
+                  </div>
+                </label>
+              </div>
+            </div>
+            <div v-else class="empty-kb">
+              <p>暂无可用知识库</p>
+              <button @click="$emit('create-kb')" class="btn-create-kb">
+                创建知识库
+              </button>
+            </div>
+          </div>
+        </div>
+
         <div class="form-group">
           <label>助手描述</label>
           <textarea
@@ -55,20 +109,24 @@
         </div>
       </div>
 
-      <!-- 对话配置 -->
-      <div class="form-section">
-        <h3>对话配置</h3>
+      <!-- 第二步：AI参数 -->
+      <div v-if="currentStep === 'ai-params'" class="form-section">
+        <h3>⚙️ AI参数</h3>
         
         <div class="form-group">
           <label class="required">开场白</label>
           <textarea
             v-model="formData.greeting_message"
+            @input="handleGreetingInput"
             placeholder="欢迎语，用户开始对话时显示..."
             maxlength="200"
             rows="3"
             class="form-textarea"
           ></textarea>
-          <span class="char-count">{{ formData.greeting_message.length }}/200</span>
+          <div class="input-footer">
+            <small class="input-hint">💡 开场白会根据助手名称自动生成，您也可以自定义</small>
+            <span class="char-count-inline">{{ formData.greeting_message.length }}/200</span>
+          </div>
         </div>
 
         <div class="form-group">
@@ -84,43 +142,9 @@
         </div>
       </div>
 
-      <!-- 知识库关联 -->
-      <div class="form-section">
-        <h3>知识库关联</h3>
-        
-        <div v-if="availableKnowledgeBases.length > 0" class="kb-list">
-          <div
-            v-for="kb in availableKnowledgeBases"
-            :key="kb.id"
-            class="kb-item"
-          >
-            <label class="kb-checkbox">
-              <input
-                type="checkbox"
-                :value="kb.id"
-                v-model="formData.knowledge_base_ids"
-              />
-              <span class="checkbox-custom"></span>
-              <div class="kb-info">
-                <div class="kb-name">📚 {{ kb.name }}</div>
-                <div class="kb-meta">
-                  文档: {{ kb.document_count || 0 }} | 切片: {{ kb.chunk_count || 0 }}
-                </div>
-              </div>
-            </label>
-          </div>
-        </div>
-        <div v-else class="empty-kb">
-          <p>暂无可用知识库</p>
-          <button @click="$emit('create-kb')" class="btn-create-kb">
-            创建知识库
-          </button>
-        </div>
-      </div>
-
-      <!-- AI参数 -->
-      <div class="form-section">
-        <h3>AI参数</h3>
+      <!-- 第三步：对话配置 -->
+      <div v-if="currentStep === 'conversation'" class="form-section">
+        <h3>💬 对话配置</h3>
         
         <div class="form-group">
           <label>模型选择</label>
@@ -160,7 +184,7 @@
       </div>
 
       <!-- 功能开关 -->
-      <div class="form-section">
+      <!--div class="form-section">
         <h3>功能模块</h3>
         
         <div class="switches">
@@ -200,27 +224,50 @@
             </div>
           </label>
         </div>
-      </div>
+      </div-->
     </div>
 
     <div class="form-footer">
-      <button @click="$emit('cancel')" class="btn-secondary">
-        取消
-      </button>
-      <button
-        @click="handleSubmit"
-        :disabled="!isValid || loading"
-        class="btn-primary"
-      >
-        <span v-if="!loading">创建助手</span>
-        <span v-else>创建中...</span>
-      </button>
+      <div class="footer-left">
+        <button
+          v-if="currentStep !== 'basic'"
+          @click="prevStep"
+          class="btn-secondary"
+        >
+          上一步
+        </button>
+      </div>
+      <div class="footer-right">
+        <button
+          @click="$emit('cancel')"
+          class="btn-cancel"
+        >
+          取消
+        </button>
+        <button
+          v-if="currentStep !== 'conversation'"
+          @click="nextStep"
+          :disabled="!canProceed"
+          class="btn-primary"
+        >
+          下一步
+        </button>
+        <button
+          v-else
+          @click="handleSubmit"
+          :disabled="!isValid || loading"
+          class="btn-primary"
+        >
+          <span v-if="!loading">创建助手</span>
+          <span v-else>创建中...</span>
+        </button>
+      </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 
 interface KnowledgeBase {
   id: number
@@ -241,6 +288,14 @@ const emit = defineEmits<{
 }>()
 
 const loading = ref(false)
+const currentStep = ref('basic')
+const greetingEdited = ref(false) // 标记开场白是否被手动编辑过
+
+const steps = [
+  { id: 'basic', title: '基本信息', desc: '设置助手名称和头像' },
+  { id: 'ai-params', title: 'AI参数', desc: '配置模型和参数' },
+  { id: 'conversation', title: '对话配置', desc: '设置对话和功能' }
+]
 
 const avatarOptions = ['🤖', '👨‍💼', '👩‍💼', '🎯', '📱', '💬', '🎓', '⚡']
 
@@ -248,22 +303,39 @@ const formData = ref({
   name: '',
   avatar: '🤖',
   description: '',
-  greeting_message: '您好！我是智能客服助手，有什么可以帮您的吗？',
+  greeting_message: '',
   system_prompt: '你是一个专业、友好的客服助手。请基于用户问题提供准确、详细的回答。',
   knowledge_base_ids: [] as number[],
   model: 'qwen-plus',
   temperature: 0.7,
-  top_k: 3,
-  enable_knowledge_base: true,
-  enable_order_query: false,
-  enable_human_handoff: true,
-  is_default: false
+  top_k: 3
 })
 
 const isValid = computed(() => {
   return formData.value.name.trim().length > 0 &&
          formData.value.greeting_message.trim().length > 0
 })
+
+const canProceed = computed(() => {
+  if (currentStep.value === 'basic') {
+    return formData.value.name.trim().length > 0
+  }
+  return true
+})
+
+const nextStep = () => {
+  const stepIndex = steps.findIndex(s => s.id === currentStep.value)
+  if (stepIndex < steps.length - 1) {
+    currentStep.value = steps[stepIndex + 1].id
+  }
+}
+
+const prevStep = () => {
+  const stepIndex = steps.findIndex(s => s.id === currentStep.value)
+  if (stepIndex > 0) {
+    currentStep.value = steps[stepIndex - 1].id
+  }
+}
 
 const handleSubmit = () => {
   if (!isValid.value || loading.value) return
@@ -280,6 +352,30 @@ const handleSubmit = () => {
   setTimeout(() => {
     loading.value = false
   }, 2000)
+}
+
+// 生成默认开场白
+const generateDefaultGreeting = (name: string) => {
+  return name.trim() ? `您好！我是${name.trim()}，有什么可以帮您的吗？` : ''
+}
+
+// 监听助手名称变化，自动更新开场白
+watch(() => formData.value.name, (newName) => {
+  // 只在开场白未被手动编辑时自动更新
+  if (!greetingEdited.value) {
+    formData.value.greeting_message = generateDefaultGreeting(newName)
+  }
+})
+
+// 监听开场白输入框的手动编辑
+const handleGreetingInput = () => {
+  const currentGreeting = formData.value.greeting_message
+  const expectedGreeting = generateDefaultGreeting(formData.value.name)
+  
+  // 只有当内容与自动生成的不同时，才标记为已编辑
+  if (currentGreeting !== expectedGreeting) {
+    greetingEdited.value = true
+  }
 }
 </script>
 
@@ -299,9 +395,15 @@ const handleSubmit = () => {
 .form-header {
   display: flex;
   align-items: center;
-  gap: 16px;
+  justify-content: space-between;
   padding: 20px 30px;
   border-bottom: 1px solid var(--color-border);
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
 }
 
 .btn-back {
@@ -328,6 +430,70 @@ const handleSubmit = () => {
   margin: 0;
   font-size: 24px;
   color: var(--color-text);
+}
+
+/* 步骤导航 */
+.steps-nav {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.step-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.step-circle {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-background);
+  border: 2px solid var(--color-border);
+  color: var(--color-text-secondary);
+  font-weight: 600;
+  font-size: 14px;
+  transition: all 0.3s;
+}
+
+.step-item.active .step-circle {
+  background: var(--button-primary);
+  border-color: var(--button-primary);
+  color: white;
+}
+
+.step-item.completed .step-circle {
+  background: var(--color-success, #10b981);
+  border-color: var(--color-success, #10b981);
+  color: white;
+}
+
+.step-label {
+  font-size: 11px;
+  color: var(--color-text-secondary);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.step-item.active .step-label {
+  color: var(--button-primary);
+  font-weight: 600;
+}
+
+.step-item.completed .step-label {
+  color: var(--color-success, #10b981);
+}
+
+.step-line {
+  width: 40px;
+  height: 2px;
+  background: var(--color-border);
+  margin-bottom: 20px;
 }
 
 .form-content {
@@ -405,6 +571,27 @@ const handleSubmit = () => {
   color: var(--color-text-secondary);
 }
 
+.input-hint {
+  display: block;
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  font-style: italic;
+}
+
+.input-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 6px;
+  gap: 12px;
+}
+
+.char-count-inline {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  flex-shrink: 0;
+}
+
 /* 头像选择器 */
 .avatar-selector {
   display: flex;
@@ -437,6 +624,33 @@ const handleSubmit = () => {
   box-shadow: 0 0 0 3px var(--input-focus-shadow);
 }
 
+/* 知识库选择框 */
+.kb-selector-box {
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: 16px;
+  background: var(--color-background);
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.kb-selector-box::-webkit-scrollbar {
+  width: 6px;
+}
+
+.kb-selector-box::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.kb-selector-box::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: 3px;
+}
+
+.kb-selector-box::-webkit-scrollbar-thumb:hover {
+  background: var(--color-text-secondary);
+}
+
 /* 知识库列表 */
 .kb-list {
   display: flex;
@@ -445,14 +659,16 @@ const handleSubmit = () => {
 }
 
 .kb-item {
-  background: var(--color-background);
-  border-radius: 8px;
-  padding: 12px;
+  background: transparent;
+  border-radius: 6px;
+  padding: 10px;
   transition: all 0.2s;
+  border: 1px solid transparent;
 }
 
 .kb-item:hover {
   background: var(--color-primary-alpha);
+  border-color: var(--input-border);
 }
 
 .kb-checkbox {
@@ -509,9 +725,7 @@ const handleSubmit = () => {
 
 .empty-kb {
   text-align: center;
-  padding: 32px;
-  background: var(--color-background);
-  border-radius: 8px;
+  padding: 24px;
 }
 
 .empty-kb p {
@@ -563,89 +777,53 @@ const handleSubmit = () => {
   color: var(--color-text-secondary);
 }
 
-/* 开关列表 */
-.switches {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
+
+.kb-section {
+  margin-top: 24px;
 }
 
-.switch-item {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  padding: 16px;
-  background: var(--color-background);
-  border-radius: 8px;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.switch-item:hover {
-  background: var(--color-primary-alpha);
-}
-
-.switch-item input[type="checkbox"] {
-  position: absolute;
-  opacity: 0;
-}
-
-.switch-custom {
-  position: relative;
-  width: 48px;
-  height: 28px;
-  background: var(--color-border);
-  border-radius: 14px;
-  transition: all 0.2s;
-  flex-shrink: 0;
-}
-
-.switch-custom::after {
-  content: '';
-  position: absolute;
-  top: 3px;
-  left: 3px;
-  width: 22px;
-  height: 22px;
-  background: white;
-  border-radius: 50%;
-  transition: all 0.2s;
-}
-
-.switch-item input:checked + .switch-custom {
-  background: var(--button-primary);
-}
-
-.switch-item input:checked + .switch-custom::after {
-  left: 23px;
-}
-
-.switch-info {
-  flex: 1;
-}
-
-.switch-name {
+.kb-section > label {
+  display: block;
+  margin-bottom: 12px;
   font-size: 14px;
   font-weight: 500;
   color: var(--color-text);
-  margin-bottom: 4px;
 }
 
-.switch-desc {
-  font-size: 12px;
-  color: var(--color-text-secondary);
+.function-switches {
+  margin-top: 24px;
+}
+
+.function-switches > label {
+  display: block;
+  margin-bottom: 12px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--color-text);
 }
 
 .form-footer {
   display: flex;
-  justify-content: flex-end;
-  gap: 12px;
+  justify-content: space-between;
+  align-items: center;
   padding: 20px 30px;
   border-top: 1px solid var(--color-border);
 }
 
+.footer-left {
+  display: flex;
+  gap: 12px;
+}
+
+.footer-right {
+  display: flex;
+  gap: 12px;
+  margin-left: auto;
+}
+
 .btn-secondary,
-.btn-primary {
+.btn-primary,
+.btn-cancel {
   padding: 10px 24px;
   border: none;
   border-radius: 8px;
@@ -665,6 +843,18 @@ const handleSubmit = () => {
   background: var(--color-primary-alpha);
   border-color: var(--button-primary);
   color: var(--button-primary);
+}
+
+.btn-cancel {
+  background: var(--color-background);
+  color: var(--color-text-secondary);
+  border: 1px solid var(--color-border);
+}
+
+.btn-cancel:hover {
+  background: #fee;
+  border-color: #fcc;
+  color: #c33;
 }
 
 .btn-primary {

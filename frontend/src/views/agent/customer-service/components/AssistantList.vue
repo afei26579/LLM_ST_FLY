@@ -2,8 +2,8 @@
   <div class="assistant-list">
     <div class="list-header">
       <h3>🤖 助手列表</h3>
-      <button @click="$emit('create')" class="btn-create">
-        <span>➕</span> 新建
+      <button @click="$emit('switch-view')" class="btn-switch-view">
+        切换到知识库
       </button>
     </div>
 
@@ -153,6 +153,7 @@ const emit = defineEmits<{
   select: [assistant: Assistant]
   use: [assistant: Assistant]
   test: [assistant: Assistant]
+  'switch-view': []
 }>()
 
 const searchQuery = ref('')
@@ -215,6 +216,25 @@ const selectAssistant = (assistant: Assistant) => {
 .btn-create:hover {
   transform: translateY(-2px);
   box-shadow: var(--button-shadow);
+}
+
+.btn-switch-view {
+  padding: 8px 16px;
+  background: var(--color-background);
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  transition: all 0.3s;
+}
+
+.btn-switch-view:hover {
+  background: var(--color-primary-alpha);
+  border-color: var(--button-primary);
+  color: var(--button-primary);
+  transform: translateY(-2px);
 }
 
 .search-box {

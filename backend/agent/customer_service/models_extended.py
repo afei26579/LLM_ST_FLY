@@ -52,6 +52,14 @@ class KnowledgeBase(models.Model):
     chunk_count = models.IntegerField(default=0, verbose_name='切片数量')
     total_tokens = models.IntegerField(default=0, verbose_name='总token数')
     
+    # 文档分析结果（使用 JSON 存储）
+    domain = models.CharField(max_length=100, blank=True, null=True, verbose_name='文档领域')
+    summary = models.TextField(blank=True, null=True, verbose_name='文档总结')
+    key_points = models.JSONField(default=list, blank=True, verbose_name='核心要点')
+    keywords = models.JSONField(default=list, blank=True, verbose_name='关键词')
+    suggested_questions = models.JSONField(default=list, blank=True, verbose_name='推荐问题')
+    intent_prompt = models.TextField(blank=True, null=True, verbose_name='意图识别提示词')
+    
     # 时间戳
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
